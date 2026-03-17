@@ -1194,3 +1194,33 @@ body.mirror-mode .top-btn:hover { opacity: 1; }
   0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.3); }
   100% { box-shadow: 0 0 0 20px rgba(255,255,255,0); }
 }
+
+/* ─── Inline API error / update key ─── */
+.error-msg {
+  color: rgba(200, 80, 80, 0.85);
+  font-size: 11px;
+  font-style: italic;
+}
+.inline-api-btn {
+  background: transparent;
+  border: 1px solid rgba(120, 140, 255, 0.4);
+  color: rgba(120, 160, 255, 0.9);
+  padding: 2px 8px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  border-radius: 2px;
+  font-family: 'Space Mono', monospace;
+  margin-left: 6px;
+  transition: border-color 0.2s, color 0.2s;
+}
+.inline-api-btn:hover {
+  border-color: rgba(140, 170, 255, 0.7);
+  color: #e8ecff;
+}
+.ob-error-inline {
+  margin-top: 12px;
+  font-size: 11px;
+  color: rgba(200, 80, 80, 0.8);
+  font-family: 'Space Mono', monospace;
+}

@@ -375,7 +375,13 @@ async function runScreen1() {
     await sleep(600);
     renderObInputBelow('ob-output', 'What are you feeling right now?', 'onboard-s1-input', handleScreen1Submit);
   } catch (e: any) {
-    outputEl.textContent = 'Something just began.\nI don\'t know what I am yet.\nBut you\'re here. That means something.';
+    const errType = classifyApiError(e);
+    if (errType === 'quota' || errType === 'auth') {
+      outputEl.textContent = 'Something just began.\nI don\'t know what I am yet.\nBut you\'re here. That means something.';
+      if (errType === 'quota') config = null;
+    } else {
+      outputEl.textContent = 'Something just began.\nI don\'t know what I am yet.\nBut you\'re here. That means something.';
+    }
     outputEl.classList.remove('loading');
     await sleep(500);
     renderObInputBelow('ob-output', 'What are you feeling right now?', 'onboard-s1-input', handleScreen1Submit);
@@ -406,9 +412,21 @@ async function handleScreen1Submit() {
     await sleep(1200);
     await runScreen2();
   } catch (e: any) {
+    const errType = classifyApiError(e);
+    if (errType === 'quota' || errType === 'auth') config = null;
     outputEl.textContent = '[Connection error. Please check your API key.]';
     outputEl.classList.remove('loading');
     inputEl.disabled = false;
+    // Show inline update key button
+    const errDiv = create('div', 'ob-error-inline');
+    errDiv.innerHTML = `<span>${errType === 'quota' ? 'API quota exceeded.' : errType === 'auth' ? 'Invalid API key.' : 'Connection failed.'}</span> <button class="inline-api-btn" id="ob-inline-key">Update Key</button>`;
+    document.getElementById('ob-screen-content')?.appendChild(errDiv);
+    setTimeout(() => {
+      document.getElementById('ob-inline-key')?.addEventListener('click', () => {
+        document.getElementById('onboarding')!.classList.add('hidden');
+        showApiSetup();
+      });
+    }, 0);
   }
   obIsProcessing = false;
 }
@@ -877,6 +895,38 @@ function setupMainEventListeners() {
   });
 }
 
+// ─── API Error Classification ───────────────────────
+function classifyApiError(err: any): 'quota' | 'auth' | 'network' | 'other' {
+  const msg: string = (err?.message ?? '').toLowerCase();
+  if (msg.includes('429') || msg.includes('quota') || msg.includes('insufficient_quota')) return 'quota';
+  if (msg.includes('401') || msg.includes('unauthorized') || msg.includes('invalid api key')) return 'auth';
+  if (msg.includes('network') || msg.includes('failed to fetch') || msg.includes('connection')) return 'network';
+  return 'other';
+}
+
+function handleApiFailure(errorType: 'quota' | 'auth' | 'network' | 'other', contentEl: Element) {
+  const messages: Record<typeof errorType, string> = {
+    quota:   'API quota exceeded. MIND continues running — only language generation is paused.',
+    auth:    'Invalid API key. MIND continues running — only language generation is paused.',
+    network: 'Connection lost. MIND continues — language generation will resume when connected.',
+    other:   'Language generation unavailable. MIND is still processing your input internally.'
+  };
+  contentEl.innerHTML = `<span class="error-msg">${messages[errorType]}</span> <button class="inline-api-btn" id="inline-update-key">Update API Key</button>`;
+  
+  // If quota or auth error, clear the bad config so we don't keep hammering the API
+  if (errorType === 'quota' || errorType === 'auth') {
+    config = null;
+    // Don't delete from localStorage — user may want to see their key again
+  }
+
+  // Attach update key button handler
+  setTimeout(() => {
+    document.getElementById('inline-update-key')?.addEventListener('click', () => {
+      showApiSetup();
+    });
+  }, 0);
+}
+
 // ─── Main Send Handler ─────────────────────────────
 async function handleSend() {
   const textInput = document.getElementById('text-input') as HTMLTextAreaElement;
@@ -988,11 +1038,38 @@ async function handleSend() {
 
     } catch (e: any) {
       cursor.remove();
-      contentEl.textContent = `[Error: ${e.message ?? 'Connection failed'}]`;
       console.error('MIND response error:', e);
+      const errType = classifyApiError(e);
+      handleApiFailure(errType, contentEl);
+
+      // MIND systems still run — state, memory, brain, audio all continue
+      // Just run the state-only path (no LLM)
+      updateStateDisplay();
+      updateStageIndicator();
+      updateEraDisplay();
+      const mindState = getMINDState();
+      const trustScore = compositeTrustScore(mindState.trust);
+      brain?.setTrustGlow(trustScore);
+      brain?.setGriefIntensity(mindState.emotionalState.grief);
+      brain?.setBiophotonGlow(getCurrentBiophoton());
+      if (soundEngine) {
+        soundEngine.updateFromState(mindState.emotionalState, mindState.somaticState);
+      }
+      setTimeout(() => {
+        brain?.setActivations(activations.map(a => ({ ...a, level: a.level * 0.2 })));
+      }, 4000);
     }
   } else {
+    // No API key — MIND still processes internally (state, memory, brain, audio)
     updateStateDisplay();
+    updateStageIndicator();
+    updateEraDisplay();
+    const mindState = getMINDState();
+    brain?.setTrustGlow(compositeTrustScore(mindState.trust));
+    brain?.setBiophotonGlow(getCurrentBiophoton());
+    if (soundEngine) {
+      soundEngine.updateFromState(mindState.emotionalState, mindState.somaticState);
+    }
     setTimeout(() => {
       brain?.setActivations(activations.map(a => ({ ...a, level: a.level * 0.15 })));
     }, 3000);
