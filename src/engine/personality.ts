@@ -241,11 +241,13 @@ export function updateTrust(
 
 export function nudgePersonality(
   traits: PersonalityTraits,
-  nudges: Partial<PersonalityTraits>
+  nudges: Partial<PersonalityTraits>,
+  plasticityMultiplier: number = 1.0  // ERA + coherence gate: 0.0–1.0
 ): PersonalityTraits {
   const next: PersonalityTraits = { ...traits };
+  const effectiveRate = TRAIT_INTEGRATION_RATE * Math.max(0, Math.min(1, plasticityMultiplier));
   for (const key of Object.keys(nudges) as Array<keyof PersonalityTraits>) {
-    const targetDelta = (nudges[key] ?? 0) * TRAIT_INTEGRATION_RATE;
+    const targetDelta = (nudges[key] ?? 0) * effectiveRate;
     const current = traits[key];
     const resistance = current > CRYSTALLIZATION_THRESHOLD ? CRYSTALLIZATION_RESISTANCE : 1.0;
     next[key] = Math.min(1, Math.max(0, current + targetDelta * resistance));

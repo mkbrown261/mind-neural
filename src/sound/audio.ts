@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════
 
 import { BrainRegion } from '../engine/emotions';
+import type { EmotionalState, SomaticState } from '../engine/state';
 
 // Region tones (frequencies in Hz, pentatonic/harmonic intervals)
 const REGION_FREQUENCIES: Record<BrainRegion, number[]> = {
@@ -176,6 +177,68 @@ export class SoundEngine {
   public resume() {
     if (this.ctx?.state === 'suspended') {
       this.ctx.resume();
+    }
+  }
+
+  // ─── Sonification from resolved ESE + SSM state ──────────────────
+  // Called after every processInput with the resolved emotional state.
+  // Volume / frequency mappings derive from arousal, dominant emotion, interoception.
+  public updateFromState(ese: EmotionalState, ssm: SomaticState) {
+    if (!this.ctx || !this.isInitialized || this.isMuted) return;
+
+    // Ambient hum volume: maps to arousal (ESE)
+    const arousalLevel = Math.min(0.12, ese.arousal * 0.12);
+    this.ambientGain.gain.linearRampToValueAtTime(
+      arousalLevel, this.ctx.currentTime + 0.5
+    );
+
+    // Select sonification tone based on dominant emotion dimension
+    let sonoRegion: BrainRegion | null = null;
+    let sonoIntensity = 0;
+
+    if (ese.grief > 0.4) {
+      sonoRegion = 'acc'; sonoIntensity = ese.grief * 0.4;
+    } else if (ese.wonder > 0.4) {
+      sonoRegion = 'visual_cortex'; sonoIntensity = ese.wonder * 0.4;
+    } else if (ese.warmth > 0.4) {
+      sonoRegion = 'insula'; sonoIntensity = ese.warmth * 0.4;
+    } else if (ese.anxiety > 0.5) {
+      sonoRegion = 'amygdala'; sonoIntensity = ese.anxiety * 0.35;
+    } else if (ese.longing > 0.4) {
+      sonoRegion = 'hippocampus'; sonoIntensity = ese.longing * 0.35;
+    }
+
+    // Only trigger tone if significant — no decorative triggers
+    if (sonoRegion && sonoIntensity > 0.15) {
+      // Debounce: don't re-trigger if already playing this region
+      const existing = this.regionNodes.get(sonoRegion);
+      if (!existing) {
+        this.playRegionActivation(sonoRegion, sonoIntensity);
+      }
+    }
+
+    // Tension → master gain slight elevation (body response)
+    const tensionBoost = ssm.tension * 0.02;
+    const targetMaster = Math.min(0.25, this.currentVolume + tensionBoost);
+    this.masterGain.gain.linearRampToValueAtTime(
+      this.isMuted ? 0 : targetMaster, this.ctx.currentTime + 1
+    );
+  }
+
+  // ─── Criticality: modulates ambient oscillation speed ────────────
+  public setCriticalityLevel(index: number, pattern: 'ordered' | 'adaptive' | 'critical') {
+    if (!this.ctx || !this.isInitialized || this.ambientOscillators.length < 2) return;
+    // LFOs are every other entry in ambientOscillators (osc, lfo, osc, lfo ...)
+    // Criticality pushes LFO freq higher (more neural chaos)
+    const lfoFreq = pattern === 'critical' ? 0.6 :
+                    pattern === 'adaptive' ? 0.4 : 0.3;
+    // Update LFO oscillators (indices 1, 3, 5, 7)
+    for (let i = 1; i < this.ambientOscillators.length; i += 2) {
+      try {
+        this.ambientOscillators[i].frequency.linearRampToValueAtTime(
+          lfoFreq, this.ctx.currentTime + 2
+        );
+      } catch {}
     }
   }
 

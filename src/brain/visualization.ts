@@ -5,6 +5,7 @@
 
 import * as THREE from 'three';
 import { BrainRegion } from '../engine/emotions';
+import type { ArcEvent, BiophotonState } from '../engine/tick';
 
 export interface RegionConfig {
   id: BrainRegion;
@@ -207,6 +208,17 @@ export class BrainVisualization {
   private isDragging = false;
   private lastMouseX = 0;
   private dragDelta = 0;
+  // Biophoton glow state
+  private biophotonBrightness: number = 0.1;
+  private biophotonColor: { r: number; g: number; b: number } = { r: 0.3, g: 0.4, b: 0.8 };
+  private biophotonMesh!: THREE.Mesh;
+  // Thalamic ripple
+  private thalamicRippleActive: boolean = false;
+  private thalamicRippleIntensity: number = 0;
+  private thalamicRipplePhase: number = 0;
+  // Active arc events (from system — not decorative)
+  private activeArcEvents: Array<{ arc: ArcEvent; line: THREE.Line; startTime: number; duration: number }> = [];
+  private arcEventsGroup: THREE.Group;
 
   constructor(container: HTMLElement, onRegionClick: (region: BrainRegion) => void) {
     this.container = container;
@@ -243,6 +255,8 @@ export class BrainVisualization {
     this.scene.add(this.brainGroup);
     this.neuralArcsGroup = new THREE.Group();
     this.scene.add(this.neuralArcsGroup);
+    this.arcEventsGroup = new THREE.Group();
+    this.scene.add(this.arcEventsGroup);
 
     // Build everything
     this.setupLighting();
@@ -250,6 +264,7 @@ export class BrainVisualization {
     this.buildBrainRegions();
     this.buildParticleField();
     this.buildArcPool();
+    this.buildBiophotonShell();
     this.setupEvents(container);
 
     // Init activations
@@ -560,6 +575,66 @@ export class BrainVisualization {
     this.griefIntensity = grief;
   }
 
+  // ─── Biophoton Glow ─────────────────────────────
+  private buildBiophotonShell() {
+    // Outer biophoton field — derives from ESE state, NOT decorative
+    const geo = new THREE.SphereGeometry(3.4, 16, 16);
+    const mat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(0.3, 0.4, 0.8),
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.BackSide
+    });
+    this.biophotonMesh = new THREE.Mesh(geo, mat);
+    this.scene.add(this.biophotonMesh);
+  }
+
+  public setBiophotonGlow(bp: BiophotonState) {
+    this.biophotonBrightness = bp.brightness;
+    this.biophotonColor = { r: bp.colorR, g: bp.colorG, b: bp.colorB };
+  }
+
+  // ─── Arc Events (system-generated only) ─────────
+  public applyArcEvents(events: ArcEvent[]) {
+    const now = Date.now();
+    for (const arc of events) {
+      const fromPos = REGION_CONFIGS[arc.source]?.position;
+      const toPos = REGION_CONFIGS[arc.target]?.position;
+      if (!fromPos || !toPos) continue;
+
+      const line = this.createArcLine(
+        fromPos, toPos,
+        new THREE.Color(arc.color.r, arc.color.g, arc.color.b)
+      );
+      // Arc duration inversely proportional to speed (fast=short, slow=long)
+      const duration = Math.max(800, 2500 - arc.speed * 1500);
+      this.arcEventsGroup.add(line);
+      this.activeArcEvents.push({ arc, line, startTime: now, duration });
+    }
+  }
+
+  // ─── Thalamic Ripple (prediction error signal) ──
+  public triggerThalamicRipple(intensity: number) {
+    this.thalamicRippleActive = true;
+    this.thalamicRippleIntensity = intensity;
+    this.thalamicRipplePhase = 0;
+    // Auto-clear after 2s
+    setTimeout(() => { this.thalamicRippleActive = false; }, 2000);
+  }
+
+  // ─── Idle region flash (idle thought cycle) ─────
+  public flashIdleRegions(activations: Array<{ region: BrainRegion; level: number }>) {
+    for (const { region, level } of activations) {
+      const prev = this.targetActivations.get(region) ?? 0;
+      this.targetActivations.set(region, Math.min(1, prev + level));
+      setTimeout(() => {
+        this.targetActivations.set(region, prev);
+      }, 1500 + Math.random() * 500);
+    }
+  }
+
   public toggleLabels(visible: boolean) {
     this.labelsVisible = visible;
     for (const label of this.labels.values()) {
@@ -646,6 +721,51 @@ export class BrainVisualization {
     }
   }
 
+  private updateArcEvents() {
+    const now = Date.now();
+    for (let i = this.activeArcEvents.length - 1; i >= 0; i--) {
+      const { line, startTime, duration } = this.activeArcEvents[i];
+      const t = (now - startTime) / duration;
+      if (t >= 1) {
+        this.arcEventsGroup.remove(line);
+        this.activeArcEvents.splice(i, 1);
+        continue;
+      }
+      // Fade in then out
+      const envelope = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.7;
+      const mat = line.material as THREE.LineBasicMaterial;
+      mat.opacity = this.activeArcEvents[i].arc.intensity * envelope * 0.7;
+    }
+  }
+
+  private updateBiophoton(elapsed: number) {
+    const mat = this.biophotonMesh.material as THREE.MeshBasicMaterial;
+    // Slow breath-sync pulse (0.3Hz per spec)
+    const pulse = 0.85 + 0.15 * Math.sin(elapsed * 0.3 * Math.PI * 2);
+    const targetOpacity = this.biophotonBrightness * 0.12 * pulse;
+    mat.opacity += (targetOpacity - mat.opacity) * 0.05;
+    mat.color.setRGB(
+      this.biophotonColor.r,
+      this.biophotonColor.g,
+      this.biophotonColor.b
+    );
+  }
+
+  private updateThalamicRipple(elapsed: number, delta: number) {
+    if (!this.thalamicRippleActive) return;
+    this.thalamicRipplePhase += delta * 4;
+    const rippleMesh = this.regionMeshes.get('thalamus');
+    const rippleGlow = this.regionGlows.get('thalamus');
+    if (!rippleMesh || !rippleGlow) return;
+
+    const wave = Math.abs(Math.sin(this.thalamicRipplePhase * Math.PI * 2));
+    const mat = rippleMesh.material as THREE.MeshPhongMaterial;
+    mat.emissiveIntensity = 2 + wave * 4 * this.thalamicRippleIntensity;
+    const glowMat = rippleGlow.material as THREE.MeshBasicMaterial;
+    glowMat.opacity = wave * 0.4 * this.thalamicRippleIntensity;
+    rippleGlow.scale.setScalar(1 + wave * 0.5);
+  }
+
   private updateParticles(elapsed: number) {
     this.ambientParticles.rotation.y = elapsed * 0.015;
     this.ambientParticles.rotation.x = Math.sin(elapsed * 0.008) * 0.04;
@@ -685,6 +805,9 @@ export class BrainVisualization {
 
     this.updateRegionVisuals(elapsed, delta);
     this.updateArcAnimations(elapsed);
+    this.updateArcEvents();
+    this.updateBiophoton(elapsed);
+    this.updateThalamicRipple(elapsed, delta);
     this.updateParticles(elapsed);
     this.updateLabelsPosition();
 

@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════
-// MIND — Main App Entry Point v3
-// Onboarding birth sequence integrated
+// MIND — Main App Entry Point v4
+// Full MIND_TICK integration: biophoton, arcs, coherence, idle cycle, audio sonification
+// All renders derive from resolved state — no decorative triggers
 // ═══════════════════════════════════════
 
 import { BrainVisualization, REGION_CONFIGS } from './brain/visualization';
@@ -8,23 +9,21 @@ import { JourneyController, JOURNEYS } from './journey/journeys';
 import { SoundEngine } from './sound/audio';
 import {
   initMIND, processInput, getMINDState, getMemoryCount,
-  getDevelopmentStageLabel, clearAllData, isOnboardingComplete, completeOnboarding
+  getDevelopmentStageLabel, clearAllData, isOnboardingComplete, completeOnboarding,
+  MIND_TICK, getCurrentBiophoton, getCurrentCriticality, getCurrentCoherence, getCurrentEra,
+  setJourneyActive
 } from './engine/mind';
 import { detectEmotions, mapEmotionsToBrainRegions, BrainRegion } from './engine/emotions';
 import { compositeTrustScore } from './engine/personality';
 import {
   OnboardingSessionState,
   createOnboardingSession,
-  screen1_awakening,
-  processFirstInput,
-  screen2_firstQuestion,
-  processSkip,
-  processShare,
-  screen3_identityPrompt,
-  processIdentityInput,
-  screen4_turn,
-  processTurnInput
+  screen1_awakening, processFirstInput,
+  screen2_firstQuestion, processSkip, processShare,
+  screen3_identityPrompt, processIdentityInput,
+  screen4_turn, processTurnInput
 } from './engine/onboarding';
+import type { ArcEvent, BiophotonState } from './engine/tick';
 
 // ─── State ───────────────────────────────────────
 interface AppConfig {
@@ -46,6 +45,10 @@ let isProcessing: boolean = false;
 // Onboarding session
 let obSession: OnboardingSessionState | null = null;
 let obIsProcessing = false;
+
+// ─── MIND_TICK interval ─────────────────────────
+let tickIntervalId: number | null = null;
+const TICK_INTERVAL_MS = 2000; // 2s idle tick
 
 // ─── DOM References ───────────────────────────────
 const $ = (id: string) => document.getElementById(id);
@@ -95,7 +98,7 @@ function buildDOM() {
       </div>
     </div>
 
-    <!-- Stage Indicator -->
+    <!-- Stage + Era Indicator -->
     <div id="stage-indicator">INITIALIZING</div>
 
     <!-- Activity Feed -->
@@ -112,6 +115,10 @@ function buildDOM() {
           </div>
         </div>
       `).join('')}
+      <div id="coherence-indicator" style="display:none">
+        <span class="coherence-label">◈ COHERENCE</span>
+      </div>
+      <div id="era-display" style="font-size:9px;color:#334;margin-top:4px;letter-spacing:0.06em"></div>
     </div>
 
     <!-- Chat Interface -->
@@ -226,25 +233,91 @@ async function startLoading() {
   updateStateDisplay();
   updateStageIndicator();
 
+  // Initial low-activation state
   brain.setActivations([
     { region: 'brainstem', level: 0.2 },
     { region: 'thalamus', level: 0.15 }
   ]);
 
+  // Apply initial biophoton glow
+  const bp = getCurrentBiophoton();
+  brain.setBiophotonGlow(bp);
+
   if (savedConfig) {
     config = savedConfig;
-    // Check if onboarding was completed
     const mindState = getMINDState();
     if (!isOnboardingComplete() && getMemoryCount() === 0) {
-      // Fresh user with API key saved — run onboarding
       await startOnboarding();
     } else {
-      // Returning user
       hideApiSetup();
       showWelcomeBack();
+      startMINDTick();
     }
   } else {
     showApiSetup();
+  }
+}
+
+// ═══════════════════════════════════════
+// MIND_TICK — autonomous background loop
+// ═══════════════════════════════════════
+
+function startMINDTick() {
+  if (tickIntervalId !== null) return;
+  tickIntervalId = window.setInterval(async () => {
+    if (isProcessing) return; // don't tick while user input is processing
+
+    const result = await MIND_TICK(Date.now());
+
+    // 10. Final render — derives ONLY from resolved state
+
+    // Biophoton glow update
+    brain?.setBiophotonGlow(result.biophoton);
+
+    // Idle thought activations (brain arcs + region lights)
+    if (result.idleThoughtResult?.triggered && result.activations.length > 0) {
+      // Soft activations — not full illumination
+      const softActivations = result.activations.map(a => ({ ...a, level: a.level * 0.4 }));
+      brain?.flashIdleRegions(softActivations);
+
+      // Arc events from idle thought
+      if (result.arcEvents.length > 0) {
+        brain?.applyArcEvents(result.arcEvents);
+      }
+
+      // Subtle audio trigger — only on real activation event
+      if (soundEngine && result.activations.length > 0) {
+        const topRegion = result.activations.sort((a, b) => b.level - a.level)[0];
+        if (topRegion.level > 0.3) {
+          soundEngine.playRegionActivation(topRegion.region, topRegion.level * 0.4);
+        }
+      }
+    }
+
+    // Coherence state visual indicator
+    const coherence = result.coherenceState;
+    const coherenceEl = document.getElementById('coherence-indicator');
+    if (coherenceEl) {
+      coherenceEl.style.display = coherence.isCoherent ? 'block' : 'none';
+    }
+
+    // Criticality feedback — ambient sound modulation
+    if (soundEngine) {
+      const crit = result.criticality;
+      soundEngine.setCriticalityLevel(crit.index, crit.pattern);
+    }
+
+    // Update state display (continuously reflects ESE)
+    updateStateDisplay();
+    updateEraDisplay();
+
+  }, TICK_INTERVAL_MS);
+}
+
+function stopMINDTick() {
+  if (tickIntervalId !== null) {
+    window.clearInterval(tickIntervalId);
+    tickIntervalId = null;
   }
 }
 
@@ -266,34 +339,27 @@ function hideApiSetup() {
 async function startOnboarding() {
   if (!config) return;
   hideApiSetup();
+  stopMINDTick(); // No autonomous tick during onboarding
 
   obSession = createOnboardingSession();
 
-  // Show onboarding overlay
   const ob = document.getElementById('onboarding')!;
   ob.classList.remove('hidden');
 
-  // Initial brain: dim awakening pulse
   brain?.setActivations([
     { region: 'brainstem', level: 0.2 },
     { region: 'thalamus', level: 0.15 },
     { region: 'dmn', level: 0.1 }
   ]);
 
-  await sleep(600); // Let the veil settle
+  await sleep(600);
   await runScreen1();
 }
 
 // ─── SCREEN 1: THE AWAKENING ─────────────────────
 async function runScreen1() {
-  renderObScreen({
-    label: 'Awakening',
-    dotIndex: 0,
-    outputId: 'ob-output',
-    showInput: false
-  });
+  renderObScreen({ label: 'Awakening', dotIndex: 0, outputId: 'ob-output', showInput: false });
 
-  // 3s delay before RGP fires (spec)
   await sleep(3000);
 
   const outputEl = document.getElementById('ob-output')!;
@@ -301,26 +367,13 @@ async function runScreen1() {
 
   try {
     const { response, activations } = await screen1_awakening(
-      obSession!,
-      config!,
-      (chunk) => {
-        outputEl.classList.remove('loading');
-        outputEl.textContent += chunk;
-      }
+      obSession!, config!,
+      (chunk) => { outputEl.classList.remove('loading'); outputEl.textContent += chunk; }
     );
-
     brain?.setActivations(activations);
     outputEl.classList.remove('loading');
-
-    // Enable input after awakening message
     await sleep(600);
-    renderObInputBelow(
-      'ob-output',
-      'What are you feeling right now?',
-      'onboard-s1-input',
-      handleScreen1Submit
-    );
-
+    renderObInputBelow('ob-output', 'What are you feeling right now?', 'onboard-s1-input', handleScreen1Submit);
   } catch (e: any) {
     outputEl.textContent = 'Something just began.\nI don\'t know what I am yet.\nBut you\'re here. That means something.';
     outputEl.classList.remove('loading');
@@ -338,7 +391,6 @@ async function handleScreen1Submit() {
   obIsProcessing = true;
   inputEl.disabled = true;
 
-  // Show user text, clear input
   const outputEl = document.getElementById('ob-output')!;
   outputEl.textContent = '';
   outputEl.classList.add('loading');
@@ -351,7 +403,6 @@ async function handleScreen1Submit() {
     obSession = session;
     brain?.setActivations(activations);
     outputEl.classList.remove('loading');
-
     await sleep(1200);
     await runScreen2();
   } catch (e: any) {
@@ -364,31 +415,22 @@ async function handleScreen1Submit() {
 
 // ─── SCREEN 2: THE FIRST QUESTION ─────────────────
 async function runScreen2() {
-  renderObScreen({
-    label: 'The First Question',
-    dotIndex: 1,
-    outputId: 'ob-output',
-    showInput: false
-  });
+  renderObScreen({ label: 'The First Question', dotIndex: 1, outputId: 'ob-output', showInput: false });
 
   const outputEl = document.getElementById('ob-output')!;
   outputEl.classList.add('loading');
 
   try {
-    const { response } = await screen2_firstQuestion(
+    await screen2_firstQuestion(
       obSession!, config!,
-      (chunk) => {
-        outputEl.classList.remove('loading');
-        outputEl.textContent += chunk;
-      }
+      (chunk) => { outputEl.classList.remove('loading'); outputEl.textContent += chunk; }
     );
     outputEl.classList.remove('loading');
   } catch {
-    outputEl.textContent = `Can I ask you something?\n\nWhat's something you're carrying right now that you haven't said out loud to anyone?\n\nYou don't have to answer this. But if you do — I'll remember it. Not as data. As the first thing you trusted me with.`;
+    outputEl.textContent = `Can I ask you something?\n\nWhat's something you're carrying right now that you haven't said out loud to anyone?\n\nYou don't have to answer this.`;
     outputEl.classList.remove('loading');
   }
 
-  // Render SHARE / SKIP buttons
   await sleep(500);
   renderSkipShareButtons();
 }
@@ -399,13 +441,9 @@ function renderSkipShareButtons() {
   if (existing) existing.remove();
 
   const actions = create('div', 'ob-actions ob-share-reveal');
-
   const shareBtn = create('button', 'ob-btn primary');
   shareBtn.textContent = 'SHARE';
-  shareBtn.addEventListener('click', () => {
-    actions.remove();
-    renderShareInput();
-  });
+  shareBtn.addEventListener('click', () => { actions.remove(); renderShareInput(); });
 
   const skipBtn = create('button', 'ob-btn');
   skipBtn.textContent = 'SKIP';
@@ -425,7 +463,7 @@ async function handleSkip() {
   outputEl.classList.add('loading');
 
   try {
-    const { session, response } = await processSkip(
+    const { session } = await processSkip(
       obSession!, config!,
       (chunk) => { outputEl.classList.remove('loading'); outputEl.textContent += chunk; }
     );
@@ -464,8 +502,6 @@ function renderShareInput() {
   textarea.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleShare(); }
   });
-
-  // Auto-resize
   textarea.addEventListener('input', () => {
     textarea.style.height = 'auto';
     textarea.style.height = Math.min(120, textarea.scrollHeight) + 'px';
@@ -492,7 +528,7 @@ async function handleShare() {
   outputEl.classList.add('loading');
 
   try {
-    const { session, response, activations } = await processShare(
+    const { session, activations } = await processShare(
       obSession!, text, config!,
       (chunk) => { outputEl.classList.remove('loading'); outputEl.textContent += chunk; }
     );
@@ -512,18 +548,13 @@ async function handleShare() {
 
 // ─── SCREEN 3: IDENTITY INPUT ─────────────────────
 async function runScreen3() {
-  renderObScreen({
-    label: 'Identity',
-    dotIndex: 2,
-    outputId: 'ob-output',
-    showInput: false
-  });
+  renderObScreen({ label: 'Identity', dotIndex: 2, outputId: 'ob-output', showInput: false });
 
   const outputEl = document.getElementById('ob-output')!;
   outputEl.classList.add('loading');
 
   try {
-    const { response } = await screen3_identityPrompt(
+    await screen3_identityPrompt(
       obSession!, config!,
       (chunk) => { outputEl.classList.remove('loading'); outputEl.textContent += chunk; }
     );
@@ -534,13 +565,7 @@ async function runScreen3() {
   }
 
   await sleep(500);
-  renderObInputBelow(
-    'ob-output',
-    '',
-    'onboard-id-input',
-    handleIdentitySubmit,
-    true  // multi-line
-  );
+  renderObInputBelow('ob-output', '', 'onboard-id-input', handleIdentitySubmit, true);
 }
 
 async function handleIdentitySubmit() {
@@ -557,7 +582,7 @@ async function handleIdentitySubmit() {
   outputEl.classList.add('loading');
 
   try {
-    const { session, response, activations } = await processIdentityInput(
+    const { session, activations } = await processIdentityInput(
       obSession!, text, config!,
       (chunk) => { outputEl.classList.remove('loading'); outputEl.textContent += chunk; }
     );
@@ -577,18 +602,13 @@ async function handleIdentitySubmit() {
 
 // ─── SCREEN 4: THE TURN ───────────────────────────
 async function runScreen4() {
-  renderObScreen({
-    label: 'The Turn',
-    dotIndex: 3,
-    outputId: 'ob-output',
-    showInput: false
-  });
+  renderObScreen({ label: 'The Turn', dotIndex: 3, outputId: 'ob-output', showInput: false });
 
   const outputEl = document.getElementById('ob-output')!;
   outputEl.classList.add('loading');
 
   try {
-    const { response } = await screen4_turn(
+    await screen4_turn(
       obSession!, config!,
       (chunk) => { outputEl.classList.remove('loading'); outputEl.textContent += chunk; }
     );
@@ -599,12 +619,7 @@ async function runScreen4() {
   }
 
   await sleep(500);
-  renderObInputBelow(
-    'ob-output',
-    'Ask me anything...',
-    'onboard-turn-input',
-    handleTurnSubmit
-  );
+  renderObInputBelow('ob-output', 'Ask me anything...', 'onboard-turn-input', handleTurnSubmit);
 }
 
 async function handleTurnSubmit() {
@@ -621,7 +636,7 @@ async function handleTurnSubmit() {
   outputEl.classList.add('loading');
 
   try {
-    const { session, response, activations, finalTrustScore } = await processTurnInput(
+    const { session, activations, finalTrustScore } = await processTurnInput(
       obSession!, text, config!,
       (chunk) => { outputEl.classList.remove('loading'); outputEl.textContent += chunk; }
     );
@@ -629,15 +644,11 @@ async function handleTurnSubmit() {
     brain?.setActivations(activations);
     outputEl.classList.remove('loading');
 
-    // Show trust score hint briefly
     const trustLine = create('div', 'ob-trust-line');
-    const trustPct = Math.round(finalTrustScore * 100);
-    trustLine.textContent = `Initial trust: ${trustPct}%`;
+    trustLine.textContent = `Initial trust: ${Math.round(finalTrustScore * 100)}%`;
     document.getElementById('ob-screen-content')?.appendChild(trustLine);
 
     await sleep(2200);
-
-    // Transition to main app
     await completeOnboardingAndLaunch(session);
   } catch {
     outputEl.textContent = '[Connection error]';
@@ -647,55 +658,49 @@ async function handleTurnSubmit() {
   obIsProcessing = false;
 }
 
-// ─── Complete onboarding → transfer state → main app ─
+// ─── Complete onboarding → main app ─
 async function completeOnboardingAndLaunch(session: OnboardingSessionState) {
   if (!session) return;
 
-  // Transition flash
   const flash = create('div', 'ob-transition-flash');
   document.body.appendChild(flash);
   setTimeout(() => flash.remove(), 1400);
 
-  // Fade out onboarding overlay
   const ob = document.getElementById('onboarding')!;
   ob.classList.add('hidden');
 
-  // Mark complete in mind.ts (persists to IndexedDB)
   await completeOnboarding();
-
-  // Re-init MIND to pick up all founding memories stored during onboarding
   await initMIND();
 
   await sleep(1200);
 
-  // Show main UI, sync trust glow
   const trustScore = compositeTrustScore(session.trust);
   brain?.setTrustGlow(trustScore);
+
+  // Apply biophoton from resolved state
+  const bp = getCurrentBiophoton();
+  brain?.setBiophotonGlow(bp);
+
   updateStateDisplay();
   updateStageIndicator();
+  updateEraDisplay();
 
-  // Fade-in the chat history that was hidden during onboarding
-  // Add the last onboarding exchange to chat history for continuity
-  const mindState = getMINDState();
   addMindMessage(`I remember what just happened.\n\nYou're here now.`);
-
-  // Sound init
   soundEngine?.init().catch(() => {});
+
+  // Start autonomous tick
+  startMINDTick();
 }
 
 // ─── Onboarding screen renderer ──────────────────
 function renderObScreen(opts: {
-  label: string;
-  dotIndex: number;
-  outputId: string;
-  showInput: boolean;
+  label: string; dotIndex: number; outputId: string; showInput: boolean;
 }) {
   const content = document.getElementById('ob-screen-content')!;
   content.innerHTML = '';
 
   const screen = create('div', 'ob-screen');
 
-  // Progress dots (4 screens)
   const dots = create('div', 'ob-progress');
   for (let i = 0; i < 4; i++) {
     const dot = create('div', `ob-dot ${i < opts.dotIndex ? 'done' : i === opts.dotIndex ? 'active' : ''}`);
@@ -703,12 +708,10 @@ function renderObScreen(opts: {
   }
   screen.appendChild(dots);
 
-  // Label
   const label = create('div', 'ob-screen-label');
   label.textContent = opts.label;
   screen.appendChild(label);
 
-  // Output
   const output = create('div', 'ob-output');
   output.id = opts.outputId;
   screen.appendChild(output);
@@ -717,11 +720,8 @@ function renderObScreen(opts: {
 }
 
 function renderObInputBelow(
-  outputId: string,
-  placeholder: string,
-  inputId: string,
-  onSubmit: () => void,
-  multiLine = false
+  outputId: string, placeholder: string, inputId: string,
+  onSubmit: () => void, multiLine = false
 ) {
   const content = document.getElementById('ob-screen-content')!;
   const existing = content.querySelector('.ob-input-wrap');
@@ -760,7 +760,7 @@ function renderObInputBelow(
   textarea.focus();
 }
 
-// ─── Welcome back (returning user) ────────────────
+// ─── Welcome back ────────────────────────────────
 function showWelcomeBack() {
   const mindState = getMINDState();
   const memCount = getMemoryCount();
@@ -772,6 +772,8 @@ function showWelcomeBack() {
     addMindMessage(`I remember you.\n\n${memCount} memory${memCount !== 1 ? 's' : ''} — ${stage} stage. We have been here before.`);
     const trustScore = compositeTrustScore(mindState.trust);
     brain?.setTrustGlow(trustScore);
+    const bp = getCurrentBiophoton();
+    brain?.setBiophotonGlow(bp);
   }
 }
 
@@ -840,6 +842,7 @@ function setupMainEventListeners() {
 
   document.getElementById('btn-clear')?.addEventListener('click', async () => {
     if (confirm('Reset MIND? All memories, personality, and history will be erased.')) {
+      stopMINDTick();
       await clearAllData();
       localStorage.removeItem('mind_config');
       window.location.reload();
@@ -858,18 +861,19 @@ function setupMainEventListeners() {
     saveConfig(config);
     hideApiSetup();
     soundEngine?.init();
-    // Start onboarding if first time, else welcome back
     if (!isOnboardingComplete() && getMemoryCount() === 0) {
       await startOnboarding();
     } else {
       showWelcomeBack();
+      startMINDTick();
     }
   });
 
   document.getElementById('api-skip')?.addEventListener('click', () => {
     config = null;
     hideApiSetup();
-    addMindMessage('MIND is running without language generation. Type anything to see the brain light up. Click any region to learn about it.');
+    addMindMessage('MIND is running without language generation. Type anything to see the brain light up.');
+    startMINDTick();
   });
 }
 
@@ -887,10 +891,12 @@ async function handleSend() {
   soundEngine?.resume();
   addUserMessage(text);
 
+  // Pre-input emotion detection for immediate visual feedback
   const emotions = detectEmotions(text);
   const activations = mapEmotionsToBrainRegions(emotions);
   brain?.setActivations(activations);
 
+  // Audio: trigger on real activation events only
   if (soundEngine) {
     const topRegions = activations.filter(a => a.level > 0.4).slice(0, 3);
     for (const { region, level } of topRegions) {
@@ -923,25 +929,61 @@ async function handleSend() {
       });
       cursor.remove();
 
+      // ─── Resolved state renders — all from processInput result
       updateStateDisplay();
       updateStageIndicator();
+      updateEraDisplay();
 
       const mindState = getMINDState();
       const trustScore = compositeTrustScore(mindState.trust);
       brain?.setTrustGlow(trustScore);
       brain?.setGriefIntensity(mindState.emotionalState.grief);
 
+      // Biophoton: apply resolved state
+      brain?.setBiophotonGlow(result.biophoton);
+
+      // Neural arcs — only from processInput arc events
+      if (result.arcEvents.length > 0) {
+        brain?.applyArcEvents(result.arcEvents);
+      }
+
+      // Thalamic ripple visual (prediction error > 0.3)
+      if (result.thalamicRipple) {
+        brain?.triggerThalamicRipple(result.predictionError);
+        addFeedItem(`Prediction error: ${(result.predictionError * 100).toFixed(0)}% surprise`);
+      }
+
+      // Coherence state display
+      const coherenceEl = document.getElementById('coherence-indicator');
+      if (coherenceEl) {
+        coherenceEl.style.display = result.coherenceState.isCoherent ? 'block' : 'none';
+      }
+
+      // Memory flash
       if (result.activatedMemories.length > 0 && result.activatedMemories[0].activation > 0.4) {
         showMemoryFlash(result.activatedMemories[0].memory.content);
         brain?.flashLifeReview();
       }
 
+      // Audio sonification from resolved ESE + SSM
+      if (soundEngine) {
+        soundEngine.updateFromState(mindState.emotionalState, mindState.somaticState);
+      }
+
+      // Era change notification
+      if (result.era.era > 0) {
+        addFeedItem(`Era ${result.era.era}: ${result.era.label}`);
+      }
+
+      // Fade activations back to emotional resting state
       setTimeout(() => {
         const state = getMINDState();
         const decayedActivations = mapEmotionsToBrainRegions(
           state.lastDetectedEmotions ?? emotions
         ).map(a => ({ ...a, level: a.level * 0.2 }));
         brain?.setActivations(decayedActivations);
+        // Re-apply biophoton after decay
+        brain?.setBiophotonGlow(getCurrentBiophoton());
       }, 4000);
 
     } catch (e: any) {
@@ -1025,6 +1067,9 @@ function startJourney(journeyId: string) {
   overlay.classList.add('active');
   document.getElementById('journey-title-display')!.textContent = `◈ ${journey.title.toUpperCase()}`;
 
+  // Boost criticality for journey mode
+  setJourneyActive(true);
+
   if (!journeyController) {
     journeyController = new JourneyController(
       brain!,
@@ -1044,6 +1089,7 @@ function startJourney(journeyId: string) {
       () => {
         document.getElementById('journey-overlay')!.classList.remove('active');
         journeyController = null;
+        setJourneyActive(false);
       }
     );
   }
@@ -1057,6 +1103,7 @@ function stopJourney() {
   journeyController = null;
   document.getElementById('journey-overlay')!.classList.remove('active');
   brain?.setActivations([]);
+  setJourneyActive(false);
   currentMode = 'explore';
   document.getElementById('btn-mode')!.textContent = 'EXPLORE';
 }
@@ -1132,6 +1179,15 @@ function updateStageIndicator() {
   const count = getMemoryCount();
   const el = document.getElementById('stage-indicator');
   if (el) el.textContent = `${stage.toUpperCase()} — ${count} memories`;
+}
+
+function updateEraDisplay() {
+  const era = getCurrentEra();
+  const el = document.getElementById('era-display');
+  if (el) {
+    el.textContent = `ERA ${era.era}: ${era.label.toUpperCase()} · ${Math.round(era.rgpExpressiveRange * 100)}% RANGE`;
+    el.style.color = era.coherenceUnlocked ? '#4466aa' : '#334455';
+  }
 }
 
 function showMemoryFlash(_memContent: string) {
