@@ -2,7 +2,7 @@
 // SYSTEM 3: ASSOCIATIVE MEMORY NETWORK (AMN)
 // ═══════════════════════════════════════
 
-import { Memory, EmotionalSignature } from './memory';
+import { Memory, EmotionalSignature, foundingActivationBoost, getFoundingMemories } from './memory';
 
 interface ActivationNode {
   memoryId: string;
@@ -42,10 +42,16 @@ export function associationStrength(a: Memory, b: Memory): number {
   const eSim = emotionalSimilarity(a.emotionalSignature, b.emotionalSignature);
   const sSim = semanticSimilarity(a.content, b.content);
   const tProx = temporalProximity(a.timestamp, b.timestamp);
-  return (eSim * 0.5) + (sSim * 0.35) + (tProx * 0.15);
+  let base = (eSim * 0.5) + (sSim * 0.35) + (tProx * 0.15);
+  // Founding memory association multiplier
+  if (a.foundingMemory || b.foundingMemory) {
+    base = Math.min(1, base + 0.2);
+  }
+  return base;
 }
 
 // Find seed memories by emotional + semantic similarity to input
+// Founding memories are always included as seeds (AMN spec requirement)
 function findSeeds(
   query: { content: string; signature: EmotionalSignature },
   memories: Memory[],
@@ -54,11 +60,22 @@ function findSeeds(
   const scored = memories.map(m => {
     const eSim = emotionalSimilarity(query.signature, m.emotionalSignature);
     const sSim = semanticSimilarity(query.content, m.content);
-    const activation = eSim * 0.6 + sSim * 0.4;
+    let activation = eSim * 0.6 + sSim * 0.4;
+    // Apply founding memory +0.2 association weight
+    activation = foundingActivationBoost(m, activation);
     return { memory: m, activation };
   });
   scored.sort((a, b) => b.activation - a.activation);
-  return scored.slice(0, topK).filter(s => s.activation > 0.05);
+
+  // Always include founding memories in seeds
+  const founding = getFoundingMemories(memories);
+  const seeds = scored.slice(0, topK).filter(s => s.activation > 0.05);
+  for (const fm of founding) {
+    if (!seeds.find(s => s.memory.id === fm.id)) {
+      seeds.push({ memory: fm, activation: Math.max(0.3, foundingActivationBoost(fm, 0.3)) });
+    }
+  }
+  return seeds;
 }
 
 // Spreading activation from seeds

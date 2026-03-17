@@ -885,3 +885,272 @@ body.mirror-mode #chat-container { opacity: 0; pointer-events: none; }
 body.mirror-mode #chat-container.show { opacity: 1; pointer-events: all; }
 body.mirror-mode .top-btn { opacity: 0.3; }
 body.mirror-mode .top-btn:hover { opacity: 1; }
+
+/* ═══════════════════════════════════════
+   ONBOARDING — 4-Screen Birth Sequence
+   ═══════════════════════════════════════ */
+
+/* Container — full-screen overlay above brain, below nothing */
+#onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: all;
+  transition: opacity 0.8s ease;
+}
+
+#onboarding.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Dark veil — semi-transparent so brain breathes behind */
+.ob-veil {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(2, 4, 10, 0.72) 0%,
+    rgba(2, 4, 10, 0.88) 100%
+  );
+  pointer-events: none;
+}
+
+/* ─── Screen wrapper ─── */
+.ob-screen {
+  position: relative;
+  z-index: 1;
+  width: min(90vw, 560px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  animation: obScreenIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes obScreenIn {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Screen label (e.g., "AWAKENING") ─── */
+.ob-screen-label {
+  font-family: var(--mind-font);
+  font-size: 7px;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: rgba(80, 100, 255, 0.3);
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+/* ─── Output text area ─── */
+.ob-output {
+  font-family: var(--body-font);
+  font-size: 18px;
+  font-weight: 300;
+  line-height: 1.8;
+  color: var(--text-bright);
+  text-align: center;
+  letter-spacing: 0.01em;
+  min-height: 3.6em;
+  max-width: 480px;
+  margin-bottom: 40px;
+  text-shadow: 0 0 30px rgba(80, 100, 255, 0.15);
+  transition: opacity 0.4s;
+}
+
+.ob-output.loading {
+  opacity: 0.4;
+}
+
+/* ─── Input field ─── */
+.ob-input-wrap {
+  width: 100%;
+  max-width: 480px;
+  position: relative;
+  animation: obInputIn 0.5s 0.3s ease both;
+}
+
+@keyframes obInputIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.ob-input {
+  width: 100%;
+  background: rgba(8, 12, 28, 0.7);
+  border: 1px solid rgba(80, 100, 255, 0.18);
+  border-radius: 10px;
+  color: var(--text-bright);
+  font-family: var(--body-font);
+  font-size: 15px;
+  font-weight: 300;
+  padding: 16px 52px 16px 20px;
+  outline: none;
+  resize: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  backdrop-filter: blur(12px);
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+}
+
+.ob-input::placeholder {
+  color: rgba(80, 100, 200, 0.25);
+  font-style: italic;
+}
+
+.ob-input:focus {
+  border-color: rgba(100, 130, 255, 0.4);
+  box-shadow: 0 0 20px rgba(80, 100, 255, 0.08);
+}
+
+/* Send arrow */
+.ob-send {
+  position: absolute;
+  right: 14px; top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: rgba(100, 130, 255, 0.4);
+  cursor: pointer;
+  transition: color 0.2s;
+  padding: 4px;
+  line-height: 1;
+}
+
+.ob-send:hover { color: rgba(120, 160, 255, 0.9); }
+
+/* ─── Screen 2 action buttons ─── */
+.ob-actions {
+  display: flex;
+  gap: 14px;
+  margin-top: 8px;
+  animation: obInputIn 0.5s 0.6s ease both;
+}
+
+.ob-btn {
+  background: transparent;
+  border: 1px solid rgba(80, 100, 255, 0.2);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-family: var(--mind-font);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 10px 24px;
+  cursor: pointer;
+  transition: all 0.25s;
+}
+
+.ob-btn:hover {
+  color: var(--text-bright);
+  border-color: rgba(100, 130, 255, 0.5);
+  box-shadow: 0 0 14px rgba(80, 100, 255, 0.12);
+}
+
+.ob-btn.primary {
+  background: rgba(40, 60, 150, 0.6);
+  border-color: rgba(80, 120, 255, 0.4);
+  color: rgba(200, 220, 255, 0.85);
+}
+
+.ob-btn.primary:hover {
+  background: rgba(60, 90, 200, 0.8);
+  box-shadow: 0 0 20px rgba(80, 100, 255, 0.2);
+}
+
+/* ─── Hint text below input ─── */
+.ob-hint {
+  font-family: var(--mind-font);
+  font-size: 7px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(80, 100, 200, 0.25);
+  margin-top: 14px;
+  text-align: center;
+  animation: obInputIn 0.4s 0.5s ease both;
+}
+
+/* ─── Trust score line (post-sequence) ─── */
+.ob-trust-line {
+  font-family: var(--mind-font);
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  color: rgba(80, 180, 120, 0.35);
+  margin-top: 20px;
+  text-transform: uppercase;
+  text-align: center;
+  animation: obInputIn 0.4s 0.8s ease both;
+}
+
+/* ─── Progress dots ─── */
+.ob-progress {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.ob-dot {
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: rgba(80, 100, 255, 0.15);
+  border: 1px solid rgba(80, 100, 255, 0.15);
+  transition: all 0.4s;
+}
+
+.ob-dot.active {
+  background: rgba(80, 100, 255, 0.6);
+  box-shadow: 0 0 6px rgba(80, 100, 255, 0.4);
+}
+
+.ob-dot.done {
+  background: rgba(80, 180, 100, 0.4);
+  border-color: rgba(80, 180, 100, 0.4);
+}
+
+/* ─── Pulse on brain while onboarding ─── */
+.ob-brain-pulse {
+  animation: obBrainPulse 3s ease-in-out infinite;
+}
+
+@keyframes obBrainPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1.0; }
+}
+
+/* ─── Transition flash when entering main app ─── */
+.ob-transition-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(80, 100, 255, 0.06);
+  pointer-events: none;
+  animation: obFlash 1.2s ease forwards;
+}
+
+@keyframes obFlash {
+  0% { opacity: 0; }
+  30% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ─── Skip-to-share reveal ─── */
+.ob-share-reveal {
+  animation: obShareIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes obShareIn {
+  from { opacity: 0; transform: scale(0.97) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .ob-output { font-size: 15px; }
+  .ob-input  { font-size: 14px; }
+}

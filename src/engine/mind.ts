@@ -5,7 +5,8 @@
 
 import {
   Memory, MemoryType, initDB, storeMemory, getAllMemories, updateMemory,
-  getMeta, setMeta, createMemory, reconsolidate, SomaticState,
+  getMeta, setMeta, createMemory, createFoundingMemory, applyFoundingOverride,
+  reconsolidate, SomaticState,
   applyDecay, deriveMeaning, MemoryMeaning, uuid
 } from './memory';
 import {
@@ -46,6 +47,7 @@ export interface MINDState {
   lastDetectedEmotions: DetectedEmotions | null;
   lastActivations: RegionActivation[];
   isInitialized: boolean;
+  onboardingComplete: boolean;
   // Extensions
   identityState: IdentityState;
   conflictMatrix: ConflictMatrix;
@@ -62,6 +64,7 @@ const DEFAULT_MIND_STATE: MINDState = {
   lastDetectedEmotions: null,
   lastActivations: [],
   isInitialized: false,
+  onboardingComplete: false,
   identityState: { ...DEFAULT_IDENTITY },
   conflictMatrix: { ...DEFAULT_CONFLICT_MATRIX },
   saState: { ...DEFAULT_SA_STATE }
@@ -81,6 +84,7 @@ export async function initMIND(): Promise<MINDState> {
   const savedIdentity = await getMeta<IdentityState>('identityState');
   const savedConflicts = await getMeta<ConflictMatrix>('conflictMatrix');
   const savedSA = await getMeta<SelfAdjustmentState>('saState');
+  const savedOnboardingComplete = await getMeta<boolean>('onboardingComplete');
 
   state.emotionalState = savedEmotional ?? { ...DEFAULT_EMOTIONAL_STATE };
   state.baseline = savedBaseline ?? { ...DEFAULT_BASELINE };
@@ -89,6 +93,7 @@ export async function initMIND(): Promise<MINDState> {
   state.identityState = savedIdentity ?? { ...DEFAULT_IDENTITY };
   state.conflictMatrix = savedConflicts ?? { ...DEFAULT_CONFLICT_MATRIX };
   state.saState = savedSA ?? { ...DEFAULT_SA_STATE };
+  state.onboardingComplete = savedOnboardingComplete ?? false;
 
   // Trust: migrate legacy (ensure temporal field exists)
   const rawTrust = savedTrust ?? { ...DEFAULT_TRUST };
@@ -136,6 +141,7 @@ async function persist() {
   await setMeta('identityState', state.identityState);
   await setMeta('conflictMatrix', state.conflictMatrix);
   await setMeta('saState', state.saState);
+  await setMeta('onboardingComplete', state.onboardingComplete);
 }
 
 export interface ProcessInputResult {
@@ -497,6 +503,15 @@ function deriveEmotionalPatterns(
 }
 
 // ─── Exports ───────────────────────────────────────────
+
+export function isOnboardingComplete(): boolean {
+  return state.onboardingComplete;
+}
+
+export async function completeOnboarding(): Promise<void> {
+  state.onboardingComplete = true;
+  await setMeta('onboardingComplete', true);
+}
 
 export function getMemoryCount(): number {
   return state.memories.filter(m => m.type === 'episodic').length;

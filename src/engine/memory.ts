@@ -32,7 +32,12 @@ export interface MemoryMeaning {
   lastUpdated: number;          // timestamp
 }
 
-export type MemoryType = 'episodic' | 'internalThought';
+export type MemoryType = 'episodic' | 'internalThought' | 'identity_disclosure';
+
+// ─── FOUNDING MEMORY (Onboarding) ──────────────────
+// Memories created during onboarding bypass decay and carry +0.2 association weight
+export const FOUNDING_ENCODING_FLOOR = 0.85;
+export const FOUNDING_ASSOCIATION_BONUS = 0.2;
 
 export interface Memory {
   id: string;
@@ -52,6 +57,10 @@ export interface Memory {
   // Extension 1 — for internalThought type
   originMemoryIds?: string[];
   persistenceScore?: number;
+  // Founding Memory — onboarding
+  foundingMemory?: boolean;
+  createdDuring?: 'onboarding' | 'normal';
+  collection?: string;   // e.g. 'founding_memories'
 }
 
 // ─── DB ───────────────────────────────────────────
@@ -168,6 +177,27 @@ export async function setMeta<T>(key: string, value: T): Promise<void> {
   });
 }
 
+// ─── Founding Memory Override ─────────────────────
+// Apply the founding memory rules after initial creation
+export function applyFoundingOverride(memory: Memory): Memory {
+  return {
+    ...memory,
+    foundingMemory: true,
+    createdDuring: 'onboarding',
+    collection: 'founding_memories',
+    decayRate: 0,
+    encodingStrength: Math.max(memory.encodingStrength, FOUNDING_ENCODING_FLOOR)
+  };
+}
+
+// Check if a memory is founding and boost its activation score
+export function foundingActivationBoost(memory: Memory, baseActivation: number): number {
+  if (memory.foundingMemory) {
+    return Math.min(1, baseActivation + FOUNDING_ASSOCIATION_BONUS);
+  }
+  return baseActivation;
+}
+
 // ─── Memory Factory ────────────────────────────────
 export function createMemory(
   content: string,
@@ -197,6 +227,20 @@ export function createMemory(
     lastRetrieved: null,
     decayRate
   };
+}
+
+// Founding-aware factory: creates and immediately applies founding override
+export function createFoundingMemory(
+  content: string,
+  emotionalSignature: EmotionalSignature,
+  somatic: SomaticState,
+  novelty: number = 1.0,
+  relevance: number = 1.0,
+  trustLevel: number = 0.5,
+  type: MemoryType = 'episodic'
+): Memory {
+  const base = createMemory(content, emotionalSignature, somatic, novelty, relevance, trustLevel, type);
+  return applyFoundingOverride(base);
 }
 
 // ─── Memory Reconsolidation (now also updates Meaning) ───
@@ -233,8 +277,9 @@ export function reconsolidate(
   return next;
 }
 
-// Apply time-based decay
+// Apply time-based decay — founding memories are immune
 export function applyDecay(memory: Memory): Memory {
+  if (memory.foundingMemory) return memory; // founding memories never decay
   const ageMs = Date.now() - memory.timestamp;
   const ageDays = ageMs / (1000 * 60 * 60 * 24);
   const decayed = memory.encodingStrength * Math.exp(-memory.decayRate * ageDays);
@@ -242,6 +287,11 @@ export function applyDecay(memory: Memory): Memory {
     ...memory,
     encodingStrength: Math.max(0, decayed)
   };
+}
+
+// Get all founding memories from a list — always included as AMN seeds
+export function getFoundingMemories(memories: Memory[]): Memory[] {
+  return memories.filter(m => m.foundingMemory === true);
 }
 
 // ─── Meaning Extraction ────────────────────────────
