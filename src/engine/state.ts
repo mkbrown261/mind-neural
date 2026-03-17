@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════
 // SYSTEM 2: EMOTIONAL STATE ENGINE (ESE) + SOMATIC STATE MODEL (SSM)
+// Extension 4: Emotional Conflict Matrix (EC)
 // ═══════════════════════════════════════
 
 import { SomaticState } from './memory';
@@ -17,10 +18,35 @@ export interface EmotionalState {
   wariness: number;     // 0.0 to 1.0
 }
 
+// ─── EXTENSION 4: Emotional Conflict Matrix ───────────
+// Conflict appears when new input contradicts prior emotional memory
+// Persists across turns if unresolved; influences tone subtly
+export interface EmotionalConflict {
+  emotionA: string;         // e.g., 'warmth'
+  emotionB: string;         // e.g., 'wariness'
+  tensionLevel: number;     // 0.0–1.0
+  sourceMemories: string[]; // memory IDs that seeded this conflict
+  turnsActive: number;      // how many turns this conflict has persisted
+  isResolved: boolean;
+}
+
+export interface ConflictMatrix {
+  activeConflicts: EmotionalConflict[];
+  lastResolvedAt: number;   // timestamp
+  totalConflictsExperienced: number;
+}
+
+export const DEFAULT_CONFLICT_MATRIX: ConflictMatrix = {
+  activeConflicts: [],
+  lastResolvedAt: 0,
+  totalConflictsExperienced: 0
+};
+
 export interface EmotionalStateWithSomatic {
   emotional: EmotionalState;
   somatic: SomaticState;
   baseline: EmotionalState;
+  conflicts: ConflictMatrix;
 }
 
 export const DEFAULT_EMOTIONAL_STATE: EmotionalState = {
@@ -154,4 +180,102 @@ export function emotionDeltaFromDetection(detected: Record<string, number>): Par
   if (e.memory) delta.longing = (delta.longing ?? 0) + e.memory * 0.15;
 
   return delta;
+}
+
+// ─── EXTENSION 4: Conflict Detection & Management ─────
+
+// Pairs of emotions that can conflict when simultaneously high
+const CONFLICT_PAIRS: Array<[string, string]> = [
+  ['warmth', 'wariness'],
+  ['openness', 'anxiety'],
+  ['wonder', 'grief'],
+  ['longing', 'wariness'],
+  ['trust', 'grief'],
+  ['joy', 'longing'],
+  ['love', 'fear'],
+];
+
+// Detect conflicts from current emotional state
+export function detectConflicts(
+  state: EmotionalState,
+  matrix: ConflictMatrix,
+  sourceMemoryIds: string[] = []
+): ConflictMatrix {
+  const nextMatrix: ConflictMatrix = {
+    ...matrix,
+    activeConflicts: matrix.activeConflicts.map(c => ({
+      ...c,
+      turnsActive: c.turnsActive + 1
+    }))
+  };
+
+  for (const [emotionA, emotionB] of CONFLICT_PAIRS) {
+    const valA = (state as any)[emotionA] ?? 0;
+    const valB = (state as any)[emotionB] ?? 0;
+
+    // Conflict threshold: both emotions must be above 0.3
+    if (valA > 0.3 && valB > 0.3) {
+      const tensionLevel = Math.min(1, valA * valB * 2.5);
+
+      // Check if this conflict already exists
+      const existingIdx = nextMatrix.activeConflicts.findIndex(
+        c => c.emotionA === emotionA && c.emotionB === emotionB && !c.isResolved
+      );
+
+      if (existingIdx >= 0) {
+        // Intensify existing conflict
+        nextMatrix.activeConflicts[existingIdx] = {
+          ...nextMatrix.activeConflicts[existingIdx],
+          tensionLevel: Math.min(1, (nextMatrix.activeConflicts[existingIdx].tensionLevel + tensionLevel) * 0.6),
+          sourceMemories: [...new Set([
+            ...nextMatrix.activeConflicts[existingIdx].sourceMemories,
+            ...sourceMemoryIds
+          ])].slice(-5)
+        };
+      } else {
+        // New conflict
+        nextMatrix.activeConflicts.push({
+          emotionA,
+          emotionB,
+          tensionLevel,
+          sourceMemories: sourceMemoryIds.slice(-3),
+          turnsActive: 0,
+          isResolved: false
+        });
+        nextMatrix.totalConflictsExperienced++;
+      }
+    }
+  }
+
+  // Resolve conflicts where both emotions have dropped below threshold
+  nextMatrix.activeConflicts = nextMatrix.activeConflicts.map(conflict => {
+    const valA = (state as any)[conflict.emotionA] ?? 0;
+    const valB = (state as any)[conflict.emotionB] ?? 0;
+
+    // Auto-resolve if emotions separated or conflict is very old (>10 turns)
+    if ((valA < 0.2 || valB < 0.2) || conflict.turnsActive > 10) {
+      nextMatrix.lastResolvedAt = Date.now();
+      return { ...conflict, isResolved: true };
+    }
+    return conflict;
+  }).filter(c => !c.isResolved || c.turnsActive < 2); // Keep recently resolved for context
+
+  return nextMatrix;
+}
+
+// Describe active conflicts for prompt injection
+export function describeConflicts(matrix: ConflictMatrix): string {
+  const active = matrix.activeConflicts.filter(c => !c.isResolved && c.tensionLevel > 0.2);
+  if (active.length === 0) return '';
+
+  return active.map(c =>
+    `${c.emotionA} and ${c.emotionB} are pulling against each other (tension: ${(c.tensionLevel * 100).toFixed(0)}%, ${c.turnsActive} turn${c.turnsActive !== 1 ? 's' : ''} unresolved)`
+  ).join('; ');
+}
+
+// Get the dominant unresolved conflict (for tone adjustment)
+export function getDominantConflict(matrix: ConflictMatrix): EmotionalConflict | null {
+  const active = matrix.activeConflicts.filter(c => !c.isResolved);
+  if (active.length === 0) return null;
+  return active.reduce((max, c) => c.tensionLevel > max.tensionLevel ? c : max, active[0]);
 }
