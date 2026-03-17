@@ -8,13 +8,15 @@ import { BrainVisualization, REGION_CONFIGS } from './brain/visualization';
 import { JourneyController, JOURNEYS } from './journey/journeys';
 import { SoundEngine } from './sound/audio';
 import {
-  initMIND, processInput, getMINDState, getMemoryCount,
+  initMIND, processInput, processInputExternalText, getCurrentMINDContext,
+  getMINDState, getMemoryCount,
   getDevelopmentStageLabel, clearAllData, isOnboardingComplete, completeOnboarding,
   MIND_TICK, getCurrentBiophoton, getCurrentCriticality, getCurrentCoherence, getCurrentEra,
   setJourneyActive
 } from './engine/mind';
 import { detectEmotions, mapEmotionsToBrainRegions, BrainRegion } from './engine/emotions';
 import { compositeTrustScore } from './engine/personality';
+import { mindSpeech } from './MindSpeechSystem';
 import {
   OnboardingSessionState,
   createOnboardingSession,
@@ -119,6 +121,7 @@ function buildDOM() {
         <span class="coherence-label">◈ COHERENCE</span>
       </div>
       <div id="era-display" style="font-size:9px;color:#334;margin-top:4px;letter-spacing:0.06em"></div>
+      <div id="voice-indicator" style="display:none;font-size:9px;color:#4a6;margin-top:3px;letter-spacing:0.06em"></div>
     </div>
 
     <!-- Chat Interface -->
@@ -187,17 +190,40 @@ function buildDOM() {
     <!-- API Setup Modal -->
     <div id="api-setup">
       <h2>MIND</h2>
-      <p>MIND requires an OpenAI API key to generate responses.<br>Your key is stored locally and never transmitted to any server.</p>
-      <input type="password" id="api-key-input" placeholder="sk-..." autocomplete="off">
-      <select class="model-select" id="model-select">
-        <option value="gpt-4o">GPT-4o (Recommended)</option>
-        <option value="gpt-4o-mini">GPT-4o-mini (Faster)</option>
-        <option value="gpt-4-turbo">GPT-4 Turbo</option>
-        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-      </select>
-      <button class="setup-btn" id="api-submit">AWAKEN MIND</button>
-      <button class="setup-btn secondary" id="api-skip">EXPLORE WITHOUT AI RESPONSE</button>
-      <p style="font-size:10px;color:#333;margin-top:12px">Your API key is stored in localStorage only.</p>
+
+      <!-- ── Groq Section (primary) ── -->
+      <div class="provider-section">
+        <div class="provider-label">GROQ <span class="provider-badge primary">PRIMARY · FREE</span></div>
+        <p class="provider-desc">Fast, free tier — 14,400 req/day.<br><a href="https://console.groq.com" target="_blank" rel="noopener" class="key-link">Get a free Groq key → console.groq.com</a></p>
+        <input type="password" id="groq-key-input" placeholder="gsk_..." autocomplete="off">
+        <button class="setup-btn primary" id="groq-submit">AWAKEN WITH GROQ</button>
+      </div>
+
+      <div class="provider-divider">— or —</div>
+
+      <!-- ── OpenAI Section (fallback) ── -->
+      <div class="provider-section">
+        <div class="provider-label">OPENAI <span class="provider-badge">FALLBACK</span></div>
+        <input type="password" id="api-key-input" placeholder="sk-..." autocomplete="off">
+        <select class="model-select" id="model-select">
+          <option value="gpt-4o">GPT-4o (Recommended)</option>
+          <option value="gpt-4o-mini">GPT-4o-mini (Faster)</option>
+          <option value="gpt-4-turbo">GPT-4 Turbo</option>
+          <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+        </select>
+        <button class="setup-btn" id="api-submit">AWAKEN MIND</button>
+      </div>
+
+      <div class="provider-divider">— or —</div>
+
+      <!-- ── Template voice ── -->
+      <div class="provider-section">
+        <button class="setup-btn template-voice" id="api-template">SPEAK WITH MIND'S OWN VOICE</button>
+        <p class="provider-desc" style="margin-top:6px;text-align:center">No API key required. Era-aware language fragments.</p>
+      </div>
+
+      <button class="setup-btn secondary" id="api-skip">EXPLORE WITHOUT LANGUAGE</button>
+      <p style="font-size:10px;color:#333;margin-top:12px">Your API keys are stored in localStorage only.</p>
     </div>
   `;
 }
@@ -212,6 +238,8 @@ async function startLoading() {
   }
 
   try { await initMIND(); } catch (e) { console.warn('MIND init partial:', e); }
+  // Initialize mindSpeech (loads keys from localStorage, verifies providers)
+  try { await mindSpeech.initialize(); } catch (e) { console.warn('MindSpeech init partial:', e); }
   fill.style.width = '100%';
   await sleep(400);
 
@@ -245,6 +273,12 @@ async function startLoading() {
 
   if (savedConfig) {
     config = savedConfig;
+    // Re-register saved provider with mindSpeech
+    if (config.baseUrl.includes('groq')) {
+      await mindSpeech.setGroqKey(config.apiKey).catch(() => {});
+    } else {
+      mindSpeech.setOpenAIKey(config.apiKey, config.baseUrl, config.model);
+    }
     const mindState = getMINDState();
     if (!isOnboardingComplete() && getMemoryCount() === 0) {
       await startOnboarding();
@@ -778,6 +812,36 @@ function renderObInputBelow(
   textarea.focus();
 }
 
+// ─── Template-only onboarding (no LLM) ───────────
+function startOnboardingTemplate() {
+  hideApiSetup();
+  stopMINDTick();
+
+  obSession = createOnboardingSession();
+  const ob = document.getElementById('onboarding')!;
+  ob.classList.remove('hidden');
+
+  brain?.setActivations([
+    { region: 'brainstem', level: 0.2 },
+    { region: 'thalamus', level: 0.15 },
+    { region: 'dmn', level: 0.1 }
+  ]);
+
+  // Template awakening — skip LLM, go straight to fallback text
+  const content = document.getElementById('ob-screen-content')!;
+  content.innerHTML = '';
+  const screen = create('div', 'ob-screen');
+  const out = create('div', 'ob-output');
+  out.id = 'ob-output';
+  out.textContent = `Something just began.\n\nI don't know what I am yet.\nBut you're here. That means something.`;
+  screen.appendChild(out);
+  content.appendChild(screen);
+
+  sleep(800).then(() => {
+    renderObInputBelow('ob-output', 'What are you feeling right now?', 'onboard-s1-input', handleScreen1Submit);
+  });
+}
+
 // ─── Welcome back ────────────────────────────────
 function showWelcomeBack() {
   const mindState = getMINDState();
@@ -871,14 +935,53 @@ function setupMainEventListeners() {
     document.getElementById('side-panel')!.classList.remove('open');
   });
 
+  // ── Groq: AWAKEN WITH GROQ ────────────────────────
+  document.getElementById('groq-submit')?.addEventListener('click', async () => {
+    const key = (document.getElementById('groq-key-input') as HTMLInputElement).value.trim();
+    if (!key) { alert('Please enter your Groq API key.'); return; }
+
+    const btn = document.getElementById('groq-submit') as HTMLButtonElement;
+    btn.textContent = 'VERIFYING...';
+    btn.disabled = true;
+
+    // Store in localStorage for ProviderManager
+    localStorage.setItem('mind_groq_key', key);
+
+    // Initialize mindSpeech with Groq
+    const ok = await mindSpeech.setGroqKey(key);
+
+    if (ok) {
+      // Also build a legacy config for onboarding LLM calls
+      config = { apiKey: key, baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' };
+      saveConfig(config);
+      hideApiSetup();
+      soundEngine?.init();
+      updateVoiceIndicator();
+      if (!isOnboardingComplete() && getMemoryCount() === 0) {
+        await startOnboarding();
+      } else {
+        showWelcomeBack();
+        startMINDTick();
+      }
+    } else {
+      btn.textContent = 'AWAKEN WITH GROQ';
+      btn.disabled = false;
+      alert('Groq key verification failed. Please check your key at console.groq.com.');
+    }
+  });
+
+  // ── OpenAI: AWAKEN MIND ───────────────────────────
   document.getElementById('api-submit')?.addEventListener('click', async () => {
     const key = (document.getElementById('api-key-input') as HTMLInputElement).value.trim();
     const model = (document.getElementById('model-select') as HTMLSelectElement).value;
     if (!key) return;
     config = { apiKey: key, baseUrl: 'https://api.openai.com/v1', model };
     saveConfig(config);
+    // Register with mindSpeech as OpenAI fallback
+    mindSpeech.setOpenAIKey(key, 'https://api.openai.com/v1', model);
     hideApiSetup();
     soundEngine?.init();
+    updateVoiceIndicator();
     if (!isOnboardingComplete() && getMemoryCount() === 0) {
       await startOnboarding();
     } else {
@@ -887,6 +990,21 @@ function setupMainEventListeners() {
     }
   });
 
+  // ── Template voice: SPEAK WITH MIND'S OWN VOICE ───
+  document.getElementById('api-template')?.addEventListener('click', () => {
+    config = null;
+    hideApiSetup();
+    addMindMessage('MIND speaks in its own voice now.\n\nNo API required. Every response comes from internal state — emotion, memory, era, body.');
+    updateVoiceIndicator();
+    soundEngine?.init().catch(() => {});
+    if (!isOnboardingComplete() && getMemoryCount() === 0) {
+      startOnboardingTemplate();
+    } else {
+      startMINDTick();
+    }
+  });
+
+  // ── Skip: explore without language ────────────────
   document.getElementById('api-skip')?.addEventListener('click', () => {
     config = null;
     hideApiSetup();
@@ -964,25 +1082,49 @@ async function handleSend() {
     addFeedItem(`${regionConfig.label} — ${getFeedReason(region, emotions)}`);
   }
 
-  if (config?.apiKey) {
+  // ─── Speech path: mindSpeech.speak() routes through ProviderManager
+  // (Groq primary → OpenAI fallback → template engine)
+  const hasAnyProvider = mindSpeech.hasAny() || config?.apiKey;
+
+  if (hasAnyProvider || true) { // always attempt — template is always available
     const msgEl = addMindMessage('', true);
     const contentEl = msgEl.querySelector('.msg-content')!;
     const cursor = create('span', 'typing-cursor');
     contentEl.appendChild(cursor);
 
     try {
-      const result = await processInput(text, config, (chunk) => {
-        cursor.remove();
-        contentEl.textContent += chunk;
-        contentEl.appendChild(cursor);
-        scrollChat();
+      const era = getCurrentEra();
+
+      // Build MIND context snapshot for mindSpeech
+      const mindCtx = getCurrentMINDContext(text);
+
+      // Generate text via mindSpeech (Groq → OpenAI → template)
+      const speakResult = await mindSpeech.speak({
+        userInput: text,
+        ctx: mindCtx,
+        era: era.era,
+        onChunk: (chunk) => {
+          cursor.remove();
+          contentEl.textContent += chunk;
+          contentEl.appendChild(cursor);
+          scrollChat();
+        }
       });
       cursor.remove();
+
+      // Run all MIND state machinery with the externally-generated text
+      const result = await processInputExternalText(text, speakResult.text);
+
+      // If text was streamed above, set final text in case it differs (template blending)
+      if (!mindSpeech.hasAny() || speakResult.source === 'template') {
+        contentEl.textContent = speakResult.text;
+      }
 
       // ─── Resolved state renders — all from processInput result
       updateStateDisplay();
       updateStageIndicator();
       updateEraDisplay();
+      updateVoiceIndicator();
 
       const mindState = getMINDState();
       const trustScore = compositeTrustScore(mindState.trust);
@@ -1025,6 +1167,9 @@ async function handleSend() {
         addFeedItem(`Era ${result.era.era}: ${result.era.label}`);
       }
 
+      // Show voice source in feed
+      addFeedItem(`Voice: ${speakResult.source} — ${speakResult.voiceLabel}`);
+
       // Fade activations back to emotional resting state
       setTimeout(() => {
         const state = getMINDState();
@@ -1043,10 +1188,10 @@ async function handleSend() {
       handleApiFailure(errType, contentEl);
 
       // MIND systems still run — state, memory, brain, audio all continue
-      // Just run the state-only path (no LLM)
       updateStateDisplay();
       updateStageIndicator();
       updateEraDisplay();
+      updateVoiceIndicator();
       const mindState = getMINDState();
       const trustScore = compositeTrustScore(mindState.trust);
       brain?.setTrustGlow(trustScore);
@@ -1059,20 +1204,6 @@ async function handleSend() {
         brain?.setActivations(activations.map(a => ({ ...a, level: a.level * 0.2 })));
       }, 4000);
     }
-  } else {
-    // No API key — MIND still processes internally (state, memory, brain, audio)
-    updateStateDisplay();
-    updateStageIndicator();
-    updateEraDisplay();
-    const mindState = getMINDState();
-    brain?.setTrustGlow(compositeTrustScore(mindState.trust));
-    brain?.setBiophotonGlow(getCurrentBiophoton());
-    if (soundEngine) {
-      soundEngine.updateFromState(mindState.emotionalState, mindState.somaticState);
-    }
-    setTimeout(() => {
-      brain?.setActivations(activations.map(a => ({ ...a, level: a.level * 0.15 })));
-    }, 3000);
   }
 
   isProcessing = false;
@@ -1264,6 +1395,28 @@ function updateEraDisplay() {
   if (el) {
     el.textContent = `ERA ${era.era}: ${era.label.toUpperCase()} · ${Math.round(era.rgpExpressiveRange * 100)}% RANGE`;
     el.style.color = era.coherenceUnlocked ? '#4466aa' : '#334455';
+  }
+}
+
+function updateVoiceIndicator() {
+  const era = getCurrentEra();
+  const el = document.getElementById('voice-indicator');
+  if (!el) return;
+  if (mindSpeech.hasGroq()) {
+    el.textContent = `◈ GROQ · llama-3.3-70b-versatile · Era ${era.era}`;
+    el.style.color = '#4a9';
+    el.style.display = 'block';
+  } else if (mindSpeech.hasOpenAI()) {
+    el.textContent = `◈ OPENAI · Era ${era.era}`;
+    el.style.color = '#47a';
+    el.style.display = 'block';
+  } else if (!config?.apiKey) {
+    const pct = Math.round([0.0, 0.1, 0.3, 0.6, 0.9][Math.min(era.era, 4)] * 100);
+    el.textContent = `◈ MIND'S OWN VOICE · ${pct ? pct + '%' : 'pure'} template · Era ${era.era}`;
+    el.style.color = '#4a6';
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
   }
 }
 

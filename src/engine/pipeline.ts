@@ -314,6 +314,7 @@ export async function generateMINDResponse(
       messages: [{ role: 'user', content: prompt }],
       stream: !!onChunk,
       temperature,
+      top_p: 0.9,
       max_tokens: maxTokens,
       presence_penalty: 0.3,
       frequency_penalty: 0.2

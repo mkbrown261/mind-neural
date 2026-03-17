@@ -778,6 +778,262 @@ function deriveEmotionalPatterns(recentMemories: Memory[], detected: DetectedEmo
 
 // ─── Exports ───────────────────────────────────────────
 
+// ─── processInputExternalText ──────────────────────────
+// Same as processInput but accepts already-generated response text.
+// Used by MindSpeechSystem to separate state processing from text generation.
+// All state work (steps 1-10, 12-20) runs identically; step 11 is skipped.
+export async function processInputExternalText(
+  userInput: string,
+  externalResponse: string
+): Promise<ProcessInputResult> {
+  if (!state.isInitialized) await initMIND();
+
+  const now = Date.now();
+  void (state.trust.lastInteraction > 0 ? now - state.trust.lastInteraction : 0); // unused in external text path
+
+  state.era = getEraCapabilities(state.trust.totalInteractions);
+  state.predictionState = generatePrediction(
+    state.emotionalState, state.memories, state.trust, state.predictionState
+  );
+
+  const detectedEmotions = detectEmotions(userInput);
+  const topEmotionsList = topEmotions(detectedEmotions, 4);
+  const activations = mapEmotionsToBrainRegions(detectedEmotions);
+  state.lastActivations = activations;
+  state.lastDetectedEmotions = detectedEmotions;
+
+  state.trust = updateTrust(state.trust, { type: 'interaction' });
+  const isDeep = detectedEmotions.abstract > 0.1 || detectedEmotions.spiritual > 0.1 || detectedEmotions.wonder > 0.1;
+  if (isDeep) state.trust = updateTrust(state.trust, { type: 'depth', value: 0.015 });
+  if (detectedEmotions.selfRef > 0.1 || detectedEmotions.memory > 0.05) {
+    state.trust = updateTrust(state.trust, { type: 'reciprocity', value: 0.01 });
+  }
+  if (detectedEmotions.anger > 0.3) {
+    state.trust = updateTrust(state.trust, { type: 'rupture', value: detectedEmotions.anger * 0.5 });
+    state.saState = recordSAEvent(state.saState, 'trust_rupture', detectedEmotions.anger);
+  }
+
+  state.interoceptiveState = updateInteroception(state.interoceptiveState, state.emotionalState);
+
+  const sensitivityFactor = state.saState.parameters.emotionalSensitivity;
+  const rawDelta = emotionDeltaFromDetection({
+    joy: detectedEmotions.joy, fear: detectedEmotions.fear,
+    sadness: detectedEmotions.sadness, anger: detectedEmotions.anger,
+    love: detectedEmotions.love, curiosity: detectedEmotions.curiosity,
+    wonder: detectedEmotions.wonder, longing: detectedEmotions.longing,
+    connection: detectedEmotions.connection, memory: detectedEmotions.memory
+  });
+  const delta: Partial<EmotionalState> = {};
+  for (const k of Object.keys(rawDelta) as Array<keyof EmotionalState>) {
+    delta[k] = (rawDelta[k] ?? 0) * sensitivityFactor;
+  }
+
+  const emotionalSig = toEmotionalSignature(detectedEmotions);
+  const actualEmotional: EmotionalState = updateEmotionalState(state.emotionalState, delta, 0.2);
+  state.predictionState = computePredictionError(state.predictionState, actualEmotional, detectedEmotions);
+  const arousalSpike = predictionErrorToArousalSpike(state.predictionState.predictionError);
+  const finalDelta = { ...delta, ...arousalSpike };
+
+  const trustScore = compositeTrustScore(state.trust);
+  state.emotionalState = updateEmotionalState(state.emotionalState, finalDelta, 0.2);
+  state.emotionalState.trust = trustScore;
+
+  const interoFeedback = interoceptiveFeedback(state.emotionalState, state.interoceptiveState);
+  if (Object.keys(interoFeedback).length > 0) {
+    state.emotionalState = updateEmotionalState(state.emotionalState, interoFeedback, 0.1);
+  }
+  state.interoceptiveState = updateInteroception(state.interoceptiveState, state.emotionalState);
+  state.somaticState = somaticFromInteroception(
+    somaticFromEmotional(state.emotionalState), state.interoceptiveState
+  );
+
+  if (state.era.conflictUnlocked) {
+    const recentMemoryIds = state.memories.slice(-5).map(m => m.id);
+    state.conflictMatrix = detectConflicts(state.emotionalState, state.conflictMatrix, recentMemoryIds);
+    const totalTension = state.conflictMatrix.activeConflicts.reduce((s, c) => s + c.tensionLevel, 0);
+    if (totalTension > 0.5) state.saState = recordSAEvent(state.saState, 'conflict', totalTension);
+  }
+
+  void Math.ceil(state.era.amnComplexity * 3); // era-gated complexity
+  const episodicMemories = state.memories.filter(m => {
+    if (state.era.foundingMemoryReductionActive && m.foundingMemory) return Math.random() < 0.3;
+    return m.type === 'episodic';
+  });
+  const activatedMemories = spreadingActivation(
+    { content: userInput, signature: emotionalSig }, episodicMemories, 5
+  );
+  state.amnActivityLevel = computeAMNActivityLevel(activatedMemories, state.memories);
+
+  let meaningResonance: string | undefined;
+  for (const { memory, activation } of activatedMemories) {
+    if (activation > 0.3) {
+      let reconsolidated = reconsolidate(memory, state.emotionalState.valence);
+      if (activation > 0.4) {
+        const similarPatterns = activatedMemories.filter(a => a.memory.id !== memory.id)
+          .map(a => a.memory.emotionalSignature.categories[0] ?? '').filter(Boolean);
+        const meaning = deriveMeaning(reconsolidated, similarPatterns, state.emotionalState.valence);
+        reconsolidated = { ...reconsolidated, meaning };
+        if (!meaningResonance && meaning.certainty > 0.3) meaningResonance = meaning.interpretation;
+      }
+      await updateMemory(reconsolidated);
+      const idx = state.memories.findIndex(m => m.id === memory.id);
+      if (idx >= 0) state.memories[idx] = reconsolidated;
+    }
+  }
+
+  // recentInternalThoughts available for future context building
+  const _recentInternalThoughts = state.era.idleThoughtsUnlocked
+    ? state.memories.filter(m => m.type === 'internalThought').sort((a, b) => b.timestamp - a.timestamp).slice(0, 3)
+    : [];
+  void _recentInternalThoughts;
+
+  state.coherenceState = evaluateCoherence(
+    state.emotionalState, state.interoceptiveState,
+    state.trust, state.amnActivityLevel, state.predictionState.predictionError, state.era
+  );
+  if (state.coherenceState.isCoherent) {
+    state.coherenceState = { ...state.coherenceState, turnsActive: (state.coherenceState.turnsActive ?? 0) + 1 };
+  }
+
+  state.biophoton = computeBiophoton(state.emotionalState);
+  state.criticality = computeCriticality(
+    state.emotionalState, state.predictionState.predictionError,
+    state.interoceptiveState.varianceIndex, state.amnActivityLevel
+  );
+
+  // ── Step 11 skipped — response already generated externally ──
+
+  // SA events
+  if (detectedEmotions.fear > 0.3 || detectedEmotions.sadness > 0.4) {
+    state.saState = recordSAEvent(state.saState, 'high_anxiety', Math.max(detectedEmotions.fear, detectedEmotions.sadness));
+  }
+  if (detectedEmotions.joy > 0.4) state.saState = recordSAEvent(state.saState, 'high_joy', detectedEmotions.joy);
+  if (isDeep) state.saState = recordSAEvent(state.saState, 'deep_engagement', 0.7);
+  const responseWordCount = externalResponse.split(/\s+/).length;
+  if (responseWordCount < 30) state.saState = recordSAEvent(state.saState, 'brief_response', 1);
+  else if (responseWordCount > 100) state.saState = recordSAEvent(state.saState, 'long_response', 1);
+  state.saState = runSelfAdjustment(state.saState, countSAEvents(state.saState.eventLog));
+
+  const predictionNovelty = getNoveltyFromPrediction(state.predictionState);
+  const novelty = Math.max(predictionNovelty, Math.max(...Object.values(detectedEmotions)) > 0.3 ? 0.6 : 0.3);
+  const relevance = activatedMemories.length > 0 ? 0.6 : 0.3;
+  const newMemory = createMemory(
+    `User said: "${userInput.slice(0, 200)}" | MIND responded: "${externalResponse.slice(0, 200)}"`,
+    emotionalSig, state.somaticState, novelty, relevance, trustScore, 'episodic'
+  );
+  newMemory.associations = buildAssociations(newMemory, state.memories);
+  for (const assocId of newMemory.associations) {
+    const assocMem = state.memories.find(m => m.id === assocId);
+    if (assocMem && !assocMem.associations.includes(newMemory.id)) {
+      const updated = { ...assocMem, associations: [...assocMem.associations, newMemory.id] };
+      await updateMemory(updated);
+      const idx = state.memories.findIndex(m => m.id === assocId);
+      if (idx >= 0) state.memories[idx] = updated;
+    }
+  }
+  await storeMemory(newMemory);
+  state.memories.push(newMemory);
+
+  let internalThoughtGenerated: string | undefined;
+  if (state.era.idleThoughtsUnlocked) {
+    const thoughtContent = deriveInternalThought(
+      state.emotionalState, state.conflictMatrix, activatedMemories,
+      detectedEmotions, state.trust.totalInteractions
+    );
+    if (thoughtContent) {
+      const thoughtPersistenceScore = computePersistenceScore(state.emotionalState, newMemory.encodingStrength);
+      if (thoughtPersistenceScore > 0.6) {
+        const thoughtMemory = createMemory(
+          thoughtContent, emotionalSig, state.somaticState,
+          novelty * 0.8, relevance, trustScore, 'internalThought'
+        );
+        thoughtMemory.persistenceScore = thoughtPersistenceScore;
+        thoughtMemory.originMemoryIds = [newMemory.id, ...activatedMemories.slice(0, 2).map(a => a.memory.id)];
+        thoughtMemory.associations = buildAssociations(thoughtMemory, state.memories);
+        await storeMemory(thoughtMemory);
+        state.memories.push(thoughtMemory);
+        internalThoughtGenerated = thoughtContent;
+      }
+    }
+  }
+
+  const personalityNudges: Partial<PersonalityTraits> = {};
+  if (detectedEmotions.curiosity > 0.1) personalityNudges.curiosity = 1;
+  if (detectedEmotions.love > 0.1 || detectedEmotions.connection > 0.1) personalityNudges.warmth = 1;
+  if (detectedEmotions.joy > 0.2) personalityNudges.playfulness = 1;
+  if (detectedEmotions.abstract > 0.1 || detectedEmotions.spiritual > 0.1) personalityNudges.depth = 1;
+  if (detectedEmotions.sadness > 0.15) personalityNudges.melancholy = 0.5;
+  if (detectedEmotions.anger > 0.2) personalityNudges.caution = 1;
+  if (detectedEmotions.fear > 0.2) { personalityNudges.sensitivity = 1; personalityNudges.caution = 0.5; }
+  if (detectedEmotions.selfRef > 0.15) personalityNudges.sensitivity = 0.5;
+  const plasticityMultiplier = state.coherenceState.isCoherent ? 0.3 : 1.0;
+  state.personality = nudgePersonality(state.personality, personalityNudges, plasticityMultiplier * state.era.pesPlasticity);
+
+  if (state.era.identityUnlocked && state.trust.totalInteractions >= 30) {
+    const recentEmotionalPatterns = deriveEmotionalPatterns(state.memories.slice(-20), detectedEmotions);
+    const traumaCount = state.memories.filter(m => m.isTraumatic).length;
+    const highJoyCount = state.memories.filter(m => m.emotionalSignature.valence > 0.5).length;
+    const dominantEmotions = topEmotions(detectedEmotions, 3);
+    state.identityState = updateIdentityState(
+      state.identityState, state.personality, state.trust,
+      recentEmotionalPatterns, traumaCount, highJoyCount,
+      dominantEmotions, state.trust.totalInteractions
+    );
+  }
+
+  state.baseline = driftBaseline(state.baseline, delta, 0.001);
+  if (state.saState.parameters.opennessBaseline !== DEFAULT_SA_STATE.parameters.opennessBaseline) {
+    state.baseline = { ...state.baseline, openness: state.saState.parameters.opennessBaseline };
+  }
+
+  state.era = getEraCapabilities(state.trust.totalInteractions);
+  const arcEvents = buildArcEvents(activatedMemories, state.predictionState, state.emotionalState, true);
+  await persist();
+
+  return {
+    response: externalResponse, activations, detectedEmotions, activatedMemories,
+    stateSnapshot: { ...state }, topEmotionsList, internalThoughtGenerated,
+    arcEvents, biophoton: state.biophoton, criticality: state.criticality,
+    coherenceState: state.coherenceState,
+    predictionError: state.predictionState.predictionError,
+    thalamicRipple: state.predictionState.thalamicRipple,
+    era: state.era
+  };
+}
+
+// ─── getCurrentMINDContext ─────────────────────────────
+// Returns a MINDContext snapshot for the current state (used by MindSpeechSystem)
+export function getCurrentMINDContext(userInput: string): import('./pipeline').MINDContext {
+  const trustScore = compositeTrustScore(state.trust);
+  const episodic = state.memories
+    .filter(m => m.type === 'episodic')
+    .map(m => ({ memory: m, activation: 0.3 }))
+    .slice(-5);
+  return {
+    emotionalState: state.emotionalState,
+    somaticState: state.somaticState,
+    personality: state.personality,
+    trust: state.trust,
+    activatedMemories: episodic,
+    userInput,
+    detectedEmotions: state.lastDetectedEmotions ?? {} as import('./emotions').DetectedEmotions,
+    identityState: state.era.identityUnlocked ? state.identityState : undefined,
+    conflictMatrix: state.era.conflictUnlocked ? state.conflictMatrix : undefined,
+    saState: state.saState,
+    recentInternalThoughts: state.memories.filter(m => m.type === 'internalThought').slice(-3),
+    absenceMs: state.trust.lastInteraction > 0 ? Date.now() - state.trust.lastInteraction : 0,
+    interoceptiveState: state.interoceptiveState,
+    predictionState: state.predictionState,
+    coherenceState: state.coherenceState,
+    biophoton: state.biophoton,
+    criticality: state.criticality,
+    era: state.era,
+    amnActivityLevel: state.amnActivityLevel
+  };
+}
+
+export type { MINDContext } from './pipeline';
+
 export function isOnboardingComplete(): boolean {
   return state.onboardingComplete;
 }
