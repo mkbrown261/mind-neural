@@ -312,81 +312,64 @@ async function startLoading() {
   const mindStateInitPhase3 = getMINDState();
   brainSync?.applyIdleState(mindStateInitPhase3.emotionalState, getCurrentBiophoton());
 
-  // ── Phase 3: decide what to show — strict startup state machine
-  //    RULE 1: No saved config  → PRE_INIT → MODEL_SELECT → show API setup
-  //    RULE 2: Saved config     → verify key silently → if ok: INIT → READY
-  //                                                    → if bad: back to MODEL_SELECT
+  // ── Phase 3: Startup state machine
+  // Wipe stale standalone keys — config is the only source of truth
+  localStorage.removeItem('mind_groq_key');
+  localStorage.removeItem('mind_openai_key');
+  localStorage.removeItem('mind_openai_base');
+  localStorage.removeItem('mind_openai_model');
 
-  startupController.transitionToModelSelect();   // PRE_INIT → MODEL_SELECT
+  startupController.transitionToModelSelect();
 
   if (savedConfig) {
-    config = savedConfig;
-    // Input stays locked while we verify in background
-    setInputLock(true, 'Verifying saved key...');
-
+    // Returning user: silently re-verify key in background.
+    // Show a "Reconnecting…" indicator but keep panel visible in case it fails.
+    showSetupReconnecting(savedConfig);
     if (savedConfig.baseUrl.includes('groq')) {
-      // Restore Groq key — verify silently in background
-      mindSpeech.setGroqKey(savedConfig.apiKey)
-        .then(ok => {
-          if (!ok) {
-            // Key is stale/revoked — clear everything, return to model select
-            console.warn('[MIND] Saved Groq key no longer valid — clearing config');
-            localStorage.removeItem('mind_config');
-            localStorage.removeItem('mind_groq_key');
-            config = null;
-            stopMINDTick();
-            startupController.reset();
-            startupController.transitionToModelSelect();
-            showSetupStep1();
-            showApiStepModel();
-          } else {
-            setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
-              return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
-            });
-            // Force transition through INIT by temporarily resetting to MODEL_SELECT
-            // (transitionToInit requires state !== READY)
-            if (startupController.current === 'MODEL_SELECT') {
-              startupController.transitionToApiKey('groq');
-              startupController.transitionToInit(savedConfig.model);
-            }
-            startupController.setStep('response');
-            startupController.transitionToReady();
-            updateVoiceIndicator();
-            hideSetupPanel();
-            _afterApiReady();
-          }
-        })
-        .catch(() => {
-          // Network failure — still let user in, treat as template mode
+      (async () => {
+        const ok = await mindSpeech.setGroqKey(savedConfig.apiKey);
+        if (ok) {
+          config = savedConfig;
+          setOnboardingProvider(async (prompt, maxTokens, onChunk) =>
+            mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk }));
+          startupController.transitionToApiKey('groq');
+          startupController.transitionToInit(savedConfig.model || 'llama-3.3-70b-versatile');
+          startupController.setStep('response');
+          startupController.transitionToReady();
+          hideSetupPanel();
+          soundEngine?.init().catch(() => {});
+          updateVoiceIndicator();
+          await _afterApiReady();
+        } else {
+          // Key stale — ask user to re-enter
+          localStorage.removeItem('mind_config');
           config = null;
           startupController.reset();
           startupController.transitionToModelSelect();
           showSetupStep1();
-          showApiStepModel();
-        });
+          setSetupError('Saved key is no longer valid. Please enter a new key.');
+        }
+      })();
     } else {
-      // OpenAI — accept immediately (trust saved config, no extra verify)
-      mindSpeech.setOpenAIKey(savedConfig.apiKey, savedConfig.baseUrl, savedConfig.model);
-      setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
-        return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
-      });
-      startupController.transitionToApiKey('openai');
-      startupController.transitionToInit(savedConfig.model);
-      startupController.setStep('response');
-      startupController.transitionToReady();
-      updateVoiceIndicator();
-      hideSetupPanel();
-      _afterApiReady();
+      // OpenAI — trust without round-trip verify
+      (async () => {
+        config = savedConfig;
+        mindSpeech.setOpenAIKey(savedConfig.apiKey, savedConfig.baseUrl, savedConfig.model);
+        setOnboardingProvider(async (prompt, maxTokens, onChunk) =>
+          mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk }));
+        startupController.transitionToApiKey('openai');
+        startupController.transitionToInit(savedConfig.model || 'gpt-4o');
+        startupController.setStep('response');
+        startupController.transitionToReady();
+        hideSetupPanel();
+        soundEngine?.init().catch(() => {});
+        updateVoiceIndicator();
+        await _afterApiReady();
+      })();
     }
   } else {
-    // No saved config — wipe any stale keys that might have been left behind
-    localStorage.removeItem('mind_groq_key');
-    localStorage.removeItem('mind_openai_key');
-    localStorage.removeItem('mind_openai_base');
-    localStorage.removeItem('mind_openai_model');
-    // Input stays locked; show the model-select step of setup
+    // Fresh start — show provider selection
     showSetupStep1();
-    showApiStepModel();
   }
 }
 
@@ -516,6 +499,20 @@ function showSetupLocked(label: string) {
   if (s2) s2.style.display = 'none';
   if (sl) sl.style.display = 'block';
   if (lbl) lbl.textContent = label;
+}
+
+function showSetupReconnecting(cfg: AppConfig) {
+  // Show step 2 with pre-filled key and a "Reconnecting…" message
+  const providerHint = cfg.baseUrl.includes('groq') ? 'groq' : 'openai';
+  showSetupStep2(providerHint);
+  const ki = document.getElementById('setup-key-input') as HTMLInputElement;
+  if (ki) ki.value = cfg.apiKey;
+  const ms = document.getElementById('model-select') as HTMLSelectElement;
+  if (ms && cfg.model) ms.value = cfg.model;
+  const lbl = document.getElementById('setup-step-2-label');
+  if (lbl) lbl.textContent = 'RECONNECTING…';
+  const verifyBtn = document.getElementById('setup-verify') as HTMLButtonElement;
+  if (verifyBtn) { verifyBtn.textContent = 'RECONNECTING…'; verifyBtn.disabled = true; }
 }
 
 function setSetupError(msg: string) {
@@ -1137,8 +1134,7 @@ function setupMainEventListeners() {
 
   // Back button — returns to step 1
   document.getElementById('setup-back')?.addEventListener('click', () => {
-    startupController.reset();
-    startupController.transitionToModelSelect();
+    startupController.returnToModelSelect();
     showSetupStep1();
   });
 
@@ -1160,8 +1156,13 @@ function setupMainEventListeners() {
     btn.disabled = true;
     clearSetupError();
 
+    // Ensure correct state before transitioning — reset if needed
+    if (startupController.current !== 'API_KEY') {
+      startupController.returnToModelSelect();
+      startupController.transitionToApiKey(_verifyProvider);
+    }
+
     if (_verifyProvider === 'groq') {
-      localStorage.setItem('mind_groq_key', key);
       const ok = await mindSpeech.setGroqKey(key);
       if (ok) {
         config = { apiKey: key, baseUrl: 'https://api.groq.com/openai/v1', model };

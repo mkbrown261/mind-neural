@@ -38,6 +38,8 @@ export class ResponseArchitect {
   // Persisted across calls within session — never stored externally
   private userName:    string | null = null;
   private userLocation: string | null = null;
+  // Track last picks to prevent immediate repeats
+  private lastPicked: Map<string, string> = new Map();
 
   // ─── Entry point ──────────────────────────────────
   build(meaning: Meaning, activatedMemories: ActivatedMemory[], state: ArchitectState): string {
@@ -256,6 +258,13 @@ export class ResponseArchitect {
   }
 
   private pick(arr: string[]): string {
-    return arr[Math.floor(Math.random() * arr.length)];
+    if (arr.length === 1) return arr[0];
+    const key = arr[0]; // use first element as cache key for this set
+    const last = this.lastPicked.get(key);
+    // Filter out the last used option if possible
+    const available = arr.length > 1 ? arr.filter(s => s !== last) : arr;
+    const chosen = available[Math.floor(Math.random() * available.length)];
+    this.lastPicked.set(key, chosen);
+    return chosen;
   }
 }

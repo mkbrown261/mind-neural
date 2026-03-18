@@ -143,13 +143,28 @@ export class StartupController {
   }
 
   // ─── Signal initialization failure ───────────────
-  // Surfaces error + returns to API_KEY so user can retry.
+  // Surfaces error + returns to API_KEY so user can retry the key entry.
   fail(step: StartupStep | null, message: string): void {
     this.status = {
       ...this.status,
       state: 'API_KEY',
       step:  null,
       error: `Initialization failed${step ? ' at [' + step + ']' : ''}: ${message}`
+    };
+    this.emit();
+  }
+
+  // ─── Return to MODEL_SELECT from any state ────────
+  // Use when key is invalid and user needs to pick a new provider.
+  returnToModelSelect(): void {
+    this.status = {
+      ...this.status,
+      state:        'MODEL_SELECT',
+      step:         null,
+      error:        null,
+      apiValidated: false,
+      model:        null,
+      provider:     null
     };
     this.emit();
   }
