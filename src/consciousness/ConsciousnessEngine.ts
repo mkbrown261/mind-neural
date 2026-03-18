@@ -407,12 +407,32 @@ export class ConsciousnessEngine {
 
     const similarity = this.jaccardSimilarity(response, lastResponse);
     if (similarity > 0.70) {
-      // Too similar to last response — force minimal variation
       console.debug('[ConsciousnessEngine] Anti-echo triggered, similarity:', similarity.toFixed(2));
       const words = response.split(/\s+/);
-      // Truncate to first half to force different continuation next time
       const truncated = words.slice(0, Math.max(3, Math.floor(words.length * 0.5))).join(' ');
       return truncated.trim() + (truncated.endsWith('.') ? '' : '.');
+    }
+
+    // ── Context-echo check: MIND should not ask something the user JUST answered ──
+    // e.g. user said "it was hard to get out of bed" → MIND asks "what was hard for you?"
+    if (response.includes('?')) {
+      const userWords = new Set(userInput.toLowerCase().split(/\W+/).filter(w => w.length > 3));
+      const questions = response.split(/[.!]/).filter(s => s.includes('?'));
+      const filteredQuestions = questions.filter(q => {
+        const qWords = new Set(q.toLowerCase().split(/\W+/).filter(w => w.length > 3));
+        // If >50% of question words appear in what user just said → redundant question
+        let overlap = 0;
+        for (const w of qWords) { if (userWords.has(w)) overlap++; }
+        return qWords.size === 0 || (overlap / qWords.size) < 0.5;
+      });
+      if (filteredQuestions.length < questions.length) {
+        // Remove redundant questions — keep statements only
+        const statements = response.split(/(?<=[.!?])\s+/).filter(s => !s.trim().endsWith('?'));
+        if (statements.length > 0) {
+          console.debug('[ConsciousnessEngine] Removed context-echo question from response');
+          return statements.join(' ').trim();
+        }
+      }
     }
 
     return response;
