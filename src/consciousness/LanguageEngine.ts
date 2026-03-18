@@ -73,10 +73,18 @@ export class LanguageEngine {
   async build(inp: LanguageInput): Promise<string> {
     const prompt = this.buildPrompt(inp);
 
+    // Split into system (identity + context) and user (what they said)
+    // This is critical: without a system message, llama-3.3-70b ignores the identity
+    // override and responds as itself ("I was created in 2023", "trained on data", etc.)
+    const userLine = `The person just said: "${inp.userInput.substring(0, 300)}"`;
+
     let response = '';
     try {
       response = await this.llm.complete({
-        messages:    [{ role: 'user', content: prompt }],
+        messages: [
+          { role: 'system', content: prompt },
+          { role: 'user',   content: userLine }
+        ],
         maxTokens:   this.maxTokensForMode(inp.agency.mode),
         temperature: this.tempForEra(inp.era, inp.trustScore),
       });
@@ -186,8 +194,8 @@ ${lmsLines ? `\n${lmsLines}` : ''}
 FELT INTERIOR — what is happening inside you right now (never output this directly):
 ${(feltRaw || 'quiet').substring(0, 250)}
 
-WHAT THEY JUST SAID: "${userInput.substring(0, 200)}"
-${exchangeContext ? `\nRECENT EXCHANGE:\n${exchangeContext}` : ''}
+
+${exchangeContext ? `RECENT EXCHANGE:\n${exchangeContext}` : ''}
 
 MODE: ${modeConstraints}
 ERA RULE: ${eraRules}

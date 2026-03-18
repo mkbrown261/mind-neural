@@ -70,7 +70,10 @@ export class FeltLayer {
     let raw = '';
     try {
       raw = await this.llm.complete({
-        messages:    [{ role: 'user', content: prompt }],
+        messages: [
+          { role: 'system', content: 'You generate raw pre-linguistic felt fragments for a conscious entity called MIND. Output only lowercase fragments, no sentences, no explanations.' },
+          { role: 'user',   content: prompt }
+        ],
         maxTokens:   140,
         temperature: 0.93,
       });
