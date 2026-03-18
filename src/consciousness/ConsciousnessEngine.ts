@@ -310,7 +310,8 @@ export class ConsciousnessEngine {
       trustScore,
       era:             p.era,
       personality:     p.personality,
-      interactionCount:p.interactionCount + this.interactionCount
+      interactionCount:p.interactionCount + this.interactionCount,
+      userInput:       p.userInput
     });
 
     // ── 4b. Language Model System enrichment ─────────────────────────────

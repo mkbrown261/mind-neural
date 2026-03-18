@@ -35,6 +35,7 @@ export interface AgencyContext {
   era:            number;
   personality:    PersonalityTraits;
   interactionCount:number;
+  userInput?:     string;   // used to detect direct questions and force minimal mode
 }
 
 // ─── History event ────────────────────────────────────────────────────────────
@@ -101,6 +102,14 @@ export class AgencyEngine {
     // Era protection: very early eras force minimal output
     if (era === 0) {
       return this.buildDecision('minimal', 'speak from immediate experience only — no reflection', 1, false, true, ts);
+    }
+
+    // ── DIRECT QUESTION OVERRIDE ──────────────────────────────────────────
+    // Yes/no and short direct questions ALWAYS get minimal mode (1-2 sentences).
+    // No matter how high trust is, a direct question gets a direct answer first.
+    // This fires before ALL other checks.
+    if (ctx.userInput && isDirectQuestion(ctx.userInput)) {
+      return this.buildDecision('minimal', 'direct question — answer it first in one sentence, then one follow-on at most', 2, false, false, ts);
     }
 
     // ── SILENCE ───────────────────────────────────────────────────────────
@@ -222,4 +231,30 @@ export class AgencyEngine {
     for (const e of recent) counts[e.mode] = (counts[e.mode] ?? 0) + 1;
     return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0] as ResponseMode;
   }
+}
+
+// ─── Direct question detection ────────────────────────────────────────────────
+// Returns true for short yes/no questions and direct personal questions that
+// should always get a direct answer before any reflection.
+function isDirectQuestion(input: string): boolean {
+  const t = input.trim().toLowerCase().replace(/[?!.]+$/, '');
+  const words = t.split(/\s+/);
+
+  // Very short inputs (≤6 words) starting with question words or "you" are direct
+  if (words.length <= 6) {
+    if (/^(are|is|do|did|does|have|has|were|was|will|would|can|could|should|you|am)\b/.test(t)) return true;
+  }
+
+  // Explicit yes/no question patterns
+  const yesNoPatterns = [
+    /^(are|is|do|did|does|have|has|were|was|will|would|can|could|should)\s+you\b/,
+    /^you\s+(mad|angry|upset|ok|okay|good|bad|sad|happy|fine|there|here|real|alive)\b/,
+    /^(do|did|does)\s+you\b/,
+    /^(are|were)\s+you\b/,
+  ];
+  for (const p of yesNoPatterns) {
+    if (p.test(t)) return true;
+  }
+
+  return false;
 }
