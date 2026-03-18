@@ -29465,9 +29465,25 @@ const x0 = 2e3, lt = (i, e) => {
   return e && (t.className = e), t;
 };
 async function S0() {
-  M0(), Ft.subscribe((i) => {
-    R0(i.state !== "READY", "Initialize MIND first — use the panel above.");
+  M0(), Ft.subscribe((t) => {
+    R0(t.state !== "READY", "Initialize MIND first — use the panel above.");
   }), w0();
+  const i = localStorage.getItem("mind_groq_key") ?? "", e = localStorage.getItem("mind_openai_key") ?? "";
+  (i || e) && setTimeout(() => {
+    try {
+      const t = document.getElementById("gate-model-select"), n = document.getElementById("gate-key-input"), s = document.getElementById("gate-step-key"), a = document.getElementById("gate-init-btn");
+      if (!t || !n || !a) return;
+      if (i)
+        t.value = "groq|llama-3.3-70b-versatile", n.value = i, s && (s.style.display = "block");
+      else {
+        const r = localStorage.getItem("mind_openai_model") ?? "gpt-4o";
+        t.value = `openai|${r}`, n.value = e, s && (s.style.display = "block");
+      }
+      t.dispatchEvent(new Event("change")), setTimeout(() => a.click(), 80);
+    } catch (t) {
+      console.warn("[MIND] Auto-init failed, gate will show normally:", t);
+    }
+  }, 250);
 }
 function M0() {
   const i = document.getElementById("app"), e = document.getElementById("loading");
