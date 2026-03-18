@@ -181,46 +181,38 @@ export class CoreEngine {
   }
 
   // ─── Repetition detection ────────────────────────────────────────────────────
+  // Uses word-set similarity rather than prefix match (prefix check caused
+  // false positives — almost every MIND response starts with a short common word).
   detectRepetition(response: string): { isRepeating: boolean; score: number } {
     const history = this.state.lastResponses;
     if (history.length === 0) return { isRepeating: false, score: 0 };
 
-    // Score 1: prefix overlap (cheap fast check)
-    const prefix  = response.substring(0, PREFIX_MATCH_LENGTH).toLowerCase();
-    let prefixHits = 0;
-    for (const prev of history) {
-      if (prev.toLowerCase().substring(0, PREFIX_MATCH_LENGTH) === prefix) {
-        prefixHits++;
-      }
-    }
-
-    // Score 2: Jaccard similarity against last 3 responses
-    const recent  = history.slice(-3);
-    let maxJaccard = 0;
-    for (const prev of recent) {
-      const j = this.jaccardSimilarity(response, prev);
-      if (j > maxJaccard) maxJaccard = j;
-    }
-
-    // Score 3: key-phrase overlap (3-grams from response)
-    const responseNgrams = this.extractNgrams(response, 3);
-    let phraseOverlap    = 0;
-    for (const prevPhrases of this.state.lastKeyPhrases.slice(-4)) {
-      for (const phrase of responseNgrams) {
-        if (prevPhrases.includes(phrase)) phraseOverlap++;
-      }
-    }
-    const phraseScore = Math.min(1, phraseOverlap / Math.max(1, responseNgrams.length));
-
-    // Combined score
-    const score = Math.max(
-      prefixHits > 1 ? 0.7 : 0,
-      maxJaccard,
-      phraseScore
+    // Build set of significant words (length > 4) from the new response
+    const responseWords = new Set(
+      response.toLowerCase().split(/\W+/).filter(w => w.length > 4)
     );
 
+    let score = 0;
+
+    for (const prev of history) {
+      const prevWords = new Set(
+        prev.toLowerCase().split(/\W+/).filter(w => w.length > 4)
+      );
+
+      // Count shared significant words
+      let shared = 0;
+      for (const word of responseWords) {
+        if (prevWords.has(word)) shared++;
+      }
+
+      const similarity = shared / Math.max(responseWords.size, 1);
+
+      // Only flag if > 40 % word overlap with a recent response
+      if (similarity > 0.4) score += 1;
+    }
+
     return {
-      isRepeating: score > REPETITION_THRESHOLD,
+      isRepeating: score >= 2,
       score
     };
   }
@@ -234,60 +226,47 @@ export class CoreEngine {
   }
 
   // ─── Apply variation ─────────────────────────────────────────────────────────
+  // CORE's job is NOT to rewrite MIND's voice.
+  // It's to signal the LanguageEngine to approach differently on the NEXT
+  // generation by attaching a coreDirective to the context object.
+  //
+  // CORE does NOT patch the output string mechanically.
+  // Three governance modes — all preserve MIND's voice intact.
   applyVariation(
     response: string,
     seed: number,
-    context: CoreContext
+    context: CoreContext & { coreDirective?: string; coreNote?: string }
   ): { text: string; structure: StructureType } {
 
-    // Select structure from rotation, biased by seed
+    // Track a structure name for meta reporting (no string manipulation)
     const structureNames = STRUCTURE_ROTATION;
     const structureIdx   = this.state.structureIndex % structureNames.length;
-    const structure      = structureNames[structureIdx];
-
-    // Skip last-used structure to prevent immediate repeat
-    const last = this.state.lastStructures.slice(-1)[0];
-    const useStructure = (structure === last)
-      ? structureNames[(structureIdx + 1) % structureNames.length]
-      : structure;
-
-    // Track used structure
+    const last           = this.state.lastStructures.slice(-1)[0];
+    let useStructure     = structureNames[structureIdx];
+    if (useStructure === last) {
+      useStructure = structureNames[(structureIdx + 1) % structureNames.length];
+    }
     this.state.lastStructures.push(useStructure);
     if (this.state.lastStructures.length > 5) this.state.lastStructures.shift();
 
-    let varied = response;
-
-    switch (useStructure) {
-      case 'direct':
-        // Strip any soft opener and lead with the core statement
-        varied = this.stripOpeningClause(response);
-        break;
-
-      case 'reflection-first':
-        // Reframe with brief acknowledgement before the content
-        varied = this.reflectionFirst(response, context);
-        break;
-
-      case 'question-led':
-        // End with a genuine question drawn from the response content
-        varied = this.questionLed(response);
-        break;
-
-      case 'minimal':
-        // Reduce to the most specific sentence
-        varied = this.reduceToCore(response);
-        break;
-
-      case 'emotion-heavy':
-        // Elevate emotional specificity, add depth signal
-        varied = this.emotionHeavy(response, context);
-        break;
+    if (seed < 0.33) {
+      // Signal LanguageEngine: be briefer, land faster
+      context.coreDirective = 'compress';
+      context.coreNote      = 'Response was similar to recent ones. Be briefer. Land faster.';
+      return { text: response, structure: 'minimal' };
     }
 
-    // Final safety: if variation made it empty, return original
-    if (!varied || varied.trim().length < 3) varied = response;
+    if (seed < 0.66) {
+      // Signal LanguageEngine: approach from a different angle
+      context.coreDirective = 'reframe';
+      context.coreNote      = 'Response echoed recent patterns. Approach from a different angle.';
+      return { text: response, structure: 'reflection-first' };
+    }
 
-    return { text: varied.trim(), structure: useStructure };
+    // Signal LanguageEngine: lead from felt layer, not from analysis
+    context.coreDirective = 'interior';
+    context.coreNote      = 'Structural repetition detected. Lead from felt layer, not from analysis.';
+    return { text: response, structure: 'emotion-heavy' };
   }
 
   // ─── Memory pressure ─────────────────────────────────────────────────────────

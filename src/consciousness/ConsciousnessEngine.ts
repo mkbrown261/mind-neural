@@ -81,6 +81,10 @@ export class ConsciousnessEngine {
   // ── Language Model System (Language Model System integration) ────────────
   private lms: LanguageModelSystem;
 
+  // ── CORE governor directive (set by speech.deliver listener, used next cycle) ─
+  private pendingCoreDirective: string | null = null;
+  private pendingCoreNote:      string | null = null;
+
   constructor(intent: IntentLayer, llm: LLMClient) {
     this.intent     = intent;
     this.existence  = new ExistenceEngine(intent);
@@ -95,6 +99,23 @@ export class ConsciousnessEngine {
     this.lms            = new LanguageModelSystem(null);
 
     this.loadResponseHistory();
+
+    // ── Listen for CORE governance directives on speech.deliver ────────────────
+    // CORE mutates the speech.deliver payload before we see it here.
+    // We capture coreDirective so the NEXT speech cycle conditions shift.
+    this.intent.register('speech.deliver', (payload) => {
+      const p = payload as Record<string, unknown>;
+      if (typeof p.coreDirective === 'string') {
+        this.pendingCoreDirective = p.coreDirective;
+        this.pendingCoreNote      = typeof p.coreNote === 'string' ? p.coreNote : null;
+        console.debug('[ConsciousnessEngine] CORE directive pending:', this.pendingCoreDirective);
+      } else {
+        // CORE cleared the directive (stable period)
+        this.pendingCoreDirective = null;
+        this.pendingCoreNote      = null;
+      }
+    });
+
 
     // ── Register: 'speech.request' — primary consciousness entry point ────────
     // MindSpeechSystem fires this instead of consciousness.process
@@ -210,7 +231,7 @@ export class ConsciousnessEngine {
       timestamp:      Date.now()
     }).catch(() => {});
 
-    // ── 3a. Response balance directive (Upgrade 2) — computed before language ──
+    // ── 3a. Response balance directive (Upgrade 2) + CORE governance ──────────
     const mindStateSlice = {
       trust:          trustScore,
       era:            p.era,
@@ -220,6 +241,18 @@ export class ConsciousnessEngine {
     const responseDirective = this.balanceEngine.getResponseDirective(
       p.userInput, mindStateSlice, null
     );
+
+    // Merge any pending CORE governance note into the balance directive
+    // so LanguageEngine sees both signals in the RESPONSE DIRECTIVE block.
+    const coreGoverned = this.pendingCoreDirective
+      ? (this.pendingCoreNote
+          ? { instruction: this.pendingCoreNote, type: this.pendingCoreDirective as any }
+          : responseDirective)
+      : responseDirective;
+
+    // Consume directive — applies only once per cycle
+    this.pendingCoreDirective = null;
+    this.pendingCoreNote      = null;
 
     // ── 3. Felt Layer — generate raw interior ─────────────────────────────
     const feltOutput = await this.felt.generate({
@@ -289,7 +322,7 @@ export class ConsciousnessEngine {
       interactionCount:    p.interactionCount + this.interactionCount,
       recentResponses:     this.responseHistory.slice(-4),
       recentExchanges:     this.recentExchanges.slice(-3),
-      responseDirective,
+      responseDirective:    coreGoverned,
       selfDisclosure:      selfDisclosure ?? undefined,
       recentResponseTypes: this.balanceEngine.recentResponseTypes.slice(-3),
       enrichedContext

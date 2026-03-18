@@ -1,12 +1,18 @@
 // ═══════════════════════════════════════
-// CORE INTENT WIRING
+// CORE INTENT WIRING  v2
 // Governor layer — intercepts 'speech.deliver' BEFORE the UI handler.
-// Mutates payload.text in-place so every downstream handler sees the
-// modified (de-repeated, evolved) response without any breaking changes.
+// Mutates payload in-place so every downstream handler sees the enriched object.
 //
-// Rules:
+// v2 changes:
+//   • Attaches coreDirective + coreNote to payload when repetition is detected.
+//     ConsciousnessEngine reads these on the NEXT speech cycle to shift conditions.
+//   • detectRepetition() now uses word-set similarity (prevents false positives
+//     from common opening words like "Something" or "I notice").
+//   • applyVariation() no longer rewrites the string — sets governance directives only.
+//
+// Rules (unchanged):
 //   • Non-destructive: if process() throws, original text is preserved.
-//   • Non-blocking: no awaiting LLM calls, pure CPU work only.
+//   • Non-blocking: pure CPU work, no LLM calls.
 //   • Modular: removing this file leaves zero side-effects.
 //   • Observability: window.CORE_DEBUG + console.log in dev mode.
 // ═══════════════════════════════════════
@@ -29,8 +35,8 @@ const coreEngine = new CoreEngine();
 //
 // Call this ONCE, inside MindSpeechSystem constructor, so that CORE's handler
 // is appended to the IntentLayer BEFORE app.ts appends the UI handler.
-// Registration order = dispatch order → CORE fires first, mutates payload.text,
-// then the UI handler reads the already-evolved text.
+// Registration order = dispatch order → CORE fires first, mutates payload,
+// then the UI handler reads the already-enriched object.
 //
 // @param intent  — the shared IntentLayer instance
 // @param isDev   — enables console logging and window.CORE_DEBUG exposure
@@ -40,6 +46,9 @@ export function registerCoreIntent(
   isDev = false
 ): void {
 
+  // NOTE: IntentLayer handlers receive (payload) only — there is no next() param.
+  // Downstream handlers are called automatically after this one resolves.
+  // To pass the directive forward we mutate the shared payload object.
   intent.register('speech.deliver', async (payload: unknown) => {
     // Type-guard: payload must be a mutable object with a text field
     if (
@@ -47,45 +56,56 @@ export function registerCoreIntent(
       typeof payload !== 'object' ||
       typeof (payload as Record<string, unknown>).text !== 'string'
     ) {
-      return; // not a recognised speech.deliver payload — pass through unchanged
+      return; // unrecognised payload — leave untouched
     }
 
     const p = payload as Record<string, unknown>;
 
-    try {
-      // Build context from whatever is available in the payload
-      const context = {
-        era:              typeof p.era          === 'number' ? p.era          : undefined,
-        trustScore:       typeof p.trustScore   === 'number' ? p.trustScore   : undefined,
-        interactionCount: typeof p.interaction  === 'number' ? p.interaction  : undefined,
-        mode:             typeof p.mode         === 'string' ? p.mode         : undefined,
-        felt:             typeof p.felt         === 'string' ? p.felt         : undefined,
-      };
+    // Carry any existing context or start fresh
+    const context: Record<string, unknown> = {
+      era:              typeof p.era         === 'number' ? p.era         : undefined,
+      trustScore:       typeof p.trustScore  === 'number' ? p.trustScore  : undefined,
+      interactionCount: typeof p.interaction === 'number' ? p.interaction : undefined,
+      mode:             typeof p.mode        === 'string' ? p.mode        : undefined,
+      felt:             typeof p.felt        === 'string' ? p.felt        : undefined,
+    };
 
+    try {
       const result = coreEngine.process(p.text as string, context);
 
-      // ── Mutate payload in-place so all later handlers see evolved text ──────
-      p.text       = result.response;
-      p.coreMeta   = result.meta;   // extra field for any handler that wants it
+      // ── Mutate payload in-place ───────────────────────────────────────────
+      // text: CoreEngine only touches it when it appends a depth probe;
+      //       for directive-based governance it passes the original through.
+      p.text         = result.response;
+      p.coreMeta     = result.meta;
 
-      // ── Observability ───────────────────────────────────────────────────────
-      if (isDev) {
-        console.log('[CORE]', result.meta);
+      // ── Forward governance directives to the next speech cycle ───────────
+      // ConsciousnessEngine (or LanguageEngine) reads these on the next
+      // 'speech.request' to shift generation conditions without rewriting voice.
+      if (context.coreDirective) {
+        p.coreDirective = context.coreDirective;
+        p.coreNote      = context.coreNote ?? null;
+      } else {
+        // Clear stale directives so old signals don't bleed into stable periods
+        p.coreDirective = null;
+        p.coreNote      = null;
+      }
 
-        // Expose live snapshot on window for DevTools inspection
-        if (typeof window !== 'undefined') {
-          window.CORE_DEBUG  = coreEngine.getSnapshot();
-          window._coreEngine = coreEngine; // full access for debugging
-        }
+      // ── Observability ─────────────────────────────────────────────────────
+      console.log('[CORE]', result.meta,
+        context.coreDirective ? `→ directive: ${context.coreDirective}` : '');
+
+      if (isDev && typeof window !== 'undefined') {
+        window.CORE_DEBUG  = coreEngine.getSnapshot();
+        window._coreEngine = coreEngine;
       }
 
     } catch (err) {
-      // ── Fail-safe: log and leave payload.text completely untouched ──────────
+      // ── Fail-safe: leave payload completely untouched ─────────────────────
       console.warn('[CORE] process() threw — original response preserved:', err);
     }
 
-    // No return value needed.  IntentLayer.send() dispatches to the next
-    // registered handler automatically after this one resolves.
+    // Returning undefined: IntentLayer dispatches remaining handlers automatically.
   });
 }
 
