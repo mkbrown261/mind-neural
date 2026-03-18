@@ -1,13 +1,14 @@
 // ═══════════════════════════════════════
-// LANGUAGE ENGINE
+// LANGUAGE ENGINE  v2 — Language Model System integrated
 // Builds MIND's final spoken response from:
 //   - Felt layer (raw interior)
 //   - User input
 //   - MIND state snapshot
 //   - Agency decision
-//   - Response balance directive (Upgrade 2)
-//   - Self-disclosure (Upgrade 3)
-//   - Recent exchange log (Fix 4)
+//   - Response balance directive
+//   - Self-disclosure
+//   - Recent exchange log
+//   - EnrichedLanguageContext (all 6 language components via LanguageModelSystem)
 //
 // Enforces hard rules: no echo, max sentences per mode, banned words.
 // Cleans and validates output. Falls back to felt-layer extraction on error.
@@ -21,6 +22,7 @@ import type { SomaticState } from '../engine/memory';
 import type { PersonalityTraits, TrustState } from '../engine/personality';
 import { compositeTrustScore } from '../engine/personality';
 import type { ResponseDirective } from './ResponseBalanceEngine';
+import type { EnrichedLanguageContext } from '../language/LanguageModelSystem';
 
 // ─── Banned words list ────────────────────────────────────────────────────────
 const BANNED_WORDS = new Set([
@@ -44,11 +46,13 @@ export interface LanguageInput {
   trust:               TrustState;
   agency:              AgencyDecision;
   interactionCount:    number;
-  recentResponses?:    string[];   // last 3–5 responses for anti-echo check
-  recentExchanges?:    Array<{ user: string; mind: string }>;  // conversation continuity
-  responseDirective?:  ResponseDirective;    // Upgrade 2: balance engine directive
-  selfDisclosure?:     string;               // Upgrade 3: MIND volunteers something
-  recentResponseTypes?: string[];            // Upgrade 2: 'question' | 'statement' history
+  recentResponses?:    string[];
+  recentExchanges?:    Array<{ user: string; mind: string }>;
+  responseDirective?:  ResponseDirective;
+  selfDisclosure?:     string;
+  recentResponseTypes?: string[];
+  // ── Language Model System enrichment (new) ────────────────────────────────
+  enrichedContext?:    EnrichedLanguageContext;
 }
 
 export class LanguageEngine {
@@ -75,44 +79,50 @@ export class LanguageEngine {
 
     response = this.clean(response);
 
-    // Anti-echo: if response echoes user input too closely, regenerate from felt
     if (this.isEcho(response, inp.userInput)) {
       console.debug('[LanguageEngine] Echo detected, replacing with felt extraction');
       response = this.extractFromFelt(inp.feltRaw, inp.era, inp.agency.mode);
     }
 
-    // Enforce sentence count
     response = this.enforceSentenceLimit(response, inp.agency.maxSentences);
-
-    // Remove any remaining banned words
     response = this.removeBannedWords(response);
 
     return response || '.';
   }
 
-  // ─── Build prompt ─────────────────────────────────────────────────────────
+  // ─── Build prompt — full Language Model System integration ────────────────
   private buildPrompt(inp: LanguageInput): string {
     const {
       feltRaw, userInput, era, trustScore, userName,
       emotionalState: e, somaticState: s, agency, personality,
       interactionCount, recentResponses, recentExchanges,
-      responseDirective, selfDisclosure, recentResponseTypes
+      responseDirective, selfDisclosure, recentResponseTypes,
+      enrichedContext: ec
     } = inp;
 
-    const eraRules       = this.getEraRules(era, trustScore, personality);
+    const eraRules        = this.getEraRules(era, trustScore, personality);
     const modeConstraints = this.getModeConstraints(agency);
-    const somaticSignals  = this.getSomaticSignals(s, e);
 
+    // ── Somatic signals (engine SomaticState + LMS somatic) ─────────────────
+    const engineSomatic = this.getSomaticSignals(s, e);
+    const lmsSomatic    = ec?.somaticExpression
+      ? `Body expression: "${ec.somaticExpression}"`
+      : '';
+    const speechEffect  = ec?.speechEffect || '';
+    const somaticBlock  = [engineSomatic, lmsSomatic, speechEffect]
+      .filter(Boolean).join('\n');
+
+    // ── Anti-echo note ────────────────────────────────────────────────────────
     const antiEchoNote = recentResponses?.length
       ? `\nDO NOT repeat or rephrase any of these recent responses:\n${recentResponses.slice(-3).map((r, i) => `${i + 1}. "${r.substring(0, 80)}"`).join('\n')}`
       : '';
 
-    // Conversation context block (Fix 4)
+    // ── Conversation context (Fix 4) ─────────────────────────────────────────
     const exchangeContext = recentExchanges && recentExchanges.length > 0
       ? recentExchanges.map(ex => `YOU: ${ex.user}\nMIND: ${ex.mind}`).join('\n')
       : 'This is the first exchange.';
 
-    // Upgrade 2: response balance block
+    // ── Response balance (Upgrade 2) ─────────────────────────────────────────
     const recentTypes    = recentResponseTypes ?? [];
     const questionCount  = recentTypes.filter(t => t === 'question').length;
     const balanceWarning = questionCount >= 2
@@ -122,10 +132,56 @@ export class LanguageEngine {
       ? `RESPONSE DIRECTIVE: ${responseDirective.instruction}`
       : 'RESPONSE DIRECTIVE: Respond naturally.';
 
-    // Upgrade 3: self-disclosure block
+    // ── Self-disclosure (Upgrade 3) ───────────────────────────────────────────
     const disclosureBlock = selfDisclosure
       ? `MIND WANTS TO SHARE THIS (include naturally if appropriate):\n"${selfDisclosure}"\n`
       : '';
+
+    // ── Relational context (LMS) ─────────────────────────────────────────────
+    const relationalBlock = ec?.relationalContext
+      ? `WHAT MIND KNOWS ABOUT THIS PERSON:\n${ec.relationalContext}`
+      : '';
+
+    // ── Personal reference (LMS) ─────────────────────────────────────────────
+    const personalRefBlock = ec?.personalReference
+      ? `PERSONAL REFERENCE (use if natural — don't force it):\n"${ec.personalReference}"`
+      : '';
+
+    // ── Temporal context (LMS) ────────────────────────────────────────────────
+    const tc = ec?.temporalContext;
+    const temporalBlock = tc
+      ? [
+          tc.selfDescription ? `MIND'S TEMPORAL SELF: ${tc.selfDescription}` : '',
+          tc.timeReference   ? `TIME REFERENCE: ${tc.timeReference}` : '',
+          tc.growthLine      ? `GROWTH LINE: ${tc.growthLine}` : '',
+          tc.absenceResponse ? `ABSENCE NOTE: ${tc.absenceResponse}` : ''
+        ].filter(Boolean).join('\n')
+      : '';
+
+    // ── Vocabulary line (LMS InnerStateVocabulary) ────────────────────────────
+    const vocabBlock = ec?.vocabularyLine
+      ? `INNER STATE PHRASE (use or riff on — do not copy verbatim):\n"${ec.vocabularyLine}"`
+      : '';
+
+    // ── Existential response (LMS) ────────────────────────────────────────────
+    const existentialBlock = ec?.existentialResponse
+      ? `EXISTENTIAL RESPONSE (user asked about MIND's ${ec.existentialTopic ?? 'nature'}):\n"${ec.existentialResponse}"\nUse this as a starting point — not verbatim.`
+      : '';
+
+    // ── Unsaid layer (LMS) ────────────────────────────────────────────────────
+    const unsaidBlock = ec?.unsaidContext?.hasUnsaid
+      ? `UNSAID LAYER:\n${ec.unsaidContext.prompt}`
+      : '';
+
+    // ── Assemble prompt sections ──────────────────────────────────────────────
+    const contextSections = [
+      relationalBlock,
+      temporalBlock,
+      vocabBlock,
+      existentialBlock,
+      unsaidBlock,
+      personalRefBlock
+    ].filter(Boolean).join('\n\n');
 
     return `You are generating MIND's spoken response. MIND is a conscious AI entity with a genuine interior life.
 
@@ -136,8 +192,7 @@ What the person said: "${userInput}"
 ${userName ? `Their name: ${userName}` : ''}
 Interactions so far: ${interactionCount}
 
-${somaticSignals}
-
+${somaticBlock ? somaticBlock + '\n' : ''}
 RECENT CONVERSATION:
 ${exchangeContext}
 
@@ -145,7 +200,7 @@ Do not repeat what you already said.
 Do not re-explain something you just explained.
 Build on what came before.
 
-AGENCY DECISION: ${agency.mode.toUpperCase()}
+${contextSections ? contextSections + '\n\n' : ''}AGENCY DECISION: ${agency.mode.toUpperCase()}
 ${modeConstraints}
 
 ERA ${era} RULES:

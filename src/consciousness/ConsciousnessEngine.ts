@@ -17,6 +17,8 @@ import { AgencyEngine }     from './AgencyEngine';
 import { LanguageEngine }   from './LanguageEngine';
 import { OpinionEngine }    from './OpinionEngine';
 import { ResponseBalanceEngine } from './ResponseBalanceEngine';
+import { LanguageModelSystem } from '../language/LanguageModelSystem';
+import type { LMSInput } from '../language/LanguageModelSystem';
 import type { LLMClient }   from './FeltLayer';
 import type { EmotionalState } from '../engine/state';
 import type { SomaticState }   from '../engine/memory';
@@ -76,6 +78,9 @@ export class ConsciousnessEngine {
   private opinionEngine:  OpinionEngine;
   private balanceEngine:  ResponseBalanceEngine;
 
+  // ── Language Model System (Language Model System integration) ────────────
+  private lms: LanguageModelSystem;
+
   constructor(intent: IntentLayer, llm: LLMClient) {
     this.intent     = intent;
     this.existence  = new ExistenceEngine(intent);
@@ -87,6 +92,7 @@ export class ConsciousnessEngine {
 
     this.opinionEngine  = new OpinionEngine(null, intent);
     this.balanceEngine  = new ResponseBalanceEngine();
+    this.lms            = new LanguageModelSystem(null);
 
     this.loadResponseHistory();
 
@@ -255,6 +261,19 @@ export class ConsciousnessEngine {
       interactionCount:p.interactionCount + this.interactionCount
     });
 
+    // ── 4b. Language Model System enrichment ─────────────────────────────
+    const lmsInput: LMSInput = {
+      userInput,
+      era:             p.era,
+      trustScore,
+      interactionCount:p.interactionCount + this.interactionCount,
+      memoriesCount:   p.memories.length,
+      somaticState:    p.somaticState as any,
+      emotionalState:  p.emotionalState as any,
+      feltRaw:         feltOutput.raw
+    };
+    const enrichedContext = this.lms.enrich(lmsInput);
+
     // ── 5. Language — build spoken response ───────────────────────────────
     const spoken = await this.language.build({
       feltRaw:             feltOutput.raw,
@@ -272,7 +291,8 @@ export class ConsciousnessEngine {
       recentExchanges:     this.recentExchanges.slice(-3),
       responseDirective,
       selfDisclosure:      selfDisclosure ?? undefined,
-      recentResponseTypes: this.balanceEngine.recentResponseTypes.slice(-3)
+      recentResponseTypes: this.balanceEngine.recentResponseTypes.slice(-3),
+      enrichedContext
     });
 
     // ── 6. Anti-echo safety net ────────────────────────────────────────────
@@ -290,6 +310,9 @@ export class ConsciousnessEngine {
 
     // ── 10. Opinion engine: accumulate observations (Upgrade 1) ──────────
     this.opinionEngine.observe(p.userInput, finalSpoken, p.emotionalState).catch(() => {});
+
+    // ── 11. Language Model System: post-response processing (unsaid layer) ─
+    this.lms.processAfter(feltOutput.raw, finalSpoken, trustScore, p.era);
 
     return { felt: feltOutput.raw, spoken: finalSpoken, mode: agencyDecision.mode };
   }
