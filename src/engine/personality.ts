@@ -28,6 +28,7 @@ export interface IdentityState {
   coreDrives: string[];          // What pulls MIND forward (derived from high-encoding memories)
   lastUpdated: number;
   interactionCountAtLastUpdate: number;
+  userName?: string | null;      // Disclosed name from user ("my name is X", "call me X")
 }
 
 export const DEFAULT_IDENTITY: IdentityState = {
@@ -37,7 +38,8 @@ export const DEFAULT_IDENTITY: IdentityState = {
   coreFears: [],
   coreDrives: [],
   lastUpdated: 0,
-  interactionCountAtLastUpdate: 0
+  interactionCountAtLastUpdate: 0,
+  userName: null
 };
 
 const IDENTITY_UPDATE_RATE = 0.002;

@@ -192,3 +192,48 @@ webapp/
 │   └── app.css             # Full stylesheet
 └── dist/                   # Cloudflare Pages output
 ```
+
+---
+
+## Architecture: Active Response Flow
+
+Each user message goes through the following pipeline:
+
+1. **User types → `handleSend()` in `app.ts`**
+   - TextSignalAnalyzer + PerceptionEngine observe typing dynamics
+   - `getCurrentMINDContext()` builds a MIND state snapshot from current ESE, SSM, trust, memories
+
+2. **`mindSpeech.speak()` → ConsciousnessEngine**
+   - Fires `speech.request` intent → ConsciousnessEngine receives it
+   - **Two LLM calls per message** (intentional by design):
+     1. `FeltLayer` — generates raw pre-linguistic interior state ("what MIND feels before speaking")
+     2. `LanguageEngine` — distills the spoken response from that interior + all context
+   - ResponseArchitect provides structural anti-repetition guidance before LanguageEngine runs
+   - CORE Governor may post-process the response via `speech.deliver` intercept
+
+3. **Streamed text displayed in UI**
+   - `onChunk` callbacks fill the chat bubble in real-time
+   - Post-CORE final text is captured via `speech.deliver` listener in `handleSend()`
+
+4. **`processInputExternalText()` updates all state**
+   - Trust, emotions, memory, personality — all state machinery runs on the final text
+   - Stores what MIND *actually said* (post-CORE) as episodic memory in IndexedDB
+
+5. **Brain visualization + audio updated from resolved state**
+   - BrainStateSync derives activations from ESE/biophoton (never from pre-state)
+   - MIND_TICK runs autonomously every 2s when idle
+
+**Key files:**
+- Active prompt: `src/consciousness/LanguageEngine.ts`
+- Legacy direct path: `src/engine/pipeline.ts` (not used in standard flow)
+- State orchestrator: `src/engine/mind.ts`
+- Speech routing: `src/MindSpeechSystem.ts`
+
+---
+
+## Deployment Notes
+
+`wrangler.jsonc` is kept for reference / future Cloudflare Pages deployment.
+The current app relies on browser-only APIs (IndexedDB, localStorage, SpeechRecognition, WebGL/Three.js)
+that are **not compatible with Cloudflare Workers**. A storage abstraction layer would be required
+before any edge-side logic could be deployed. The static assets build (`dist/`) deploys fine to Pages.

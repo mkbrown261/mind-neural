@@ -17,6 +17,8 @@ import { AgencyEngine }     from './AgencyEngine';
 import { LanguageEngine }   from './LanguageEngine';
 import { OpinionEngine }    from './OpinionEngine';
 import { ResponseBalanceEngine } from './ResponseBalanceEngine';
+import { ResponseArchitect } from '../understanding/ResponseArchitect';
+import { MeaningExtractor }  from '../understanding/MeaningExtractor';
 import { LanguageModelSystem } from '../language/LanguageModelSystem';
 import type { LMSInput } from '../language/LanguageModelSystem';
 import type { LLMClient }   from './FeltLayer';
@@ -75,8 +77,11 @@ export class ConsciousnessEngine {
   private recentExchanges: Array<{ user: string; mind: string }> = [];
 
   // ── Opinion + Balance engines (Upgrade 1 & 2) ────────────────────────────
-  private opinionEngine:  OpinionEngine;
-  private balanceEngine:  ResponseBalanceEngine;
+  private opinionEngine:    OpinionEngine;
+  private balanceEngine:    ResponseBalanceEngine;
+  // Fix (Issue 2): ResponseArchitect wired into active path for anti-repetition
+  private responseArchitect: ResponseArchitect;
+  private meaningExtractor:  MeaningExtractor;
 
   // ── Language Model System (Language Model System integration) ────────────
   private lms: LanguageModelSystem;
@@ -96,7 +101,21 @@ export class ConsciousnessEngine {
 
     this.opinionEngine  = new OpinionEngine(null, intent);
     this.balanceEngine  = new ResponseBalanceEngine();
+    this.responseArchitect = new ResponseArchitect();
+    this.meaningExtractor  = new MeaningExtractor();
     this.lms            = new LanguageModelSystem(null);
+
+    // Fix (Issue 3): Restore ResponseBalanceEngine state from localStorage so
+    // question-loop prevention survives page refreshes.
+    try {
+      const saved = localStorage.getItem('mind_rbe_types');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          this.balanceEngine.recentResponseTypes = parsed.slice(-5);
+        }
+      }
+    } catch { /* ignore parse errors */ }
 
     this.loadResponseHistory();
 
@@ -308,6 +327,27 @@ export class ConsciousnessEngine {
     const enrichedContext = this.lms.enrich(lmsInput);
 
     // ── 5. Language — build spoken response ───────────────────────────────
+    // Fix (Issue 2): Run ResponseArchitect to get structural guidance / anti-repetition suggestion
+    let responseArchitectSuggestion: string | undefined;
+    try {
+      const meaning = this.meaningExtractor.extract(p.userInput);
+      const architectState = {
+        emotionalState: p.emotionalState,
+        somaticState:   p.somaticState,
+        trust:          p.trust,
+        personality:    p.personality,
+        era:            p.era,
+        trustScore
+      };
+      const architectResult = this.responseArchitect.build(meaning, p.memories, architectState);
+      if (architectResult && architectResult.length > 4) {
+        responseArchitectSuggestion = architectResult;
+      }
+    } catch (e) {
+      // Non-fatal — architect is supplementary guidance only
+      console.debug('[ConsciousnessEngine] ResponseArchitect skipped:', e);
+    }
+
     const spoken = await this.language.build({
       feltRaw:             feltOutput.raw,
       userInput:           p.userInput,
@@ -325,7 +365,8 @@ export class ConsciousnessEngine {
       responseDirective:    coreGoverned,
       selfDisclosure:      selfDisclosure ?? undefined,
       recentResponseTypes: this.balanceEngine.recentResponseTypes.slice(-3),
-      enrichedContext
+      enrichedContext,
+      responseArchitectSuggestion
     });
 
     // ── 6. Anti-echo safety net ────────────────────────────────────────────
@@ -340,6 +381,10 @@ export class ConsciousnessEngine {
 
     // ── 9. Balance engine: record type of response (Upgrade 2) ───────────
     this.balanceEngine.recordResponseType(finalSpoken);
+    // Fix (Issue 3): Persist balance history so question-loop prevention survives refresh
+    try {
+      localStorage.setItem('mind_rbe_types', JSON.stringify(this.balanceEngine.recentResponseTypes.slice(-5)));
+    } catch { /* localStorage may be unavailable in some environments */ }
 
     // ── 10. Opinion engine: accumulate observations (Upgrade 1) ──────────
     this.opinionEngine.observe(p.userInput, finalSpoken, p.emotionalState).catch(() => {});

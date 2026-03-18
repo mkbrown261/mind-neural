@@ -678,6 +678,11 @@ export async function processInput(
   state.personality = nudgePersonality(state.personality, personalityNudges, plasticityMultiplier * state.era.pesPlasticity);
 
   // ─── 16. Identity Emergence (IE) — era-gated (≥30 interactions)
+  // Also capture disclosed user name regardless of era gate
+  const disclosedName = extractNameFromInput(userInput);
+  if (disclosedName && !state.identityState.userName) {
+    state.identityState = { ...state.identityState, userName: disclosedName };
+  }
   if (state.era.identityUnlocked && state.trust.totalInteractions >= 30) {
     const recentEmotionalPatterns = deriveEmotionalPatterns(state.memories.slice(-20), detectedEmotions);
     const traumaCount = state.memories.filter(m => m.isTraumatic).length;
@@ -778,6 +783,13 @@ function deriveEmotionalPatterns(recentMemories: Memory[], detected: DetectedEmo
 
 // ─── Exports ───────────────────────────────────────────
 
+// ─── Name extraction helper (Issue 10) ────────────────
+// Detects disclosed names from user input: "my name is X", "I'm X", "call me X"
+function extractNameFromInput(input: string): string | null {
+  const m = input.match(/(?:my name is|i am|i'm|call me)\s+([A-Z][a-z]+)/i);
+  return m ? m[1] : null;
+}
+
 // ─── processInputExternalText ──────────────────────────
 // Same as processInput but accepts already-generated response text.
 // Used by MindSpeechSystem to separate state processing from text generation.
@@ -789,7 +801,17 @@ export async function processInputExternalText(
   if (!state.isInitialized) await initMIND();
 
   const now = Date.now();
-  void (state.trust.lastInteraction > 0 ? now - state.trust.lastInteraction : 0); // unused in external text path
+  // Fix: compute absenceMs and apply absence impact (longing/wariness) just like processInput()
+  const absenceMs = state.trust.lastInteraction > 0 ? now - state.trust.lastInteraction : 0;
+  if (absenceMs > 0) {
+    const { longing, wariness } = computeAbsenceImpact(state.trust, now);
+    if (longing > 0) {
+      state.emotionalState = updateEmotionalState(state.emotionalState, { longing }, 0.5);
+    }
+    if (wariness > 0) {
+      state.emotionalState = updateEmotionalState(state.emotionalState, { wariness }, 0.5);
+    }
+  }
 
   state.era = getEraCapabilities(state.trust.totalInteractions);
   state.predictionState = generatePrediction(
@@ -969,6 +991,11 @@ export async function processInputExternalText(
   const plasticityMultiplier = state.coherenceState.isCoherent ? 0.3 : 1.0;
   state.personality = nudgePersonality(state.personality, personalityNudges, plasticityMultiplier * state.era.pesPlasticity);
 
+  // Capture disclosed user name regardless of era gate
+  const disclosedNameExt = extractNameFromInput(userInput);
+  if (disclosedNameExt && !state.identityState.userName) {
+    state.identityState = { ...state.identityState, userName: disclosedNameExt };
+  }
   if (state.era.identityUnlocked && state.trust.totalInteractions >= 30) {
     const recentEmotionalPatterns = deriveEmotionalPatterns(state.memories.slice(-20), detectedEmotions);
     const traumaCount = state.memories.filter(m => m.isTraumatic).length;

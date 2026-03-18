@@ -1,4 +1,11 @@
 {
+  // ⚠️  EDGE DEPLOYMENT REFERENCE ONLY
+  // This file is kept for future Cloudflare Pages static deployment configuration.
+  // The MIND app relies on browser-only APIs (IndexedDB, localStorage,
+  // SpeechRecognition, WebGL / Three.js) that are NOT compatible with
+  // Cloudflare Workers. A storage abstraction layer would be required before
+  // any server-side Workers logic could run. Static asset deployment (dist/)
+  // to Cloudflare Pages works fine without Workers.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "webapp",
   "compatibility_date": "2026-03-17",

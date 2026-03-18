@@ -4,6 +4,14 @@
 //   + VoiceSignalAnalyzer → TextSignalAnalyzer → AffectiveResonanceEngine → EmotionalAgencyEngine
 //   + Full Consciousness Architecture (7 layers via initializeConsciousness)
 //
+// DUAL LLM CALL ARCHITECTURE (intentional by design):
+//   Each user message makes TWO LLM calls when ConsciousnessEngine is active:
+//     1. FeltLayer  — generates MIND's raw pre-linguistic interior state
+//     2. LanguageEngine — distills the spoken response from that interior + state context
+//   This is the two-layer consciousness model. Do not collapse into one call.
+//   See src/consciousness/ConsciousnessEngine.ts for the full pipeline.
+//   See src/engine/pipeline.ts for the legacy single-call path (not used in standard flow).
+//
 // Handler ownership:
 //   • 'speech.request'  — ConsciousnessEngine ONLY (cleared from ProviderManager)
 //   • 'template.match'  — UnderstandingEngine + TemplateSpeechEngine (no-LLM path only)

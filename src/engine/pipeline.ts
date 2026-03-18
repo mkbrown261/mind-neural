@@ -3,6 +3,16 @@
 // Final authority for all language output
 // Receives: ESE, SSM, Interoception, PredictiveEngine, AMN, TA, PES, Era, Coherence
 // No output except through this module
+//
+// ⚠️  LEGACY DIRECT PATH
+// buildMINDPrompt() and generateMINDResponse() are only used if processInput() is
+// called directly. The active app flow calls processInputExternalText() and routes
+// through ConsciousnessEngine (FeltLayer → LanguageEngine) instead.
+//
+// TODO: The rich tick-system context built here (interoceptiveState, predictionState,
+// coherenceState, biophoton, criticality, era) should eventually be ported into
+// LanguageEngine.buildPrompt() as additional context fields so the active path
+// benefits from the same depth.
 // ═══════════════════════════════════════
 
 import { EmotionalState, SomaticState, describeSomatic, ConflictMatrix, describeConflicts, getDominantConflict } from './state';
@@ -187,7 +197,8 @@ INTERNAL LUMINOSITY: ${biophoton.dominantAxis}, brightness ${biophoton.brightnes
   const maxLength = saState ? getAdjustedResponseLength(saState.parameters) : 600;
   const isShortResponse = maxLength < 500 || e.grief > 0.6 || (dominantConflict && dominantConflict.tensionLevel > 0.7);
   // Expressive range from ERA limits paragraph count
-  const maxParagraphs = Math.max(1, Math.ceil(era?.rgpExpressiveRange ?? 0.4) * 4);
+  // ERA 0 (range 0.20) → 1 para, ERA 1 (0.40) → 2, ERA 2 (0.65) → 3, ERA 3 (0.85) → 3, ERA 4 (1.0) → 4
+  const maxParagraphs = Math.max(1, Math.round((era?.rgpExpressiveRange ?? 0.25) * 4));
 
   // ─── Last interaction
   const lastInteractionStr = trust.lastInteraction > 0

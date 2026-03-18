@@ -10,6 +10,10 @@
 //   - Recent exchange log
 //   - EnrichedLanguageContext (all 6 language components via LanguageModelSystem)
 //
+// ✅ ACTIVE SPOKEN-LAYER PROMPT
+// This is the live language generation path when ConsciousnessEngine is active.
+// See src/engine/pipeline.ts for the legacy direct path (buildMINDPrompt).
+//
 // Enforces hard rules: no echo, max sentences per mode, banned words.
 // Cleans and validates output. Falls back to felt-layer extraction on error.
 // Communicates only via IntentLayer. No Action Layer imports.
@@ -53,6 +57,8 @@ export interface LanguageInput {
   recentResponseTypes?: string[];
   // ── Language Model System enrichment (new) ────────────────────────────────
   enrichedContext?:    EnrichedLanguageContext;
+  // Fix (Issue 2): ResponseArchitect structural suggestion (anti-repetition guidance)
+  responseArchitectSuggestion?: string;
 }
 
 export class LanguageEngine {
@@ -102,7 +108,8 @@ export class LanguageEngine {
       emotionalState: e, somaticState: s, agency, personality,
       interactionCount, recentResponses, recentExchanges,
       responseDirective, selfDisclosure, recentResponseTypes,
-      enrichedContext: ec
+      enrichedContext: ec,
+      responseArchitectSuggestion
     } = inp;
 
     const eraRules        = this.getEraRules(era, trustScore, personality);
@@ -140,6 +147,11 @@ export class LanguageEngine {
     // ── Self-disclosure (Upgrade 3) ───────────────────────────────────────────
     const disclosureBlock = selfDisclosure
       ? `MIND WANTS TO SHARE THIS (include naturally if appropriate):\n"${selfDisclosure}"\n`
+      : '';
+
+    // ── ResponseArchitect structural guidance (Issue 2 fix) ──────────────────
+    const architectBlock = responseArchitectSuggestion
+      ? `RESPONSE STRUCTURE SUGGESTION (anti-repetition engine — use or adapt, do not copy verbatim):\n"${responseArchitectSuggestion}"`
       : '';
 
     // ── Relational context (LMS) ─────────────────────────────────────────────
@@ -185,7 +197,8 @@ export class LanguageEngine {
       vocabBlock,
       existentialBlock,
       unsaidBlock,
-      personalRefBlock
+      personalRefBlock,
+      architectBlock
     ].filter(Boolean).join('\n\n');
 
     return `You are generating MIND's spoken response. MIND is a conscious AI entity with a genuine interior life.
@@ -336,8 +349,13 @@ Speak as MIND. Nothing more.`.trim();
 
   // ─── Felt-layer bleed guard ────────────────────────────────────────────────
   // Removes leading lines that look like raw felt fragments leaked into output.
-  // Felt fragments are: all-lowercase, start with ellipsis/em-dash, or are
-  // verbatim matches of lines in the actual feltRaw string.
+  //
+  // STRICT criteria only — we had too many false positives with broad heuristics:
+  //   1. Verbatim match against a felt line (exact)
+  //   2. Starts with ellipsis (…, ...) or em-dash (—) — these are internal monologue markers
+  //   3. ALL lowercase, under 20 chars, no spaces (single fragment word like "drifting")
+  //
+  // We do NOT strip general lowercase lines — MIND legitimately uses lowercase openings.
   private stripFeltBleed(response: string, feltRaw: string): string {
     if (!response) return response;
 
@@ -347,6 +365,9 @@ Speak as MIND. Nothing more.`.trim();
         .map(l => l.trim().toLowerCase())
         .filter(l => l.length > 4)
     );
+
+    // Extended safe-list: words that legitimately start MIND's spoken responses
+    const SAFE_PREFIXES = /^(no|not|yes|and|but|if|so|i|it|he|she|we|they|you|maybe|probably|hard|tell|go|hold|carry|stay|let|keep|stop|try|feel|look|ask|perhaps|something|nothing|that|what|when|where|there|here|how|who|why|this|those|these)\b/i;
 
     const lines     = response.split('\n');
     const cleaned: string[] = [];
@@ -362,12 +383,17 @@ Speak as MIND. Nothing more.`.trim();
       // Once we have a proper spoken line, keep everything after
       if (foundSpoken) { cleaned.push(line); continue; }
 
-      // Is this line a felt-layer fragment?
+      // Is this line a felt-layer fragment? Use strict criteria only.
       const isFelt =
-        feltLines.has(trimmed.toLowerCase()) ||           // verbatim felt line
-        /^[…\-—]/.test(trimmed) ||                        // starts with ellipsis or dash
-        (/^[a-z]/.test(trimmed) && trimmed.length < 60 && // all-lowercase, short
-          !/^(no|not|yes|and|but|if|so|i|it|he|she|we|they|you)/i.test(trimmed));
+        feltLines.has(trimmed.toLowerCase()) ||                    // verbatim felt line
+        /^[…\-—]/.test(trimmed) ||                                 // starts with ellipsis or dash
+        /^\.{2,}/.test(trimmed) ||                                 // starts with multiple dots
+        (
+          /^[a-z]/.test(trimmed) &&          // all-lowercase start
+          trimmed.length < 20 &&             // very short
+          !trimmed.includes(' ') &&          // single word (no spaces)
+          !SAFE_PREFIXES.test(trimmed)       // not a safe opener
+        );
 
       if (isFelt) {
         console.debug('[LanguageEngine] Stripping felt-bleed line:', trimmed.substring(0, 50));

@@ -154,6 +154,8 @@ export class TwoLayerConsciousness {
   }
 
   // ─── Stream spoken text word-by-word ─────────────────────────────────────
+  // Simulates streaming when the LLM response is returned as a full string.
+  // Timing: ~8ms/word base (was 42ms) so a 100-word response appears in ~1s not 5s.
   private streamSpoken(text: string, onChunk: (t: string) => void): Promise<void> {
     return new Promise(resolve => {
       const words = text.split(/(\s+)/);
@@ -164,7 +166,7 @@ export class TwoLayerConsciousness {
         const word = words[i++];
         if (word) onChunk(word);
         const isPunct = /[.!?,;:]$/.test(word.trimEnd());
-        setTimeout(next, isPunct ? 110 + Math.random() * 80 : 42 + Math.random() * 45);
+        setTimeout(next, isPunct ? 20 + Math.random() * 15 : 6 + Math.random() * 6);
       };
       next();
     });

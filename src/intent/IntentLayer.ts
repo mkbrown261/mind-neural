@@ -26,6 +26,11 @@ export class IntentLayer {
     this.handlers = this.handlers.filter(h => h.event !== event);
   }
 
+  // ─── Unregister a specific handler for an event ──
+  unregisterHandler(event: string, handler: IntentHandler): void {
+    this.handlers = this.handlers.filter(h => !(h.event === event && h.handler === handler));
+  }
+
   // ─── Add middleware (runs before handlers) ────────
   use(middleware: IntentMiddleware): void {
     this.middlewares.push(middleware);

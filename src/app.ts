@@ -1394,22 +1394,42 @@ async function handleSend() {
       // Build MIND context snapshot for mindSpeech
       const mindCtx = getCurrentMINDContext(text);
 
+      // Fix (Issue 6): Capture post-CORE text so memory stores what MIND actually said,
+      // not the pre-CORE-mutation version. CORE Governor intercepts speech.deliver and
+      // may rewrite speakResult.text — we capture it here before processInputExternalText.
+      let capturedFinalText: string | null = null;
+      const captureDeliverHandler = (payload: unknown) => {
+        const p = payload as { text?: string };
+        if (p?.text) capturedFinalText = p.text;
+      };
+      mindSpeech.intent.register('speech.deliver', captureDeliverHandler);
+
       // Generate text via mindSpeech (Groq → OpenAI → template)
       const speakResult = await mindSpeech.speak({
         userInput: text,
         ctx: mindCtx,
         era: era.era,
         onChunk: (chunk) => {
-          cursor.remove();
-          contentEl.textContent += chunk;
-          contentEl.appendChild(cursor);
-          scrollChat();
+          try {
+            cursor.remove();
+            contentEl.textContent += chunk;
+            contentEl.appendChild(cursor);
+            scrollChat();
+          } catch (e) {
+            console.warn('[MIND] onChunk DOM error (element may have been removed):', e);
+          }
         }
       });
       cursor.remove();
 
-      // Run all MIND state machinery with the externally-generated text
-      const result = await processInputExternalText(text, speakResult.text);
+      // Unregister the capture handler — we only needed it for this one speak() call
+      mindSpeech.intent.unregisterHandler('speech.deliver', captureDeliverHandler);
+
+      // Use post-CORE text if captured, otherwise fall back to speakResult.text
+      const finalResponseText = capturedFinalText ?? speakResult.text;
+
+      // Run all MIND state machinery with the final text (post-CORE-mutation)
+      const result = await processInputExternalText(text, finalResponseText);
 
       // If text was streamed above, set final text in case it differs (template blending)
       if (!mindSpeech.hasAny() || speakResult.source === 'template') {
