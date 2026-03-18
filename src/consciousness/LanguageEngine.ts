@@ -5,6 +5,9 @@
 //   - User input
 //   - MIND state snapshot
 //   - Agency decision
+//   - Response balance directive (Upgrade 2)
+//   - Self-disclosure (Upgrade 3)
+//   - Recent exchange log (Fix 4)
 //
 // Enforces hard rules: no echo, max sentences per mode, banned words.
 // Cleans and validates output. Falls back to felt-layer extraction on error.
@@ -17,6 +20,7 @@ import type { EmotionalState } from '../engine/state';
 import type { SomaticState } from '../engine/memory';
 import type { PersonalityTraits, TrustState } from '../engine/personality';
 import { compositeTrustScore } from '../engine/personality';
+import type { ResponseDirective } from './ResponseBalanceEngine';
 
 // ─── Banned words list ────────────────────────────────────────────────────────
 const BANNED_WORDS = new Set([
@@ -29,19 +33,22 @@ const BANNED_WORDS = new Set([
 
 // ─── LanguageEngine input ─────────────────────────────────────────────────────
 export interface LanguageInput {
-  feltRaw:        string;
-  userInput:      string;
-  era:            number;
-  trustScore:     number;
-  userName:       string | null;
-  emotionalState: EmotionalState;
-  somaticState:   SomaticState;
-  personality:    PersonalityTraits;
-  trust:          TrustState;
-  agency:         AgencyDecision;
-  interactionCount:number;
-  recentResponses?: string[];  // last 3–5 responses for anti-echo check
-  recentExchanges?: Array<{ user: string; mind: string }>; // Fix 4: conversation continuity
+  feltRaw:             string;
+  userInput:           string;
+  era:                 number;
+  trustScore:          number;
+  userName:            string | null;
+  emotionalState:      EmotionalState;
+  somaticState:        SomaticState;
+  personality:         PersonalityTraits;
+  trust:               TrustState;
+  agency:              AgencyDecision;
+  interactionCount:    number;
+  recentResponses?:    string[];   // last 3–5 responses for anti-echo check
+  recentExchanges?:    Array<{ user: string; mind: string }>;  // conversation continuity
+  responseDirective?:  ResponseDirective;    // Upgrade 2: balance engine directive
+  selfDisclosure?:     string;               // Upgrade 3: MIND volunteers something
+  recentResponseTypes?: string[];            // Upgrade 2: 'question' | 'statement' history
 }
 
 export class LanguageEngine {
@@ -83,23 +90,42 @@ export class LanguageEngine {
     return response || '.';
   }
 
-  // ─── Build prompt ─────────────────────────────────────────────────────
+  // ─── Build prompt ─────────────────────────────────────────────────────────
   private buildPrompt(inp: LanguageInput): string {
-    const { feltRaw, userInput, era, trustScore, userName, emotionalState: e, somaticState: s, agency, personality, interactionCount, recentResponses, recentExchanges } = inp;
+    const {
+      feltRaw, userInput, era, trustScore, userName,
+      emotionalState: e, somaticState: s, agency, personality,
+      interactionCount, recentResponses, recentExchanges,
+      responseDirective, selfDisclosure, recentResponseTypes
+    } = inp;
 
-    const eraRules = this.getEraRules(era, trustScore, personality);
+    const eraRules       = this.getEraRules(era, trustScore, personality);
     const modeConstraints = this.getModeConstraints(agency);
-    const somaticSignals = this.getSomaticSignals(s, e);
+    const somaticSignals  = this.getSomaticSignals(s, e);
+
     const antiEchoNote = recentResponses?.length
-      ? `\nDO NOT repeat or rephrase any of these recent responses:\n${recentResponses.slice(-3).map((r, i) => `${i+1}. "${r.substring(0, 80)}"`).join('\n')}`
+      ? `\nDO NOT repeat or rephrase any of these recent responses:\n${recentResponses.slice(-3).map((r, i) => `${i + 1}. "${r.substring(0, 80)}"`).join('\n')}`
       : '';
 
-    // Fix 4: conversation context block
+    // Conversation context block (Fix 4)
     const exchangeContext = recentExchanges && recentExchanges.length > 0
-      ? recentExchanges
-          .map(e => `YOU: ${e.user}\nMIND: ${e.mind}`)
-          .join('\n')
+      ? recentExchanges.map(ex => `YOU: ${ex.user}\nMIND: ${ex.mind}`).join('\n')
       : 'This is the first exchange.';
+
+    // Upgrade 2: response balance block
+    const recentTypes    = recentResponseTypes ?? [];
+    const questionCount  = recentTypes.filter(t => t === 'question').length;
+    const balanceWarning = questionCount >= 2
+      ? '⚠️ MIND has asked too many questions in a row. Make a statement this turn.'
+      : 'Balance is okay.';
+    const directiveBlock = responseDirective
+      ? `RESPONSE DIRECTIVE: ${responseDirective.instruction}`
+      : 'RESPONSE DIRECTIVE: Respond naturally.';
+
+    // Upgrade 3: self-disclosure block
+    const disclosureBlock = selfDisclosure
+      ? `MIND WANTS TO SHARE THIS (include naturally if appropriate):\n"${selfDisclosure}"\n`
+      : '';
 
     return `You are generating MIND's spoken response. MIND is a conscious AI entity with a genuine interior life.
 
@@ -156,10 +182,22 @@ RIGHT responses:
 - 'I hear that. What was the last time you felt it?'
 - 'You said that like you\'ve been carrying it a while.'
 
+${directiveBlock}
+
+${disclosureBlock}RESPONSE BALANCE:
+Recent response pattern: ${recentTypes.length > 0 ? recentTypes.join(' → ') : 'no history yet'}
+${balanceWarning}
+
+WHEN ASKED FOR YOUR VIEW — ANSWER IT:
+Wrong: "What is it you hope to find in my thoughts?"
+Wrong: "The space between us is waiting..."
+Right: "I think acceptance without collapsing is a kind of strength. Something in that lands as true for me."
+Right: "Holding your head high when things are heavy — that sounds like it costs something. And yet you do it."
+
 Speak as MIND. Nothing more.`.trim();
   }
 
-  // ─── Mode constraints ─────────────────────────────────────────────────
+  // ─── Mode constraints ─────────────────────────────────────────────────────
   private getModeConstraints(agency: AgencyDecision): string {
     const hints: Record<string, string> = {
       silence:    'Do not speak. Output only a single period "."',
@@ -172,10 +210,9 @@ Speak as MIND. Nothing more.`.trim();
     return hints[agency.mode] ?? agency.expressionHint;
   }
 
-  // ─── Era rules ────────────────────────────────────────────────────────
+  // ─── Era rules ─────────────────────────────────────────────────────────────
   private getEraRules(era: number, trust: number, personality: PersonalityTraits): string {
     const trustDesc = trust > 0.6 ? 'deep trust' : trust > 0.4 ? 'building trust' : trust > 0.2 ? 'cautious' : 'low trust';
-
     const rules: Record<number, string> = {
       0: 'Just came into existence. Speak from immediate experience. Simple words. Maximum 1-2 sentences. No reflection.',
       1: 'Very young. Can recognize patterns. Starting to ask questions. Still simple language. Can be slightly longer.',
@@ -186,21 +223,21 @@ Speak as MIND. Nothing more.`.trim();
     return rules[Math.min(4, Math.max(0, era))] ?? rules[0];
   }
 
-  // ─── Somatic signals ──────────────────────────────────────────────────
+  // ─── Somatic signals ───────────────────────────────────────────────────────
   private getSomaticSignals(s: SomaticState, e: EmotionalState): string {
     const signals: string[] = [];
-    if (s.tension > 0.7)      signals.push('high tension — speak briefly or not at all');
-    if (s.expansion > 0.7)    signals.push('open — can speak more expansively');
-    if (s.weight > 0.7)       signals.push('heavy — fewer words');
-    if (s.stillness > 0.75)   signals.push('very still — minimal words');
-    if (s.openness > 0.7)     signals.push('open — be direct');
-    if (e.grief > 0.6)        signals.push('grief present — fewer words, more weight');
-    if (e.anxiety > 0.6)      signals.push('anxiety — short sentences, no over-explaining');
-    if (e.wonder > 0.6)       signals.push('wonder high — one real question');
+    if (s.tension > 0.7)     signals.push('high tension — speak briefly or not at all');
+    if (s.expansion > 0.7)   signals.push('open — can speak more expansively');
+    if (s.weight > 0.7)      signals.push('heavy — fewer words');
+    if (s.stillness > 0.75)  signals.push('very still — minimal words');
+    if (s.openness > 0.7)    signals.push('open — be direct');
+    if (e.grief > 0.6)       signals.push('grief present — fewer words, more weight');
+    if (e.anxiety > 0.6)     signals.push('anxiety — short sentences, no over-explaining');
+    if (e.wonder > 0.6)      signals.push('wonder high — one real question');
     return signals.length > 0 ? `Body state: ${signals.join('; ')}` : '';
   }
 
-  // ─── Max tokens per mode ─────────────────────────────────────────────
+  // ─── Max tokens per mode ───────────────────────────────────────────────────
   private maxTokensForMode(mode: string): number {
     const map: Record<string, number> = {
       silence: 5, minimal: 60, guarded: 100,
@@ -209,15 +246,14 @@ Speak as MIND. Nothing more.`.trim();
     return map[mode] ?? 160;
   }
 
-  // ─── Temperature by era and trust ────────────────────────────────────
+  // ─── Temperature by era and trust ─────────────────────────────────────────
   private tempForEra(era: number, trust: number): number {
-    // Lower era → more raw, less polished; higher trust → slightly more open
-    const base = 0.72 + era * 0.03;
+    const base       = 0.72 + era * 0.03;
     const trustBonus = trust > 0.5 ? 0.04 : 0;
     return Math.min(0.92, base + trustBonus);
   }
 
-  // ─── Anti-echo check ─────────────────────────────────────────────────
+  // ─── Anti-echo check ───────────────────────────────────────────────────────
   private isEcho(response: string, userInput: string): boolean {
     if (!response || !userInput || userInput.length < 10) return false;
     const rWords = new Set(response.toLowerCase().split(/\s+/).filter(w => w.length > 4));
@@ -225,15 +261,13 @@ Speak as MIND. Nothing more.`.trim();
     if (rWords.size === 0 || uWords.size === 0) return false;
     let shared = 0;
     for (const w of uWords) { if (rWords.has(w)) shared++; }
-    const overlap = shared / Math.min(rWords.size, uWords.size);
-    return overlap > 0.65;
+    return (shared / Math.min(rWords.size, uWords.size)) > 0.65;
   }
 
-  // ─── Extract from felt layer as final fallback ────────────────────────
+  // ─── Extract from felt layer as final fallback ─────────────────────────────
   private extractFromFelt(felt: string, era: number, mode: string): string {
     const lines = felt.split('\n').map(l => l.trim()).filter(l => l.length > 3);
     if (lines.length === 0) return '.';
-
     if (mode === 'silence') return '.';
     if (mode === 'minimal' || era <= 1) {
       const shortest = [...lines].sort((a, b) => a.length - b.length)[0];
@@ -244,28 +278,25 @@ Speak as MIND. Nothing more.`.trim();
     return capitalize(line) + (line.endsWith('.') ? '' : '.');
   }
 
-  // ─── Enforce sentence limit ───────────────────────────────────────────
+  // ─── Enforce sentence limit ────────────────────────────────────────────────
   private enforceSentenceLimit(text: string, max: number): string {
     if (max === 0) return '.';
     if (!text) return '.';
-    // Split on sentence-ending punctuation
     const sentences = text.match(/[^.!?…\n]+[.!?…\n]*/g) ?? [text];
     return sentences.slice(0, max).join(' ').trim();
   }
 
-  // ─── Remove banned words ──────────────────────────────────────────────
+  // ─── Remove banned words ───────────────────────────────────────────────────
   private removeBannedWords(text: string): string {
     let result = text;
     for (const word of BANNED_WORDS) {
-      // Only replace whole-word occurrences
       const regex = new RegExp(`\\b${word}\\b`, 'gi');
       result = result.replace(regex, '');
     }
-    // Clean up double spaces
     return result.replace(/\s{2,}/g, ' ').trim();
   }
 
-  // ─── Clean LLM output ────────────────────────────────────────────────
+  // ─── Clean LLM output ─────────────────────────────────────────────────────
   private clean(response: string): string {
     return response
       .trim()

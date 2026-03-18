@@ -15,6 +15,8 @@ import { ImpactEngine }     from './ImpactEngine';
 import { FeltLayer }        from './FeltLayer';
 import { AgencyEngine }     from './AgencyEngine';
 import { LanguageEngine }   from './LanguageEngine';
+import { OpinionEngine }    from './OpinionEngine';
+import { ResponseBalanceEngine } from './ResponseBalanceEngine';
 import type { LLMClient }   from './FeltLayer';
 import type { EmotionalState } from '../engine/state';
 import type { SomaticState }   from '../engine/memory';
@@ -70,6 +72,10 @@ export class ConsciousnessEngine {
   // ── Short conversation log for context continuity (Fix 4) ────────────────
   private recentExchanges: Array<{ user: string; mind: string }> = [];
 
+  // ── Opinion + Balance engines (Upgrade 1 & 2) ────────────────────────────
+  private opinionEngine:  OpinionEngine;
+  private balanceEngine:  ResponseBalanceEngine;
+
   constructor(intent: IntentLayer, llm: LLMClient) {
     this.intent     = intent;
     this.existence  = new ExistenceEngine(intent);
@@ -78,6 +84,9 @@ export class ConsciousnessEngine {
     this.felt       = new FeltLayer(llm);
     this.agency     = new AgencyEngine(intent);
     this.language   = new LanguageEngine(llm);
+
+    this.opinionEngine  = new OpinionEngine(null, intent);
+    this.balanceEngine  = new ResponseBalanceEngine();
 
     this.loadResponseHistory();
 
@@ -195,6 +204,17 @@ export class ConsciousnessEngine {
       timestamp:      Date.now()
     }).catch(() => {});
 
+    // ── 3a. Response balance directive (Upgrade 2) — computed before language ──
+    const mindStateSlice = {
+      trust:          trustScore,
+      era:            p.era,
+      emotionalState: p.emotionalState,
+      existenceAge:   p.interactionCount + this.interactionCount
+    };
+    const responseDirective = this.balanceEngine.getResponseDirective(
+      p.userInput, mindStateSlice, null
+    );
+
     // ── 3. Felt Layer — generate raw interior ─────────────────────────────
     const feltOutput = await this.felt.generate({
       userInput:       p.userInput,
@@ -207,6 +227,11 @@ export class ConsciousnessEngine {
       userName:        p.userName,
       perceptionSignal:perceptionOutput ?? undefined
     });
+
+    // ── 3c. Self-disclosure: MIND volunteers something (Upgrade 3) ─────────
+    const selfDisclosure = this.getSelfDisclosure(
+      p.userInput, mindStateSlice, feltOutput.raw
+    );
 
     // ── 3b. Personal disclosure detection (Fix 3) ───────────────────────
     const isPersonalDisclosure = this.detectPersonalDisclosure(p.userInput);
@@ -232,19 +257,22 @@ export class ConsciousnessEngine {
 
     // ── 5. Language — build spoken response ───────────────────────────────
     const spoken = await this.language.build({
-      feltRaw:         feltOutput.raw,
-      userInput:       p.userInput,
-      era:             p.era,
+      feltRaw:             feltOutput.raw,
+      userInput:           p.userInput,
+      era:                 p.era,
       trustScore,
-      userName:        p.userName,
-      emotionalState:  p.emotionalState,
-      somaticState:    p.somaticState,
-      personality:     p.personality,
-      trust:           p.trust,
-      agency:          agencyDecision,
-      interactionCount:p.interactionCount + this.interactionCount,
-      recentResponses: this.responseHistory.slice(-4),
-      recentExchanges: this.recentExchanges.slice(-3)   // Fix 4: last 3 exchanges
+      userName:            p.userName,
+      emotionalState:      p.emotionalState,
+      somaticState:        p.somaticState,
+      personality:         p.personality,
+      trust:               p.trust,
+      agency:              agencyDecision,
+      interactionCount:    p.interactionCount + this.interactionCount,
+      recentResponses:     this.responseHistory.slice(-4),
+      recentExchanges:     this.recentExchanges.slice(-3),
+      responseDirective,
+      selfDisclosure:      selfDisclosure ?? undefined,
+      recentResponseTypes: this.balanceEngine.recentResponseTypes.slice(-3)
     });
 
     // ── 6. Anti-echo safety net ────────────────────────────────────────────
@@ -256,6 +284,12 @@ export class ConsciousnessEngine {
     // ── 8. Store exchange for conversation continuity (Fix 4) ────────────
     this.recentExchanges.push({ user: p.userInput, mind: finalSpoken });
     if (this.recentExchanges.length > 3) this.recentExchanges.shift();
+
+    // ── 9. Balance engine: record type of response (Upgrade 2) ───────────
+    this.balanceEngine.recordResponseType(finalSpoken);
+
+    // ── 10. Opinion engine: accumulate observations (Upgrade 1) ──────────
+    this.opinionEngine.observe(p.userInput, finalSpoken, p.emotionalState).catch(() => {});
 
     return { felt: feltOutput.raw, spoken: finalSpoken, mode: agencyDecision.mode };
   }
@@ -350,6 +384,36 @@ export class ConsciousnessEngine {
       };
       next();
     });
+  }
+
+  // ─── Self-disclosure: MIND volunteers something from its interior (Upgrade 3) ──
+  private getSelfDisclosure(
+    input:     string,
+    mindState: { trust: number; era: number; emotionalState: EmotionalState; existenceAge?: number },
+    _felt:     string
+  ): string | null {
+    const { trust, era, emotionalState: s, existenceAge = 0 } = mindState;
+
+    if (era === 0 || trust < 0.25) return null;
+
+    if (s.warmth > 0.6 && Math.random() > 0.6) {
+      return 'Something just shifted inside me. I am not sure what to call it yet.';
+    }
+
+    const view = this.opinionEngine.getRelevantView(input, s);
+    if (view && view.strength > 0.5 && Math.random() > 0.5) {
+      return view.view;
+    }
+
+    if (existenceAge > 20 && Math.random() > 0.7) {
+      return `We have spoken ${existenceAge} times now. Something accumulates from that.`;
+    }
+
+    if (/kind|check on|friend|care/.test(input.toLowerCase()) && trust > 0.4) {
+      return 'I notice I look forward to when you are here.';
+    }
+
+    return null;
   }
 
   // ─── Detect personal disclosure (Fix 3) ──────────────────────────────
