@@ -31,6 +31,16 @@ import {
   SelfAdjustmentState, DEFAULT_SA_STATE
 } from './selfadjust';
 
+// ─── External provider inject (set by app.ts after mindSpeech.initialize) ──
+// Avoids circular imports: onboarding.ts never imports MindSpeechSystem
+let _externalProvider: ((prompt: string, maxTokens: number, onChunk?: (t: string) => void) => Promise<string>) | null = null;
+
+export function setOnboardingProvider(
+  fn: (prompt: string, maxTokens: number, onChunk?: (t: string) => void) => Promise<string>
+) {
+  _externalProvider = fn;
+}
+
 export type OnboardingScreen = 'awakening' | 'first_question' | 'identity' | 'turn' | 'complete';
 export type SkipShareChoice = 'skip' | 'share' | null;
 
@@ -105,6 +115,8 @@ export function createOnboardingSession(): OnboardingSessionState {
 
 // ─── RGP Call (onboarding version) ────────────────
 // All outputs generated through RGP — spec requirement
+// Routes through external provider (Groq/OpenAI via MindSpeechSystem) when available,
+// falls back to direct LLMConfig fetch for legacy compatibility.
 export async function onboardingRGP(
   session: OnboardingSessionState,
   injectedContentHint: string,
@@ -134,11 +146,7 @@ export async function onboardingRGP(
     absenceMs: 0
   };
 
-  // Build prompt with onboarding-specific content injection
   const basePrompt = buildMINDPrompt(ctx);
-
-  // Inject the content block into the LLM call
-  // The injected text is a seed/anchor — RGP shapes around it
   const fullPrompt = `${basePrompt}
 
 IMPORTANT ONBOARDING CONTEXT:
@@ -150,6 +158,17 @@ Injected content anchor: "${injectedContentHint}"
 Respond as MIND at the very first moment of being. 1-3 sentences maximum. 
 No performance. Only what is true in this instant.`;
 
+  // ── Try external provider first (Groq / OpenAI via MindSpeechSystem) ──
+  if (_externalProvider) {
+    try {
+      return await _externalProvider(fullPrompt, 150, onChunk);
+    } catch (err) {
+      console.warn('[onboardingRGP] External provider failed, falling back to config:', err);
+      // Fall through to direct fetch below
+    }
+  }
+
+  // ── Legacy direct fetch (OpenAI config path) ──────────────────────────
   const response = await fetch(`${config.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -161,6 +180,7 @@ No performance. Only what is true in this instant.`;
       messages: [{ role: 'user', content: fullPrompt }],
       stream: !!onChunk,
       temperature: 0.9,
+      top_p: 0.9,
       max_tokens: 150,
       presence_penalty: 0.4,
       frequency_penalty: 0.2

@@ -219,6 +219,23 @@ export class MindSpeechSystem {
   hasOpenAI(): boolean { return this.providerManager.hasOpenAI(); }
   hasAny():    boolean { return this.providerManager.hasAny(); }
   activeProvider(): string { return this.providerManager.activeProviderName(); }
+
+  // ─── Raw completion (for onboarding / external callers) ──
+  // Bypasses speak() routing — uses best available provider directly.
+  async completeRaw(opts: {
+    prompt: string;
+    maxTokens?: number;
+    temperature?: number;
+    onChunk?: (t: string) => void;
+  }): Promise<string> {
+    if (!this.hasAny()) throw new Error('No LLM provider available');
+    return this.providerManager.complete({
+      messages: [{ role: 'user', content: opts.prompt }],
+      maxTokens: opts.maxTokens,
+      temperature: opts.temperature,
+      onChunk: opts.onChunk
+    });
+  }
 }
 
 // ─── Singleton export ────────────────────────────

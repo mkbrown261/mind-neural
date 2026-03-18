@@ -53,15 +53,20 @@ export class GroqProvider implements LLMProvider {
         },
         body: JSON.stringify({
           model: GROQ_MODEL,
-          messages: [{ role: 'user', content: 'ping' }],
-          max_tokens: 1,
+          messages: [{ role: 'user', content: 'hi' }],
+          max_tokens: 3,
           temperature: 0,
           stream: false
         })
       });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        console.warn(`[GroqProvider] verify failed: ${res.status} — ${body.slice(0, 200)}`);
+      }
       this.verified = res.ok;
       return this.verified;
-    } catch {
+    } catch (err) {
+      console.warn('[GroqProvider] verify error:', err);
       this.verified = false;
       return false;
     }

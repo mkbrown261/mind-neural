@@ -23,7 +23,8 @@ import {
   screen1_awakening, processFirstInput,
   screen2_firstQuestion, processSkip, processShare,
   screen3_identityPrompt, processIdentityInput,
-  screen4_turn, processTurnInput
+  screen4_turn, processTurnInput,
+  setOnboardingProvider
 } from './engine/onboarding';
 import type { ArcEvent, BiophotonState } from './engine/tick';
 
@@ -239,7 +240,13 @@ async function startLoading() {
 
   try { await initMIND(); } catch (e) { console.warn('MIND init partial:', e); }
   // Initialize mindSpeech (loads keys from localStorage, verifies providers)
-  try { await mindSpeech.initialize(); } catch (e) { console.warn('MindSpeech init partial:', e); }
+  try {
+    await mindSpeech.initialize();
+    // Wire mindSpeech into onboarding so all 4 screens use Groq/OpenAI automatically
+    setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
+      return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
+    });
+  } catch (e) { console.warn('MindSpeech init partial:', e); }
   fill.style.width = '100%';
   await sleep(400);
 
@@ -279,7 +286,13 @@ async function startLoading() {
     } else {
       mindSpeech.setOpenAIKey(config.apiKey, config.baseUrl, config.model);
     }
-    const mindState = getMINDState();
+    // Always re-wire onboarding provider after key restore
+    if (mindSpeech.hasAny()) {
+      setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
+        return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
+      });
+    }
+    updateVoiceIndicator();
     if (!isOnboardingComplete() && getMemoryCount() === 0) {
       await startOnboarding();
     } else {
@@ -954,6 +967,10 @@ function setupMainEventListeners() {
       // Also build a legacy config for onboarding LLM calls
       config = { apiKey: key, baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' };
       saveConfig(config);
+      // Re-wire onboarding provider so screens 1-4 use Groq
+      setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
+        return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
+      });
       hideApiSetup();
       soundEngine?.init();
       updateVoiceIndicator();
@@ -979,6 +996,10 @@ function setupMainEventListeners() {
     saveConfig(config);
     // Register with mindSpeech as OpenAI fallback
     mindSpeech.setOpenAIKey(key, 'https://api.openai.com/v1', model);
+    // Re-wire onboarding provider
+    setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
+      return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
+    });
     hideApiSetup();
     soundEngine?.init();
     updateVoiceIndicator();
@@ -1083,10 +1104,8 @@ async function handleSend() {
   }
 
   // ─── Speech path: mindSpeech.speak() routes through ProviderManager
-  // (Groq primary → OpenAI fallback → template engine)
-  const hasAnyProvider = mindSpeech.hasAny() || config?.apiKey;
-
-  if (hasAnyProvider || true) { // always attempt — template is always available
+  // (Groq primary → OpenAI fallback → template engine — template is always available)
+  {
     const msgEl = addMindMessage('', true);
     const contentEl = msgEl.querySelector('.msg-content')!;
     const cursor = create('span', 'typing-cursor');
