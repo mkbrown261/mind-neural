@@ -504,6 +504,22 @@ async function handleGateInit() {
       mindSpeech.activateConsciousness();
     }
 
+    // ── CORE observability: expose live debug snapshot on window ──────────────
+    // Use a getter so DevTools always shows the current state, not a stale copy.
+    // Access: window.CORE_DEBUG  or  window._coreEngine  in the browser console.
+    try {
+      const { coreEngine } = await import('./core/core.intent');
+      if (typeof window !== 'undefined') {
+        Object.defineProperty(window, 'CORE_DEBUG', {
+          get: () => coreEngine.getSnapshot(),
+          configurable: true,
+          enumerable: false
+        });
+        (window as Window & { _coreEngine?: typeof coreEngine })._coreEngine = coreEngine;
+        console.log('[CORE] window.CORE_DEBUG live getter registered');
+      }
+    } catch (_) {}
+
     // Step 6: Apply initial brain state
     const bp = getCurrentBiophoton();
     brain.setActivations([

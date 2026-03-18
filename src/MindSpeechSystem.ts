@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════
-// MIND SPEECH SYSTEM v9.1
+// MIND SPEECH SYSTEM v9.2 — CORE Governor layer integrated
 // Orchestrates: IntentLayer + ProviderManager + TemplateSpeechEngine + VoiceBlender
 //   + VoiceSignalAnalyzer → TextSignalAnalyzer → AffectiveResonanceEngine → EmotionalAgencyEngine
 //   + Full Consciousness Architecture (7 layers via initializeConsciousness)
@@ -31,6 +31,8 @@ import { AffectiveResonanceEngine } from './emotion/AffectiveResonanceEngine';
 import { EmotionalAgencyEngine } from './emotion/EmotionalAgencyEngine';
 // ── Full Consciousness Architecture ─────────────────────────────────────────
 import { initializeConsciousness } from './consciousness/index';
+// ── CORE Governor layer ──────────────────────────────────────────────────────
+import { registerCoreIntent }      from './core/core.intent';
 import type { ConsciousnessEngine } from './consciousness/ConsciousnessEngine';
 import type { ConsciousnessSpeechRequest } from './consciousness/ConsciousnessEngine';
 
@@ -93,6 +95,17 @@ export class MindSpeechSystem {
     this.textAnalyzer    = new TextSignalAnalyzer(this.intent);
     this.resonanceEngine = new AffectiveResonanceEngine(this.intent);
     this.agencyEngine    = new EmotionalAgencyEngine(this.intent);
+
+    // ── CORE Governor: register speech.deliver interceptor NOW, before app.ts ──
+    // app.ts registers its UI speech.deliver handler during brain setup (after
+    // MindSpeechSystem is constructed).  By registering CORE here we guarantee
+    // CORE's handler is appended first → it fires first → mutates payload.text
+    // in-place → the UI handler then reads the already-evolved text.
+    const isDev = typeof window !== 'undefined'
+      ? (window as Window & { __MIND_DEV__?: boolean }).__MIND_DEV__ !== false
+      : false;
+    registerCoreIntent(this.intent, isDev ?? true);
+    console.log('[MindSpeechSystem] CORE Governor registered on speech.deliver');
 
     // ConsciousnessEngine created lazily in activateConsciousness()
     // after a verified LLM provider is available.
