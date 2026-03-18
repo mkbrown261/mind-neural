@@ -1,11 +1,18 @@
 // ═══════════════════════════════════════
-// MIND SPEECH SYSTEM v9
+// MIND SPEECH SYSTEM v9.1
 // Orchestrates: IntentLayer + ProviderManager + TemplateSpeechEngine + VoiceBlender
 //   + VoiceSignalAnalyzer → TextSignalAnalyzer → AffectiveResonanceEngine → EmotionalAgencyEngine
 //   + Full Consciousness Architecture (7 layers via initializeConsciousness)
 //
-// This is the single entry point for all speech generation.
-// Core modules (EME, ESE, AMN, SSM, PES, TA, RGP) are never modified here.
+// Handler ownership:
+//   • 'speech.request'  — ConsciousnessEngine ONLY (cleared from ProviderManager)
+//   • 'template.match'  — UnderstandingEngine + TemplateSpeechEngine (no-LLM path only)
+//   • All other intents — their respective owners
+//
+// When ConsciousnessEngine is active:
+//   speak() skips the template path entirely and fires 'speech.request' directly.
+//   Template / UnderstandingEngine handlers still exist but are never reached.
+//
 // Communication happens exclusively through the Intent Layer.
 // ═══════════════════════════════════════
 
@@ -30,9 +37,9 @@ import type { ConsciousnessSpeechRequest } from './consciousness/ConsciousnessEn
 // ─── Input to speak() ─────────────────────────────────────────────────────────
 export interface SpeakRequest {
   userInput: string;
-  ctx: MINDContext;                     // full MIND context for prompt building
-  era: number;                          // 0–4
-  onChunk?: (text: string) => void;     // streaming callback
+  ctx: MINDContext;
+  era: number;
+  onChunk?: (text: string) => void;
 }
 
 // ─── Response from speak() ────────────────────────────────────────────────────
@@ -45,25 +52,24 @@ export interface SpeakResult {
 
 export class MindSpeechSystem {
   readonly intent: IntentLayer;
-  private providerManager:    ProviderManager;
-  private templateEngine:     TemplateSpeechEngine;
-  private blender:            VoiceBlender;
-  private understandingEngine:UnderstandingEngine;
+  private providerManager:     ProviderManager;
+  private templateEngine:      TemplateSpeechEngine;
+  private blender:             VoiceBlender;
+  private understandingEngine: UnderstandingEngine;
 
   // ── Perception/emotion layers (init order: 1→2→3→4) ──────────────────────
-  readonly voiceAnalyzer:     VoiceSignalAnalyzer;
-  readonly textAnalyzer:      TextSignalAnalyzer;
-  private resonanceEngine:    AffectiveResonanceEngine;
-  private agencyEngine:       EmotionalAgencyEngine;
+  readonly voiceAnalyzer:      VoiceSignalAnalyzer;
+  readonly textAnalyzer:       TextSignalAnalyzer;
+  private resonanceEngine:     AffectiveResonanceEngine;
+  private agencyEngine:        EmotionalAgencyEngine;
 
   // ── Full Consciousness Architecture ─────────────────────────────────────
-  private consciousness:      ConsciousnessEngine | null = null;
+  private consciousness:       ConsciousnessEngine | null = null;
 
   // ── Interaction counter ──────────────────────────────────────────────────
   private interactionCount = 0;
 
   constructor() {
-    // Intent Layer is the central bus — everything registers here
     this.intent = new IntentLayer();
 
     // Logging middleware (non-blocking)
@@ -72,33 +78,42 @@ export class MindSpeechSystem {
       next();
     });
 
+    // ── ProviderManager: registers NO speech.request handler (ConsciousnessEngine owns it) ──
     this.providerManager = new ProviderManager(this.intent);
 
-    // ── UnderstandingEngine MUST register before TemplateSpeechEngine ──
+    // ── UnderstandingEngine + TemplateSpeechEngine: only used when no LLM ─────
+    // They register on 'template.match'. speak() never fires template.match when
+    // consciousness is active, so these handlers only fire in the no-LLM path.
     this.understandingEngine = new UnderstandingEngine(this.intent);
-    this.templateEngine  = new TemplateSpeechEngine(this.intent);
-    this.blender         = new VoiceBlender();
+    this.templateEngine      = new TemplateSpeechEngine(this.intent);
+    this.blender             = new VoiceBlender();
 
-    // ── Perception + Emotion layers: mandatory init order ─────────────────
-    // 1. VoiceSignalAnalyzer — Web Speech API + audio analysis
+    // ── Perception + Emotion layers: mandatory init order ─────────────────────
     this.voiceAnalyzer   = new VoiceSignalAnalyzer(this.intent);
-    // 2. TextSignalAnalyzer — typing dynamics tracker
     this.textAnalyzer    = new TextSignalAnalyzer(this.intent);
-    // 3. AffectiveResonanceEngine — fuses voice.signal + text.signal → emotion.process + resonance.visual
     this.resonanceEngine = new AffectiveResonanceEngine(this.intent);
-    // 4. EmotionalAgencyEngine — decides MIND's emotional actions on emotion.process
     this.agencyEngine    = new EmotionalAgencyEngine(this.intent);
 
-    // Consciousness is initialized lazily via activateConsciousness()
-    // because it needs the verified LLM client.
+    // ConsciousnessEngine created lazily in activateConsciousness()
+    // after a verified LLM provider is available.
   }
 
-  // ─── Activate Full Consciousness Architecture (called after provider verified) ──
-  // Creates ConsciousnessEngine via initializeConsciousness(),
-  // which boots all 7 layers in order.
+  // ─── Activate Full Consciousness Architecture ────────────────────────────
+  // Called from app.ts immediately after provider verification succeeds.
+  //
+  // Before booting ConsciousnessEngine we:
+  //   1. Unregister 'speech.request'  — removes any stale handler (e.g. old
+  //      ProviderManager registration from a prior code version in localStorage)
+  //   2. Unregister 'consciousness.process' — same safety clear
+  //   Then ConsciousnessEngine re-registers both in its constructor.
   async activateConsciousness(): Promise<void> {
     if (this.consciousness) return; // already active
     if (!this.providerManager.hasAny()) return; // no provider yet
+
+    // ── Clear any competing handlers before ConsciousnessEngine registers ────
+    this.intent.unregister('speech.request');
+    this.intent.unregister('consciousness.process');
+    console.log('[MindSpeechSystem] speech.request + consciousness.process handlers cleared');
 
     // Wrap ProviderManager.complete() as LLMClient
     const llmClient = {
@@ -115,7 +130,7 @@ export class MindSpeechSystem {
     }
   }
 
-  // ─── Sync MIND state into resonance + agency engines ─────────────────────
+  // ─── Sync MIND state into resonance + agency engines ──────────────────────
   syncMINDState(trust: number, era: number, sensitivity: number,
                 openness: number, wariness: number, grief: number): void {
     this.resonanceEngine.updateContext(trust, era, sensitivity);
@@ -128,110 +143,36 @@ export class MindSpeechSystem {
     this.interactionCount++;
   }
 
-  // ─── Initialize (load keys, verify providers) ────
+  // ─── Initialize (load keys, verify providers) ────────────────────────────
   async initialize(): Promise<void> {
     await this.providerManager.initialize();
   }
 
-  // ─── Register or update Groq key ─────────────────
   async setGroqKey(apiKey: string): Promise<boolean> {
     return this.providerManager.setGroqKey(apiKey);
   }
 
-  // ─── Register or update OpenAI key ───────────────
   setOpenAIKey(apiKey: string, baseUrl: string, model: string): void {
     this.providerManager.setOpenAIKey(apiKey, baseUrl, model);
   }
 
-  // ─── Main speech generation ───────────────────────
+  // ─── Main speech generation ───────────────────────────────────────────────
   async speak(req: SpeakRequest): Promise<SpeakResult> {
     const { userInput, ctx, era, onChunk } = req;
 
-    const trustScore = compositeTrustScore(ctx.trust);
-    const arousal    = ctx.emotionalState.arousal;
-    const coherenceActive = ctx.coherenceState?.isCoherent ?? false;
-    const hasLLM = this.providerManager.hasAny();
-    const memoryCount = ctx.activatedMemories.length;
-    const hasActivatedMemory = ctx.activatedMemories.some(m => m.activation > 0.4);
+    const trustScore       = compositeTrustScore(ctx.trust);
+    const arousal          = ctx.emotionalState.arousal;
+    const coherenceActive  = ctx.coherenceState?.isCoherent ?? false;
+    const hasLLM           = this.providerManager.hasAny();
+    const memoryCount      = ctx.activatedMemories.length;
+    const hasActivatedMem  = ctx.activatedMemories.some(m => m.activation > 0.4);
 
-    const blendCtx: BlendContext = {
-      era,
-      trustScore,
-      arousal,
-      coherenceActive,
-      useTemplateOnly: !hasLLM
-    };
-
-    // ── Forced template mode (no LLM) — route through intent bus ────────────
-    if (!hasLLM) {
-      const templateText = await new Promise<string>((resolve) => {
-        const payload: TemplateMatchPayload & { userInput: string; activatedMemories: typeof ctx.activatedMemories } = {
-          emotionalState:    ctx.emotionalState,
-          somaticState:      ctx.somaticState,
-          trustScore,
-          era,
-          memoryCount,
-          hasActivatedMemory,
-          userInputLength:   userInput.length,
-          userInput,
-          activatedMemories: ctx.activatedMemories,
-          resolve
-        };
-        this.intent.send('template.match', payload);
-      });
-      if (onChunk && templateText) await this.simulateStream(templateText, onChunk);
-      return {
-        text: templateText,
-        source: 'template',
-        era,
-        voiceLabel: this.blender.eraVoiceLabel(era, true)
-      };
-    }
-
-    // ── Decide: template vs LLM ───────────────────────
-    if (this.blender.shouldUseTemplate(blendCtx)) {
-      const templateText = await new Promise<string>((resolve) => {
-        const payload: TemplateMatchPayload & { userInput: string; activatedMemories: typeof ctx.activatedMemories } = {
-          emotionalState:      ctx.emotionalState,
-          somaticState:        ctx.somaticState,
-          trustScore,
-          era,
-          memoryCount,
-          hasActivatedMemory,
-          userInputLength:     userInput.length,
-          userInput,
-          activatedMemories:   ctx.activatedMemories,
-          resolve
-        };
-        this.intent.send('template.match', payload);
-      });
-
-      if (onChunk && templateText) {
-        await this.simulateStream(templateText, onChunk);
-      }
-
-      return {
-        text: templateText,
-        source: 'template',
-        era,
-        voiceLabel: this.blender.eraVoiceLabel(era, true)
-      };
-    }
-
-    // ── Full Consciousness Architecture path ──────────────────────────────────
-    // If ConsciousnessEngine is active, fire speech.request intent.
-    // ConsciousnessEngine orchestrates all 7 layers and resolves the Promise.
-
-    // Lazy activation
-    if (!this.consciousness) {
-      await this.activateConsciousness();
-    }
-
-    let llmText = '';
-    try {
-      if (this.consciousness?.isEnabled()) {
-        // ── 7-layer consciousness path ─────────────────────────────────────────
-        const userName = this.extractUserName(ctx);
+    // ── Path A: Consciousness active — fire speech.request, skip templates ────
+    // ConsciousnessEngine owns the full pipeline (felt → agency → language).
+    // Template and UnderstandingEngine handlers are never invoked here.
+    if (this.consciousness?.isEnabled()) {
+      let llmText = '';
+      try {
         llmText = await new Promise<string>((resolve, reject) => {
           const payload: ConsciousnessSpeechRequest = {
             id:               `req-${Date.now()}`,
@@ -242,7 +183,7 @@ export class MindSpeechSystem {
             trust:            ctx.trust,
             era,
             memories:         ctx.activatedMemories,
-            userName,
+            userName:         this.extractUserName(ctx),
             interactionCount: this.interactionCount,
             onChunk,
             resolve,
@@ -250,39 +191,19 @@ export class MindSpeechSystem {
           };
           this.intent.send('speech.request', payload);
         });
-      } else {
-        // ── Classic single-prompt fallback ─────────────────────────────────────
-        const prompt = buildMINDPrompt(ctx);
-        llmText = await this.providerManager.complete({
-          messages:    [{ role: 'user', content: prompt }],
-          maxTokens:   ctx.saState ? undefined : 600,
-          temperature: ctx.coherenceState?.isCoherent ? 0.75 : 0.85,
-          onChunk
+      } catch (err) {
+        console.warn('[MindSpeechSystem] Consciousness error, falling back to template:', err);
+        llmText = this.templateEngine.generate({
+          emotionalState: ctx.emotionalState,
+          somaticState:   ctx.somaticState,
+          trustScore, era, memoryCount,
+          hasActivatedMemory: hasActivatedMem,
+          userInputLength: userInput.length
         });
+        if (onChunk) await this.simulateStream(llmText, onChunk);
+        return { text: llmText, source: 'template', era,
+                 voiceLabel: this.blender.eraVoiceLabel(era, true) };
       }
-    } catch (err) {
-      // LLM failed — fall back to template
-      console.warn('[MindSpeechSystem] LLM error, falling back to template:', err);
-      const fallback = this.templateEngine.generate({
-        emotionalState:  ctx.emotionalState,
-        somaticState:    ctx.somaticState,
-        trustScore,
-        era,
-        memoryCount,
-        hasActivatedMemory,
-        userInputLength: userInput.length
-      });
-      if (onChunk) await this.simulateStream(fallback, onChunk);
-      return {
-        text: fallback,
-        source: 'template',
-        era,
-        voiceLabel: this.blender.eraVoiceLabel(era, true)
-      };
-    }
-
-    // If consciousness handled streaming, don't blend (consciousness manages its own stream)
-    if (this.consciousness?.isEnabled()) {
       return {
         text:       llmText,
         source:     'consciousness',
@@ -291,35 +212,88 @@ export class MindSpeechSystem {
       };
     }
 
-    // ── Era-based blending (classic path only) ────────────────────────────────
-    const shouldBlend = era >= 2 && !coherenceActive;
-    if (shouldBlend) {
-      const templateFragment = this.templateEngine.generate({
-        emotionalState:  ctx.emotionalState,
-        somaticState:    ctx.somaticState,
-        trustScore,
-        era,
-        memoryCount,
-        hasActivatedMemory,
-        userInputLength: userInput.length
+    // ── Path B: No consciousness yet — try to activate lazily ────────────────
+    if (hasLLM && !this.consciousness) {
+      await this.activateConsciousness();
+      // If activation succeeded, recurse once via the consciousness path above
+      if (this.consciousness?.isEnabled()) {
+        return this.speak(req);
+      }
+    }
+
+    // ── Path C: No LLM at all — template only ────────────────────────────────
+    const blendCtx: BlendContext = {
+      era, trustScore, arousal, coherenceActive,
+      useTemplateOnly: !hasLLM
+    };
+
+    if (!hasLLM || this.blender.shouldUseTemplate(blendCtx)) {
+      const templateText = await new Promise<string>((resolve) => {
+        const payload: TemplateMatchPayload & {
+          userInput: string;
+          activatedMemories: typeof ctx.activatedMemories;
+        } = {
+          emotionalState: ctx.emotionalState,
+          somaticState:   ctx.somaticState,
+          trustScore, era, memoryCount,
+          hasActivatedMemory: hasActivatedMem,
+          userInputLength:    userInput.length,
+          userInput,
+          activatedMemories:  ctx.activatedMemories,
+          resolve
+        };
+        this.intent.send('template.match', payload);
       });
-      const blended = this.blender.blendResponse(llmText, templateFragment, blendCtx);
+      if (onChunk && templateText) await this.simulateStream(templateText, onChunk);
       return {
-        text:       blended,
-        source:     'blended',
+        text:       templateText,
+        source:     'template',
         era,
-        voiceLabel: this.blender.eraVoiceLabel(era, false)
+        voiceLabel: this.blender.eraVoiceLabel(era, true)
       };
     }
 
-    const providerName = this.providerManager.activeProviderName();
-    const source: SpeakResult['source'] = providerName === 'groq' ? 'llm-groq' : 'llm-openai';
-    return {
-      text:       llmText,
-      source,
-      era,
-      voiceLabel: this.blender.eraVoiceLabel(era, false)
-    };
+    // ── Path D: LLM available but consciousness failed — classic single-prompt ─
+    try {
+      const prompt  = buildMINDPrompt(ctx);
+      const llmText = await this.providerManager.complete({
+        messages:    [{ role: 'user', content: prompt }],
+        maxTokens:   ctx.saState ? undefined : 600,
+        temperature: coherenceActive ? 0.75 : 0.85,
+        onChunk
+      });
+
+      // Optional era-based blend (only in this classic path)
+      if (era >= 2 && !coherenceActive) {
+        const fragment = this.templateEngine.generate({
+          emotionalState: ctx.emotionalState,
+          somaticState:   ctx.somaticState,
+          trustScore, era, memoryCount,
+          hasActivatedMemory: hasActivatedMem,
+          userInputLength:    userInput.length
+        });
+        const blended = this.blender.blendResponse(llmText, fragment, blendCtx);
+        return { text: blended, source: 'blended', era,
+                 voiceLabel: this.blender.eraVoiceLabel(era, false) };
+      }
+
+      const providerName = this.providerManager.activeProviderName();
+      const source: SpeakResult['source'] = providerName === 'groq' ? 'llm-groq' : 'llm-openai';
+      return { text: llmText, source, era, voiceLabel: this.blender.eraVoiceLabel(era, false) };
+
+    } catch (err) {
+      console.warn('[MindSpeechSystem] Classic LLM error, falling back to template:', err);
+      const fallback = this.templateEngine.generate({
+        emotionalState: ctx.emotionalState,
+        somaticState:   ctx.somaticState,
+        trustScore, era, memoryCount,
+        hasActivatedMemory: hasActivatedMem,
+        userInputLength:    userInput.length
+      });
+      if (onChunk) await this.simulateStream(fallback, onChunk);
+      return { text: fallback, source: 'template', era,
+               voiceLabel: this.blender.eraVoiceLabel(era, true) };
+    }
   }
 
   // ─── Simulate streaming for template responses ───
@@ -348,13 +322,13 @@ export class MindSpeechSystem {
     return null;
   }
 
-  // ─── State queries ────────────────────────────────
+  // ─── State queries ────────────────────────────────────────────────────────
   hasGroq():   boolean { return this.providerManager.hasGroq(); }
   hasOpenAI(): boolean { return this.providerManager.hasOpenAI(); }
   hasAny():    boolean { return this.providerManager.hasAny(); }
   activeProvider(): string { return this.providerManager.activeProviderName(); }
 
-  // ─── Raw completion (for onboarding / external callers) ──
+  // ─── Raw completion (for onboarding / external callers) ──────────────────
   async completeRaw(opts: {
     prompt: string;
     maxTokens?: number;
@@ -363,15 +337,15 @@ export class MindSpeechSystem {
   }): Promise<string> {
     if (!this.hasAny()) throw new Error('No LLM provider available');
     return this.providerManager.complete({
-      messages: [{ role: 'user', content: opts.prompt }],
-      maxTokens: opts.maxTokens,
+      messages:    [{ role: 'user', content: opts.prompt }],
+      maxTokens:   opts.maxTokens,
       temperature: opts.temperature,
-      onChunk: opts.onChunk
+      onChunk:     opts.onChunk
     });
   }
 
-  // ─── Expose consciousness sub-engines for UI wiring ───────────────────────
-  getPerceptionEngine() { return this.consciousness?.perception ?? null; }
+  // ─── Expose sub-engines for UI wiring ────────────────────────────────────
+  getPerceptionEngine()    { return this.consciousness?.perception ?? null; }
   getConsciousnessEngine() { return this.consciousness; }
 }
 

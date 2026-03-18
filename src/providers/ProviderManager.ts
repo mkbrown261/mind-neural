@@ -113,28 +113,9 @@ export class ProviderManager {
 
   constructor(intent: IntentLayer) {
     this.intent = intent;
-
-    // Register speech.request intent handler immediately in constructor
-    // so it is available even before any key is set
-    this.intent.register('speech.request', async (payload: unknown) => {
-      const p = payload as SpeechRequestPayload;
-      const provider = this.registry.selectBest();
-      if (!provider) {
-        p.reject(new Error('No LLM provider available'));
-        return;
-      }
-      try {
-        const text = await provider.complete({
-          messages: [{ role: 'user', content: p.prompt }],
-          maxTokens: p.maxTokens,
-          temperature: p.temperature,
-          onChunk: p.onChunk
-        });
-        p.resolve(text);
-      } catch (err) {
-        p.reject(err);
-      }
-    });
+    // NOTE: ProviderManager intentionally does NOT register 'speech.request'.
+    // ConsciousnessEngine owns that event exclusively once activated.
+    // Direct completion is available via complete() for callers that need it.
   }
 
   // ─── Initialize providers from localStorage ───────
