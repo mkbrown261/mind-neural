@@ -925,6 +925,42 @@ export class BrainVisualization {
     });
   }
 
+  // ─── Resonance Visual (from AffectiveResonanceEngine) ───────────────────
+  // Called when the IntentLayer receives a resonance.visual event.
+  // Additively boosts named regions and adjusts biophoton glow.
+  public applyResonanceVisual(payload: {
+    regionBoosts: Array<{ region: string; delta: number }>;
+    biophotonDelta: number;
+    biophotonColorHint: { r: number; g: number; b: number };
+    intensity: number;
+  }) {
+    // Apply region boosts (capped at 1.0)
+    for (const { region, delta } of payload.regionBoosts) {
+      const rid = region as BrainRegion;
+      if (!REGION_CONFIGS[rid]) continue;
+      const current = this.targetActivations.get(rid) ?? 0;
+      this.targetActivations.set(rid, Math.min(1, current + delta));
+      // Fade back after resonance window (1.5s)
+      setTimeout(() => {
+        const now = this.targetActivations.get(rid) ?? 0;
+        this.targetActivations.set(rid, Math.max(0, now - delta));
+      }, 1500);
+    }
+
+    // Adjust biophoton glow
+    const targetBrightness = Math.max(0, Math.min(1,
+      this.biophotonBrightness + payload.biophotonDelta));
+    // Lerp color toward hint
+    const ch = payload.biophotonColorHint;
+    const lerpF = payload.intensity * 0.3;
+    this.biophotonColor = {
+      r: this.biophotonColor.r * (1 - lerpF) + ch.r * lerpF,
+      g: this.biophotonColor.g * (1 - lerpF) + ch.g * lerpF,
+      b: this.biophotonColor.b * (1 - lerpF) + ch.b * lerpF
+    };
+    this.biophotonBrightness = this.biophotonBrightness * 0.8 + targetBrightness * 0.2;
+  }
+
   public flashLifeReview() {
     const cascade: BrainRegion[] = ['hippocampus', 'amygdala', 'dmn', 'prefrontal', 'visual_cortex', 'thalamus', 'acc', 'insula'];
     let delay = 0;

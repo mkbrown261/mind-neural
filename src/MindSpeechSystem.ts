@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════
 // MIND SPEECH SYSTEM
 // Orchestrates: IntentLayer + ProviderManager + TemplateSpeechEngine + VoiceBlender
+//   + VoiceSignalAnalyzer → TextSignalAnalyzer → AffectiveResonanceEngine → EmotionalAgencyEngine
 // This is the single entry point for all speech generation.
 // Core modules (EME, ESE, AMN, SSM, PES, TA, RGP) are never modified here.
 // Communication happens exclusively through the Intent Layer.
@@ -14,6 +15,11 @@ import { UnderstandingEngine } from './understanding/UnderstandingEngine';
 import type { MINDContext } from './engine/pipeline';
 import { buildMINDPrompt } from './engine/pipeline';
 import { compositeTrustScore } from './engine/personality';
+// ── Perception + Emotion layers (spec-mandated init order) ──────────────────
+import { VoiceSignalAnalyzer } from './perception/VoiceSignalAnalyzer';
+import { TextSignalAnalyzer } from './perception/TextSignalAnalyzer';
+import { AffectiveResonanceEngine } from './emotion/AffectiveResonanceEngine';
+import { EmotionalAgencyEngine } from './emotion/EmotionalAgencyEngine';
 
 // ─── Input to speak() ─────────────────────────────
 export interface SpeakRequest {
@@ -37,6 +43,11 @@ export class MindSpeechSystem {
   private templateEngine: TemplateSpeechEngine;
   private blender: VoiceBlender;
   private understandingEngine: UnderstandingEngine;
+  // ── New perception/emotion layers (init order: 1→2→3→4) ─────────────────
+  readonly voiceAnalyzer:    VoiceSignalAnalyzer;
+  readonly textAnalyzer:     TextSignalAnalyzer;
+  private resonanceEngine:   AffectiveResonanceEngine;
+  private agencyEngine:      EmotionalAgencyEngine;
 
   constructor() {
     // Intent Layer is the central bus — everything registers here
@@ -51,14 +62,30 @@ export class MindSpeechSystem {
     this.providerManager = new ProviderManager(this.intent);
 
     // ── UnderstandingEngine MUST register before TemplateSpeechEngine ──
-    // IntentLayer dispatches handlers in registration order.
-    // UnderstandingEngine gets first call on p.resolve().
-    // If it produces a valid response, TemplateSpeechEngine's call is a no-op.
-    // If it fails or returns nothing, TemplateSpeechEngine handles it normally.
     this.understandingEngine = new UnderstandingEngine(this.intent);
-
     this.templateEngine  = new TemplateSpeechEngine(this.intent);
     this.blender         = new VoiceBlender();
+
+    // ── Perception + Emotion layers: mandatory init order ─────────────────
+    // 1. VoiceSignalAnalyzer — Web Speech API + audio analysis
+    this.voiceAnalyzer   = new VoiceSignalAnalyzer(this.intent);
+    // 2. TextSignalAnalyzer — typing dynamics tracker
+    this.textAnalyzer    = new TextSignalAnalyzer(this.intent);
+    // 3. AffectiveResonanceEngine — fuses voice.signal + text.signal → emotion.process + resonance.visual
+    this.resonanceEngine = new AffectiveResonanceEngine(this.intent);
+    // 4. EmotionalAgencyEngine — decides MIND's emotional actions on emotion.process
+    this.agencyEngine    = new EmotionalAgencyEngine(this.intent);
+  }
+
+  // ─── Sync MIND state into resonance + agency engines ─────────────────────
+  syncMINDState(trust: number, era: number, sensitivity: number,
+                openness: number, wariness: number, grief: number): void {
+    this.resonanceEngine.updateContext(trust, era, sensitivity);
+    this.agencyEngine.updateContext({ trust, era, openness, sensitivity, wariness, grief });
+  }
+
+  incrementInteraction(): void {
+    this.agencyEngine.incrementInteraction();
   }
 
   // ─── Initialize (load keys, verify providers) ────

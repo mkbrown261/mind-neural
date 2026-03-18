@@ -402,6 +402,14 @@ async function handleGateInit() {
     brainContainer.style.opacity = '1';
     brainContainer.style.pointerEvents = 'auto';
 
+    // ── Register resonance.visual intent → BrainVisualization ─────────────────
+    // AffectiveResonanceEngine sends this; brain handles it independently
+    mindSpeech.intent.register('resonance.visual', (payload) => {
+      if (brain) {
+        brain.applyResonanceVisual(payload as Parameters<typeof brain.applyResonanceVisual>[0]);
+      }
+    });
+
     // Step 3: Sound
     soundEngine = new SoundEngine();
     soundEngine.init().catch(() => {});
@@ -1104,7 +1112,15 @@ function setupMainEventListeners() {
 
   const textInput = document.getElementById('text-input') as HTMLTextAreaElement;
   textInput?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); return; }
+    // TextSignalAnalyzer: start session on first key, track every key
+    if (startupController.isReady) {
+      mindSpeech.textAnalyzer.onKeypress(e, textInput.value);
+    }
+  });
+  // TextSignalAnalyzer: detect typing start on focus
+  textInput?.addEventListener('focus', () => {
+    if (startupController.isReady) mindSpeech.textAnalyzer.onTypingStart();
   });
   textInput?.addEventListener('input', () => {
     textInput.style.height = 'auto';
@@ -1227,6 +1243,21 @@ async function handleSend() {
   textInput.value = '';
   textInput.style.height = 'auto';
   isProcessing = true;
+
+  // ── TextSignalAnalyzer: analyze typing dynamics before clearing ─────────────
+  mindSpeech.textAnalyzer.analyze(text).catch(() => {});
+
+  // ── Sync MIND state into resonance + agency engines ─────────────────────────
+  const preSendState = getMINDState();
+  mindSpeech.syncMINDState(
+    compositeTrustScore(preSendState.trust),
+    preSendState.era?.era ?? 0,
+    preSendState.personality?.sensitivity ?? 0.5,
+    preSendState.personality?.openness ?? 0.3,
+    preSendState.emotionalState.wariness,
+    preSendState.emotionalState.grief
+  );
+  mindSpeech.incrementInteraction();
 
   soundEngine?.init().catch(() => {});
   soundEngine?.resume();
@@ -1415,24 +1446,49 @@ async function handleSend() {
 }
 
 // ─── Voice Input ──────────────────────────────────
-function handleVoiceInput() {
+async function handleVoiceInput() {
+  const btn = document.getElementById('voice-btn')!;
+
+  // ── Initialize VoiceSignalAnalyzer on first click ──────────────────────────
+  const voiceAnalyzer = mindSpeech.voiceAnalyzer;
+  try {
+    await voiceAnalyzer.initialize();
+  } catch { /* SpeechRecognition unavailable — fall through to direct path */ }
+
   const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   if (!SpeechRecognition) { alert('Voice input not supported in this browser.'); return; }
+
+  // ── Start audio recording for signal analysis ──────────────────────────────
+  await voiceAnalyzer.startRecording();
+
   const recognition = new SpeechRecognition();
   recognition.lang = 'en-US';
   recognition.continuous = false;
   recognition.interimResults = false;
-  const btn = document.getElementById('voice-btn')!;
   btn.classList.add('listening');
-  recognition.onresult = (event: any) => {
-    const transcript = event.results[0][0].transcript;
+
+  recognition.onresult = async (event: any) => {
+    const result    = event.results[0][0];
+    const transcript  = result.transcript as string;
+    const confidence  = result.confidence as number;
     const textInput = document.getElementById('text-input') as HTMLTextAreaElement;
     textInput.value = transcript;
     btn.classList.remove('listening');
+
+    // ── Analyze voice features & emit voice.signal intent ─────────────────────
+    await voiceAnalyzer.analyze(transcript, confidence);
+    voiceAnalyzer.stopRecording();
+
     handleSend();
   };
-  recognition.onerror = () => btn.classList.remove('listening');
-  recognition.onend = () => btn.classList.remove('listening');
+  recognition.onerror = () => {
+    voiceAnalyzer.stopRecording();
+    btn.classList.remove('listening');
+  };
+  recognition.onend = () => {
+    voiceAnalyzer.stopRecording();
+    btn.classList.remove('listening');
+  };
   recognition.start();
 }
 
