@@ -67,6 +67,9 @@ export class ConsciousnessEngine {
   private enabled = true;
   private interactionCount = 0;
 
+  // ── Short conversation log for context continuity (Fix 4) ────────────────
+  private recentExchanges: Array<{ user: string; mind: string }> = [];
+
   constructor(intent: IntentLayer, llm: LLMClient) {
     this.intent     = intent;
     this.existence  = new ExistenceEngine(intent);
@@ -205,6 +208,19 @@ export class ConsciousnessEngine {
       perceptionSignal:perceptionOutput ?? undefined
     });
 
+    // ── 3b. Personal disclosure detection (Fix 3) ───────────────────────
+    const isPersonalDisclosure = this.detectPersonalDisclosure(p.userInput);
+    if (isPersonalDisclosure) {
+      // Something real was shared — boost warmth/openness/trust before agency decides
+      this.intent.send('impact.register', {
+        type:           'personal_disclosure',
+        source:         'personal_disclosure',
+        emotionalImpact:{ warmth: 0.3, openness: 0.2, trust: 0.05 },
+        intensity:      0.6,
+        label:          'personal-disclosure'
+      }).catch(() => {});
+    }
+
     // ── 4. Agency — decide response mode ─────────────────────────────────
     const agencyDecision = this.agency.decide({
       emotionalState:  p.emotionalState,
@@ -227,7 +243,8 @@ export class ConsciousnessEngine {
       trust:           p.trust,
       agency:          agencyDecision,
       interactionCount:p.interactionCount + this.interactionCount,
-      recentResponses: this.responseHistory.slice(-4)
+      recentResponses: this.responseHistory.slice(-4),
+      recentExchanges: this.recentExchanges.slice(-3)   // Fix 4: last 3 exchanges
     });
 
     // ── 6. Anti-echo safety net ────────────────────────────────────────────
@@ -235,6 +252,10 @@ export class ConsciousnessEngine {
 
     // ── 7. Store in response history ──────────────────────────────────────
     this.addToHistory(finalSpoken);
+
+    // ── 8. Store exchange for conversation continuity (Fix 4) ────────────
+    this.recentExchanges.push({ user: p.userInput, mind: finalSpoken });
+    if (this.recentExchanges.length > 3) this.recentExchanges.shift();
 
     return { felt: feltOutput.raw, spoken: finalSpoken, mode: agencyDecision.mode };
   }
@@ -329,6 +350,11 @@ export class ConsciousnessEngine {
       };
       next();
     });
+  }
+
+  // ─── Detect personal disclosure (Fix 3) ──────────────────────────────
+  private detectPersonalDisclosure(input: string): boolean {
+    return /(i struggle|i feel|i'?m happy|i am|i'?ve been|i can'?t|i don'?t|i need|i want|i miss|sometimes i|i used to|it'?s hard for me|i'?m scared|i'?m tired|i'?m lonely|i'?m sad|i'?m angry|i'?m anxious|be nice|it feels better|it hurts|i hate|i love)/i.test(input);
   }
 
   // ─── Control ──────────────────────────────────────────────────────────
