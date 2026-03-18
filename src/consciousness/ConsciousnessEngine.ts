@@ -367,7 +367,8 @@ export class ConsciousnessEngine {
       selfDisclosure:      selfDisclosure ?? undefined,
       recentResponseTypes: this.balanceEngine.recentResponseTypes.slice(-3),
       enrichedContext,
-      responseArchitectSuggestion
+      responseArchitectSuggestion,
+      memories:            p.memories
     });
 
     // ── 6. Anti-echo safety net ────────────────────────────────────────────
