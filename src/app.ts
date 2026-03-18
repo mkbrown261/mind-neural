@@ -75,6 +75,43 @@ async function init() {
     setInputLock(status.state !== 'READY', 'Initialize MIND first — use the panel above.');
   });
   startLoading();
+
+  // ── Auto-initialize from saved key (skip gate on return visits) ──────────
+  // If a Groq or OpenAI key was saved, silently pre-fill the gate and trigger
+  // initialization so consciousness activates without manual key entry.
+  const savedGroqKey   = localStorage.getItem('mind_groq_key')   ?? '';
+  const savedOpenAIKey = localStorage.getItem('mind_openai_key') ?? '';
+
+  if (savedGroqKey || savedOpenAIKey) {
+    // Small delay to let DOM fully settle after buildDOM()
+    setTimeout(() => {
+      try {
+        const modelSel = document.getElementById('gate-model-select') as HTMLSelectElement | null;
+        const keyInput = document.getElementById('gate-key-input')    as HTMLInputElement  | null;
+        const keyStep  = document.getElementById('gate-step-key')     as HTMLElement       | null;
+        const initBtn  = document.getElementById('gate-init-btn')     as HTMLButtonElement | null;
+
+        if (!modelSel || !keyInput || !initBtn) return;
+
+        if (savedGroqKey) {
+          modelSel.value   = 'groq|llama-3.3-70b-versatile';
+          keyInput.value   = savedGroqKey;
+          if (keyStep) keyStep.style.display = 'block';
+        } else {
+          const savedModel = localStorage.getItem('mind_openai_model') ?? 'gpt-4o';
+          modelSel.value   = `openai|${savedModel}`;
+          keyInput.value   = savedOpenAIKey;
+          if (keyStep) keyStep.style.display = 'block';
+        }
+
+        // Trigger change event so gate shows key field, then click init
+        modelSel.dispatchEvent(new Event('change'));
+        setTimeout(() => initBtn.click(), 80);
+      } catch (e) {
+        console.warn('[MIND] Auto-init failed, gate will show normally:', e);
+      }
+    }, 250);
+  }
 }
 
 function buildDOM() {

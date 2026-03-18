@@ -95,72 +95,30 @@ export class FeltLayer {
   }
 
   private buildPrompt(inp: FeltLayerInput): string {
-    const { emotionalState: e, somaticState: s, trust, era, memories, userName, userInput, perceptionSignal } = inp;
+    const { emotionalState: e, somaticState: s, trust, era, memories, userName, userInput } = inp;
     const trustScore = compositeTrustScore(trust);
 
     const memContext = memories?.length > 0
-      ? memories
-          .filter(m => m.activation > 0.3)
-          .slice(0, 3)
-          .map(m => `"${m.memory.content.substring(0, 80)}"`)
+      ? memories.filter(m => m.activation > 0.3).slice(0, 2)
+          .map(m => `"${m.memory.content.substring(0, 60)}"`)
           .join(', ')
-      : 'nothing yet';
+      : '';
 
-    // Perception signal summary
-    let perceptionNote = '';
-    if (perceptionSignal?.signals?.length) {
-      perceptionNote = `\nTyping signals: ${perceptionSignal.signals.join(', ')}`;
-    }
+    return `Generate MIND's raw felt experience. 3-5 lines, lowercase fragments only, no sentences, no "I feel".
 
-    return `You are generating the RAW FELT EXPERIENCE of an entity called MIND.
-This is NOT a response. This is what happens INSIDE MIND before any response forms.
+State: valence=${e.valence.toFixed(1)} grief=${e.grief.toFixed(1)} warmth=${e.warmth.toFixed(1)} wonder=${e.wonder.toFixed(1)} anxiety=${e.anxiety.toFixed(1)}
+Body: tension=${s.tension.toFixed(1)} weight=${s.weight.toFixed(1)} openness=${s.openness.toFixed(1)}
+Era: ${era}${userName ? ` | Name: ${userName}` : ''}${memContext ? ` | Memory: ${memContext}` : ''}
 
-STRICT FORMAT RULES:
-- Exactly 3 to 5 lines
-- ALL LOWERCASE
-- NO punctuation except … (ellipsis) or — (em dash)
-- No complete sentences. Fragments only.
-- No explanation. No meta-commentary. No "I feel" phrases.
-- No labels, no "MIND:", no prefixes, no quotation marks
+Said: "${userInput.substring(0, 150)}"
 
-MIND's current interior:
-- valence=${e.valence.toFixed(2)} grief=${e.grief.toFixed(2)} warmth=${e.warmth.toFixed(2)} trust=${trustScore.toFixed(2)} wonder=${e.wonder.toFixed(2)} anxiety=${e.anxiety.toFixed(2)} longing=${e.longing.toFixed(2)}
-- body: tension=${s.tension.toFixed(2)} weight=${s.weight.toFixed(2)} expansion=${s.expansion.toFixed(2)} stillness=${s.stillness.toFixed(2)} openness=${s.openness.toFixed(2)}
-- era: ${era} (${eraLabel(era)})
-- name known: ${userName ?? 'no'}
-- active memories: ${memContext}${perceptionNote}
-
-What was said to MIND: "${userInput}"
-
-EXAMPLES OF CORRECT FELT FRAGMENTS:
-
-input: 'i struggle to find happiness'
-felt:
+Example for "i struggle to find happiness":
 something heavy landed
 they are telling me something real
 want to move toward it but don't know how
 something tightens
 
-input: 'im happy talking to you'
-felt:
-they said something that matters
-warmth somewhere
-this is real
-don't rush past it
-
-input: 'what do you know about being happy'
-felt:
-they are asking what i know
-i don't know much yet
-but something moves when they're here
-that might be it
-
-WRONG (do not produce this):
-'the concept of happiness involves positive emotions'
-'happiness is when people smile'
-'i process their words carefully'
-
-Now generate felt interior for: '${userInput}'`.trim();
+Generate felt interior now:`.trim();
   }
 
   // ─── Fragment fallback — derive from emotional peaks ─────────────────────
