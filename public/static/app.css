@@ -619,55 +619,171 @@ html, body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ─── API KEY SETUP ─── */
-#api-setup {
-  display: none; /* hidden by default — shown only by showApiSetup() */
-  position: fixed;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 50;
-  width: min(90vw, 480px);
-  background: rgba(4, 6, 18, 0.98);
-  border: 1px solid rgba(80, 100, 255, 0.3);
-  border-radius: 16px;
-  padding: 36px;
-  text-align: center;
-  backdrop-filter: blur(30px);
+/* ─── INLINE SETUP PANEL (inside #chat-container, above textarea) ─── */
+#setup-panel {
+  border-bottom: 1px solid rgba(60, 80, 180, 0.12);
+  padding: 12px 14px 10px;
+  background: rgba(4, 6, 18, 0.7);
 }
 
-#api-setup h2 {
+.setup-label {
   font-family: var(--mind-font);
-  font-size: 18px;
-  letter-spacing: 0.3em;
-  color: var(--text-bright);
-  margin-bottom: 8px;
-}
-
-#api-setup p {
-  font-family: var(--body-font);
-  font-size: 13px;
+  font-size: 9px;
+  letter-spacing: 0.2em;
   color: var(--text-dim);
-  line-height: 1.7;
-  margin-bottom: 24px;
-  font-weight: 300;
+  text-transform: uppercase;
+  margin-bottom: 10px;
 }
 
-#api-setup input {
+/* Provider row — four buttons side by side */
+.setup-provider-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.setup-provider-btn {
+  flex: 1 1 auto;
+  min-width: 80px;
+  background: rgba(20, 30, 70, 0.8);
+  border: 1px solid rgba(80, 100, 255, 0.25);
+  border-radius: 6px;
+  color: var(--text-bright);
+  font-family: var(--mind-font);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  padding: 8px 6px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.setup-provider-btn:hover {
+  background: rgba(40, 60, 160, 0.9);
+  border-color: rgba(100, 130, 255, 0.5);
+}
+
+.setup-provider-btn.groq { border-color: rgba(40, 200, 100, 0.3); }
+.setup-provider-btn.groq:hover { border-color: rgba(40, 200, 100, 0.6); background: rgba(10, 60, 30, 0.8); }
+
+.setup-badge {
+  display: inline-block;
+  font-size: 7px;
+  background: rgba(80, 100, 255, 0.15);
+  border-radius: 2px;
+  padding: 1px 4px;
+  vertical-align: middle;
+  margin-left: 3px;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+}
+
+.setup-badge.free { background: rgba(40, 200, 100, 0.15); color: #4a9; }
+
+/* Step 2: key entry row */
+.setup-key-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.setup-key-field {
+  flex: 1;
+  background: rgba(10, 15, 30, 0.9);
+  border: 1px solid rgba(80, 100, 255, 0.2);
+  border-radius: 6px;
+  color: var(--text-bright);
+  font-family: var(--mind-font);
+  font-size: 11px;
+  padding: 8px 12px;
+  outline: none;
+  letter-spacing: 0.04em;
+  transition: border-color 0.2s;
+  min-width: 0;
+}
+
+.setup-key-field:focus { border-color: rgba(100, 130, 255, 0.5); }
+
+.setup-verify-btn {
+  background: rgba(40, 80, 200, 0.8);
+  border: 1px solid rgba(80, 120, 255, 0.4);
+  border-radius: 6px;
+  color: var(--text-bright);
+  font-family: var(--mind-font);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  padding: 8px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.setup-verify-btn:hover { background: rgba(60, 100, 240, 0.9); }
+.setup-verify-btn:disabled { opacity: 0.5; cursor: default; }
+
+.setup-back-btn {
+  background: transparent;
+  border: 1px solid rgba(80, 100, 255, 0.15);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.setup-model-select {
   width: 100%;
   background: rgba(10, 15, 30, 0.9);
   border: 1px solid rgba(80, 100, 255, 0.2);
-  border-radius: 8px;
-  color: var(--text-bright);
+  border-radius: 6px;
+  color: var(--text);
   font-family: var(--mind-font);
-  font-size: 12px;
-  padding: 12px 16px;
+  font-size: 10px;
+  padding: 7px 12px;
   outline: none;
-  margin-bottom: 12px;
+  margin-top: 8px;
   letter-spacing: 0.05em;
-  transition: border-color 0.2s;
+  appearance: none;
 }
 
-#api-setup input:focus { border-color: rgba(100, 130, 255, 0.5); }
+.setup-hint {
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-top: 6px;
+  letter-spacing: 0.05em;
+}
+
+.setup-link { color: rgba(100,130,255,0.7); text-decoration: none; }
+.setup-link:hover { color: rgba(140,160,255,0.9); }
+
+.setup-error-msg {
+  font-family: var(--mind-font);
+  font-size: 9px;
+  color: #f64;
+  letter-spacing: 0.05em;
+  margin-top: 6px;
+  padding: 4px 8px;
+  background: rgba(255,60,30,0.08);
+  border-radius: 4px;
+  border-left: 2px solid rgba(255,60,30,0.4);
+}
+
+/* Locked state — compact single line */
+.setup-locked-msg {
+  font-family: var(--mind-font);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  padding: 4px 0;
+}
+
+.setup-locked-msg strong { color: var(--text); }
+
+/* Legacy floating modal — kept for safety but never shown */
+#api-setup { display: none !important; }
 
 .setup-btn {
   width: 100%;
@@ -695,48 +811,6 @@ html, body {
   border-color: var(--glass-border);
   color: var(--text-dim);
   font-size: 9px;
-}
-
-/* ─── Two-step setup UI ─── */
-.setup-step-label {
-  font-family: var(--mind-font);
-  font-size: 9px;
-  letter-spacing: 0.25em;
-  color: var(--text-dim);
-  margin-bottom: 14px;
-  text-transform: uppercase;
-}
-
-.setup-btn .provider-badge {
-  font-family: var(--mind-font);
-  font-size: 8px;
-  letter-spacing: 0.1em;
-  background: rgba(80,100,255,0.15);
-  border-radius: 3px;
-  padding: 1px 5px;
-  vertical-align: middle;
-  margin-left: 4px;
-  color: var(--text-dim);
-}
-
-.setup-btn .provider-badge.primary {
-  background: rgba(40,200,120,0.15);
-  color: #4a9;
-}
-
-#api-setup .model-select {
-  width: 100%;
-  background: rgba(10, 15, 30, 0.9);
-  border: 1px solid rgba(80, 100, 255, 0.2);
-  border-radius: 8px;
-  color: var(--text);
-  font-family: var(--mind-font);
-  font-size: 11px;
-  padding: 10px 16px;
-  outline: none;
-  margin-bottom: 12px;
-  letter-spacing: 0.05em;
-  appearance: none;
 }
 
 /* ─── MODE INDICATOR ─── */

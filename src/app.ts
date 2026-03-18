@@ -68,25 +68,12 @@ const create = (tag: string, cls?: string) => {
 // ─── Boot ─────────────────────────────────────────
 async function init() {
   buildDOM();
-  // Subscribe to StartupController so we always reflect the current state in UI
+  // Subscribe to StartupController — keep input locked unless READY
   startupController.subscribe((status) => {
-    // Keep input locked unless READY
     if (status.state !== 'READY') {
-      setInputLock(true, status.state === 'MODEL_SELECT' || status.state === 'API_KEY'
-        ? 'Select a model and enter your API key to begin.'
-        : 'Initializing MIND...');
+      setInputLock(true, 'Initialize MIND above first.');
     } else {
       setInputLock(false);
-    }
-    // Show error message if any
-    const errEl = document.getElementById('startup-error');
-    if (errEl) {
-      if (status.error) {
-        errEl.textContent = status.error;
-        errEl.style.display = 'block';
-      } else {
-        errEl.style.display = 'none';
-      }
     }
   });
   startLoading();
@@ -153,15 +140,63 @@ function buildDOM() {
     <!-- Chat Interface -->
     <div id="chat-container">
       <div id="chat-history"></div>
+
+      <!-- ═══ INLINE SETUP PANEL — above the input box ═══ -->
+      <div id="setup-panel">
+        <!-- STEP 1: choose provider -->
+        <div id="setup-step-1">
+          <div class="setup-label">INITIALIZE MIND — choose a language provider</div>
+          <div class="setup-provider-row">
+            <button class="setup-provider-btn groq" id="choose-groq">
+              GROQ <span class="setup-badge free">FREE</span>
+            </button>
+            <button class="setup-provider-btn openai" id="choose-openai">
+              OPENAI <span class="setup-badge">GPT-4o</span>
+            </button>
+            <button class="setup-provider-btn template" id="api-template">
+              OWN VOICE <span class="setup-badge">no key</span>
+            </button>
+            <button class="setup-provider-btn skip" id="api-skip">
+              SILENT
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 2: enter key (hidden until provider chosen) -->
+        <div id="setup-step-2" style="display:none">
+          <div class="setup-label" id="setup-step-2-label">ENTER API KEY</div>
+          <div id="setup-error" class="setup-error-msg" style="display:none"></div>
+          <div class="setup-key-row">
+            <input type="password" id="setup-key-input" placeholder="Paste your API key here..." autocomplete="off" class="setup-key-field">
+            <button class="setup-verify-btn" id="setup-verify">VERIFY</button>
+            <button class="setup-back-btn" id="setup-back">✕</button>
+          </div>
+          <div id="setup-model-row" style="display:none">
+            <select id="model-select" class="setup-model-select">
+              <option value="gpt-4o">GPT-4o</option>
+              <option value="gpt-4o-mini">GPT-4o-mini</option>
+              <option value="gpt-4-turbo">GPT-4 Turbo</option>
+              <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+            </select>
+          </div>
+          <div class="setup-hint">Keys stored in localStorage only · <a href="https://console.groq.com" target="_blank" id="setup-key-link" class="setup-link">Get a free Groq key →</a></div>
+        </div>
+
+        <!-- LOCKED state (shown after first message) -->
+        <div id="setup-locked" style="display:none">
+          <div class="setup-locked-msg">◈ <span id="setup-locked-label">GROQ · llama-3.3-70b-versatile</span> &nbsp;·&nbsp; Press <strong>RESET MIND</strong> to change provider</div>
+        </div>
+      </div>
+
       <div id="input-area">
-        <textarea id="text-input" placeholder="Speak to MIND..." rows="1" autocomplete="off" spellcheck="false"></textarea>
+        <textarea id="text-input" placeholder="Initialize MIND above first." rows="1" autocomplete="off" spellcheck="false" disabled></textarea>
         <button id="voice-btn" title="Voice input">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
             <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
           </svg>
         </button>
-        <button id="send-btn" title="Send">
+        <button id="send-btn" title="Send" disabled>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="22" y1="2" x2="11" y2="13"/>
             <polygon points="22 2 15 22 11 13 2 9 22 2"/>
@@ -211,54 +246,6 @@ function buildDOM() {
       <div id="journey-step-text"></div>
       <div id="journey-progress"></div>
       <button id="journey-stop-btn">STOP JOURNEY</button>
-    </div>
-
-    <!-- API Setup Modal -->
-    <div id="api-setup">
-      <h2>MIND</h2>
-      <p class="provider-desc" style="margin-bottom:16px">Select how MIND should speak.</p>
-
-      <!-- ── Error display ── -->
-      <div id="startup-error" style="display:none;color:#ff6644;font-size:11px;font-family:var(--mind-font);margin-bottom:14px;padding:10px;border:1px solid rgba(255,80,40,0.3);border-radius:6px;text-align:left"></div>
-
-      <!-- ── STEP 1: Model/Provider Selection ── -->
-      <div id="api-step-model">
-        <div class="setup-step-label">STEP 1 — CHOOSE PROVIDER</div>
-
-        <button class="setup-btn primary" id="choose-groq">GROQ &nbsp;<span class="provider-badge primary">FREE · 14,400 req/day</span></button>
-        <button class="setup-btn" id="choose-openai">OPENAI &nbsp;<span class="provider-badge">GPT-4o / GPT-4o-mini</span></button>
-        <div class="provider-divider">— or proceed without language model —</div>
-        <button class="setup-btn template-voice" id="api-template">MIND'S OWN VOICE <span class="provider-badge">No API key</span></button>
-        <button class="setup-btn secondary" id="api-skip">EXPLORE WITHOUT LANGUAGE</button>
-      </div>
-
-      <!-- ── STEP 2: API Key entry (shown after provider selected) ── -->
-      <div id="api-step-key" style="display:none">
-        <div class="setup-step-label" id="api-step-key-label">STEP 2 — ENTER API KEY</div>
-
-        <!-- Groq key section -->
-        <div id="key-section-groq" style="display:none">
-          <p class="provider-desc"><a href="https://console.groq.com" target="_blank" rel="noopener" class="key-link">Get a free Groq key → console.groq.com</a></p>
-          <input type="password" id="groq-key-input" placeholder="gsk_..." autocomplete="off">
-          <button class="setup-btn primary" id="groq-submit">VERIFY &amp; AWAKEN</button>
-        </div>
-
-        <!-- OpenAI key section -->
-        <div id="key-section-openai" style="display:none">
-          <select class="model-select" id="model-select" style="margin-bottom:10px">
-            <option value="gpt-4o">GPT-4o (Recommended)</option>
-            <option value="gpt-4o-mini">GPT-4o-mini (Faster)</option>
-            <option value="gpt-4-turbo">GPT-4 Turbo</option>
-            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-          </select>
-          <input type="password" id="api-key-input" placeholder="sk-..." autocomplete="off">
-          <button class="setup-btn" id="api-submit">VERIFY &amp; AWAKEN</button>
-        </div>
-
-        <button class="setup-btn secondary" id="api-back" style="margin-top:8px">← BACK</button>
-      </div>
-
-      <p style="font-size:10px;color:#333;margin-top:12px">API keys are stored in localStorage only.</p>
     </div>
   `;
 
@@ -350,7 +337,7 @@ async function startLoading() {
             stopMINDTick();
             startupController.reset();
             startupController.transitionToModelSelect();
-            showApiSetup();
+            showSetupStep1();
             showApiStepModel();
           } else {
             setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
@@ -365,7 +352,7 @@ async function startLoading() {
             startupController.setStep('response');
             startupController.transitionToReady();
             updateVoiceIndicator();
-            hideApiSetup();
+            hideSetupPanel();
             _afterApiReady();
           }
         })
@@ -374,7 +361,7 @@ async function startLoading() {
           config = null;
           startupController.reset();
           startupController.transitionToModelSelect();
-          showApiSetup();
+          showSetupStep1();
           showApiStepModel();
         });
     } else {
@@ -388,7 +375,7 @@ async function startLoading() {
       startupController.setStep('response');
       startupController.transitionToReady();
       updateVoiceIndicator();
-      hideApiSetup();
+      hideSetupPanel();
       _afterApiReady();
     }
   } else {
@@ -398,7 +385,7 @@ async function startLoading() {
     localStorage.removeItem('mind_openai_base');
     localStorage.removeItem('mind_openai_model');
     // Input stays locked; show the model-select step of setup
-    showApiSetup();
+    showSetupStep1();
     showApiStepModel();
   }
 }
@@ -476,37 +463,76 @@ function stopMINDTick() {
   }
 }
 
-// ─── API Setup Gate ───────────────────────────────
-function showApiSetup() {
-  const modal = document.getElementById('api-setup')!;
-  modal.style.display = 'block';
-}
+// ─── Inline Setup Panel helpers ──────────────────
+// The setup panel lives inside #chat-container, above the textarea.
+// No floating modal. User sees it immediately on first load.
 
-function hideApiSetup() {
-  const modal = document.getElementById('api-setup')!;
-  modal.style.display = 'none';
-}
-
-// ─── Two-step setup UI helpers ────────────────────
-function showApiStepModel() {
-  const s1 = document.getElementById('api-step-model');
-  const s2 = document.getElementById('api-step-key');
+function showSetupStep1() {
+  const s1 = document.getElementById('setup-step-1');
+  const s2 = document.getElementById('setup-step-2');
+  const sl = document.getElementById('setup-locked');
   if (s1) s1.style.display = 'block';
   if (s2) s2.style.display = 'none';
+  if (sl) sl.style.display = 'none';
+  clearSetupError();
 }
 
-function showApiStepKey(provider: 'groq' | 'openai') {
-  const s1 = document.getElementById('api-step-model');
-  const s2 = document.getElementById('api-step-key');
-  const groqSec   = document.getElementById('key-section-groq');
-  const openaiSec = document.getElementById('key-section-openai');
-  const lbl       = document.getElementById('api-step-key-label');
+function showSetupStep2(provider: 'groq' | 'openai') {
+  const s1  = document.getElementById('setup-step-1');
+  const s2  = document.getElementById('setup-step-2');
+  const lbl = document.getElementById('setup-step-2-label');
+  const modelRow = document.getElementById('setup-model-row');
+  const keyInput = document.getElementById('setup-key-input') as HTMLInputElement;
+  const link = document.getElementById('setup-key-link') as HTMLAnchorElement;
   if (s1) s1.style.display = 'none';
   if (s2) s2.style.display = 'block';
-  if (groqSec)   groqSec.style.display   = provider === 'groq'   ? 'block' : 'none';
-  if (openaiSec) openaiSec.style.display = provider === 'openai' ? 'block' : 'none';
-  if (lbl) lbl.textContent = `STEP 2 — ENTER ${provider.toUpperCase()} API KEY`;
+  if (lbl) lbl.textContent = provider === 'groq'
+    ? 'ENTER GROQ API KEY'
+    : 'ENTER OPENAI API KEY';
+  if (modelRow) modelRow.style.display = provider === 'openai' ? 'block' : 'none';
+  if (keyInput) {
+    keyInput.placeholder = provider === 'groq' ? 'gsk_...' : 'sk-...';
+    keyInput.value = '';
+    keyInput.focus();
+  }
+  if (link) {
+    link.href    = provider === 'groq' ? 'https://console.groq.com' : 'https://platform.openai.com/api-keys';
+    link.textContent = provider === 'groq' ? 'Get a free Groq key →' : 'Get an OpenAI key →';
+  }
+  clearSetupError();
 }
+
+function hideSetupPanel() {
+  const panel = document.getElementById('setup-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+function showSetupLocked(label: string) {
+  const s1 = document.getElementById('setup-step-1');
+  const s2 = document.getElementById('setup-step-2');
+  const sl = document.getElementById('setup-locked');
+  const lbl = document.getElementById('setup-locked-label');
+  if (s1) s1.style.display = 'none';
+  if (s2) s2.style.display = 'none';
+  if (sl) sl.style.display = 'block';
+  if (lbl) lbl.textContent = label;
+}
+
+function setSetupError(msg: string) {
+  const el = document.getElementById('setup-error');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+}
+
+function clearSetupError() {
+  const el = document.getElementById('setup-error');
+  if (el) { el.textContent = ''; el.style.display = 'none'; }
+}
+
+// Legacy stubs — no-ops now that the modal is gone
+function showApiSetup() {}
+function hideApiSetup() {}
+function showApiStepModel() { showSetupStep1(); }
+function showApiStepKey(provider: 'groq' | 'openai') { showSetupStep2(provider); }
 
 // ─── Input Lock — enforced by StartupController ──
 // Disables the chat input and send button when the system is not ready.
@@ -529,7 +555,7 @@ function setInputLock(locked: boolean, hint?: string): void {
 
 async function startOnboarding() {
   if (!config) return;
-  hideApiSetup();
+  hideSetupPanel();
   stopMINDTick(); // No autonomous tick during onboarding
 
   obSession = createOnboardingSession();
@@ -615,7 +641,7 @@ async function handleScreen1Submit() {
     setTimeout(() => {
       document.getElementById('ob-inline-key')?.addEventListener('click', () => {
         document.getElementById('onboarding')!.classList.add('hidden');
-        showApiSetup();
+        showSetupStep1();
       });
     }, 0);
   }
@@ -971,7 +997,7 @@ function renderObInputBelow(
 
 // ─── Template-only onboarding (no LLM) ───────────
 function startOnboardingTemplate() {
-  hideApiSetup();
+  hideSetupPanel();
   stopMINDTick();
 
   obSession = createOnboardingSession();
@@ -1101,99 +1127,98 @@ function setupMainEventListeners() {
   // ── Provider selection buttons (STEP 1) ──────────
   document.getElementById('choose-groq')?.addEventListener('click', () => {
     startupController.transitionToApiKey('groq');
-    showApiStepKey('groq');
+    showSetupStep2('groq');
   });
 
   document.getElementById('choose-openai')?.addEventListener('click', () => {
     startupController.transitionToApiKey('openai');
-    showApiStepKey('openai');
+    showSetupStep2('openai');
   });
 
-  document.getElementById('api-back')?.addEventListener('click', () => {
+  // Back button — returns to step 1
+  document.getElementById('setup-back')?.addEventListener('click', () => {
     startupController.reset();
     startupController.transitionToModelSelect();
-    showApiStepModel();
+    showSetupStep1();
   });
 
-  // ── Groq: VERIFY & AWAKEN ────────────────────────
-  document.getElementById('groq-submit')?.addEventListener('click', async () => {
-    const key = (document.getElementById('groq-key-input') as HTMLInputElement).value.trim();
-    if (!key) { alert('Please enter your Groq API key.'); return; }
+  // ── Unified verify handler (Groq or OpenAI) ──────
+  let _verifyProvider: 'groq' | 'openai' = 'groq';
+  document.getElementById('choose-groq')?.addEventListener('click',   () => { _verifyProvider = 'groq'; });
+  document.getElementById('choose-openai')?.addEventListener('click', () => { _verifyProvider = 'openai'; });
 
-    const btn = document.getElementById('groq-submit') as HTMLButtonElement;
+  document.getElementById('setup-verify')?.addEventListener('click', async () => {
+    const key   = (document.getElementById('setup-key-input') as HTMLInputElement).value.trim();
+    const model = (_verifyProvider === 'openai')
+      ? (document.getElementById('model-select') as HTMLSelectElement)?.value ?? 'gpt-4o'
+      : 'llama-3.3-70b-versatile';
+
+    if (!key) { setSetupError('Please paste your API key.'); return; }
+
+    const btn = document.getElementById('setup-verify') as HTMLButtonElement;
     btn.textContent = 'VERIFYING...';
     btn.disabled = true;
+    clearSetupError();
 
-    // Store in localStorage for ProviderManager
-    localStorage.setItem('mind_groq_key', key);
-
-    // Initialize mindSpeech with Groq
-    const ok = await mindSpeech.setGroqKey(key);
-
-    if (ok) {
-      // Build config
-      config = { apiKey: key, baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' };
+    if (_verifyProvider === 'groq') {
+      localStorage.setItem('mind_groq_key', key);
+      const ok = await mindSpeech.setGroqKey(key);
+      if (ok) {
+        config = { apiKey: key, baseUrl: 'https://api.groq.com/openai/v1', model };
+        saveConfig(config);
+        setOnboardingProvider(async (prompt, maxTokens, onChunk) =>
+          mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk }));
+        startupController.transitionToInit(model);
+        startupController.setStep('response');
+        startupController.transitionToReady();
+        hideSetupPanel();
+        soundEngine?.init();
+        updateVoiceIndicator();
+        if (!isOnboardingComplete() && getMemoryCount() === 0) {
+          await startOnboarding();
+        } else {
+          showWelcomeBack();
+          startMINDTick();
+        }
+      } else {
+        btn.textContent = 'VERIFY';
+        btn.disabled = false;
+        setSetupError('Key verification failed. Check your key at console.groq.com');
+        startupController.fail(null, 'Groq key verification failed.');
+      }
+    } else {
+      // OpenAI — save and trust without a verify round-trip
+      config = { apiKey: key, baseUrl: 'https://api.openai.com/v1', model };
       saveConfig(config);
-      // Re-wire onboarding provider so screens 1-4 use Groq
-      setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
-        return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
-      });
-      // Advance state machine: API_KEY → INIT → READY
-      startupController.transitionToInit(config.model);
+      mindSpeech.setOpenAIKey(key, 'https://api.openai.com/v1', model);
+      setOnboardingProvider(async (prompt, maxTokens, onChunk) =>
+        mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk }));
+      startupController.transitionToInit(model);
       startupController.setStep('response');
       startupController.transitionToReady();
-      hideApiSetup();
+      hideSetupPanel();
       soundEngine?.init();
       updateVoiceIndicator();
-      // Session locked on first message, not here
       if (!isOnboardingComplete() && getMemoryCount() === 0) {
         await startOnboarding();
       } else {
         showWelcomeBack();
         startMINDTick();
       }
-    } else {
-      btn.textContent = 'VERIFY & AWAKEN';
-      btn.disabled = false;
-      startupController.fail(null, 'Groq key verification failed. Please check your key at console.groq.com.');
     }
   });
 
-  // ── OpenAI: VERIFY & AWAKEN ───────────────────────
-  document.getElementById('api-submit')?.addEventListener('click', async () => {
-    const key   = (document.getElementById('api-key-input') as HTMLInputElement).value.trim();
-    const model = (document.getElementById('model-select') as HTMLSelectElement).value;
-    if (!key) { alert('Please enter your OpenAI API key.'); return; }
-    config = { apiKey: key, baseUrl: 'https://api.openai.com/v1', model };
-    saveConfig(config);
-    // Register with mindSpeech as OpenAI
-    mindSpeech.setOpenAIKey(key, 'https://api.openai.com/v1', model);
-    // Re-wire onboarding provider
-    setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
-      return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
-    });
-    // Advance state machine
-    startupController.transitionToInit(model);
-    startupController.setStep('response');
-    startupController.transitionToReady();
-    hideApiSetup();
-    soundEngine?.init();
-    updateVoiceIndicator();
-    if (!isOnboardingComplete() && getMemoryCount() === 0) {
-      await startOnboarding();
-    } else {
-      showWelcomeBack();
-      startMINDTick();
-    }
+  // Allow Enter in key input to trigger verify
+  document.getElementById('setup-key-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('setup-verify')?.click();
   });
 
   // ── Template voice: MIND'S OWN VOICE ─────────────
   document.getElementById('api-template')?.addEventListener('click', () => {
     config = null;
     startupController.transitionToApiKey('template');
-    // transitionToApiKey('template') auto-advances to INIT; now go READY
     startupController.transitionToReady();
-    hideApiSetup();
+    hideSetupPanel();
     addMindMessage('MIND speaks in its own voice now.\n\nNo API required. Every response comes from internal state — emotion, memory, era, body.');
     updateVoiceIndicator();
     soundEngine?.init().catch(() => {});
@@ -1209,7 +1234,7 @@ function setupMainEventListeners() {
     config = null;
     startupController.transitionToApiKey('none');
     startupController.transitionToReady();
-    hideApiSetup();
+    hideSetupPanel();
     addMindMessage('MIND is running without language generation. Type anything to see the brain light up.');
     startMINDTick();
   });
@@ -1242,7 +1267,7 @@ function handleApiFailure(errorType: 'quota' | 'auth' | 'network' | 'other', con
   // Attach update key button handler
   setTimeout(() => {
     document.getElementById('inline-update-key')?.addEventListener('click', () => {
-      showApiSetup();
+      showSetupStep1();
     });
   }, 0);
 }
@@ -1262,6 +1287,13 @@ async function handleSend() {
   // Lock model/provider selection after first real message
   if (!startupController.sessionLocked) {
     startupController.lockSession();
+    // Show a compact locked indicator in the setup panel
+    const providerLabel = mindSpeech.hasGroq()
+      ? 'GROQ · llama-3.3-70b-versatile'
+      : mindSpeech.hasOpenAI()
+        ? `OPENAI · ${config?.model ?? 'gpt-4o'}`
+        : 'MIND\'S OWN VOICE';
+    showSetupLocked(providerLabel);
   }
 
   textInput.value = '';
