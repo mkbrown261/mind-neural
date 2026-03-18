@@ -20,6 +20,9 @@ import { VoiceSignalAnalyzer } from './perception/VoiceSignalAnalyzer';
 import { TextSignalAnalyzer } from './perception/TextSignalAnalyzer';
 import { AffectiveResonanceEngine } from './emotion/AffectiveResonanceEngine';
 import { EmotionalAgencyEngine } from './emotion/EmotionalAgencyEngine';
+// ── Two-Layer Consciousness (replaces single buildMINDPrompt call) ───────────
+import { TwoLayerConsciousness } from './consciousness/TwoLayerConsciousness';
+import type { SpeechRequestPayload } from './consciousness/TwoLayerConsciousness';
 
 // ─── Input to speak() ─────────────────────────────
 export interface SpeakRequest {
@@ -43,11 +46,13 @@ export class MindSpeechSystem {
   private templateEngine: TemplateSpeechEngine;
   private blender: VoiceBlender;
   private understandingEngine: UnderstandingEngine;
-  // ── New perception/emotion layers (init order: 1→2→3→4) ─────────────────
+  // ── Perception/emotion layers (init order: 1→2→3→4) ──────────────────────
   readonly voiceAnalyzer:    VoiceSignalAnalyzer;
   readonly textAnalyzer:     TextSignalAnalyzer;
   private resonanceEngine:   AffectiveResonanceEngine;
   private agencyEngine:      EmotionalAgencyEngine;
+  // ── Two-Layer Consciousness ─────────────────────────────────────────────
+  private consciousness:     TwoLayerConsciousness | null = null;
 
   constructor() {
     // Intent Layer is the central bus — everything registers here
@@ -75,6 +80,23 @@ export class MindSpeechSystem {
     this.resonanceEngine = new AffectiveResonanceEngine(this.intent);
     // 4. EmotionalAgencyEngine — decides MIND's emotional actions on emotion.process
     this.agencyEngine    = new EmotionalAgencyEngine(this.intent);
+    // TwoLayerConsciousness is created lazily in activateConsciousness()
+    // because it needs the LLM client which isn't available until a provider is set.
+  }
+
+  // ─── Activate Two-Layer Consciousness (called after provider is verified) ──
+  // Creates TwoLayerConsciousness with the live ProviderManager as the LLM client.
+  activateConsciousness(): void {
+    if (this.consciousness) return; // already active
+    if (!this.providerManager.hasAny()) return; // no provider yet
+
+    // Wrap ProviderManager's complete() as an LLMClient
+    const llmClient = {
+      complete: (opts: Parameters<typeof this.providerManager.complete>[0]) =>
+        this.providerManager.complete(opts)
+    };
+    this.consciousness = new TwoLayerConsciousness(this.intent, llmClient);
+    console.log('[MindSpeechSystem] Two-Layer Consciousness activated');
   }
 
   // ─── Sync MIND state into resonance + agency engines ─────────────────────
@@ -185,20 +207,41 @@ export class MindSpeechSystem {
       };
     }
 
-    // ── LLM path ─────────────────────────────────────
-    const prompt = buildMINDPrompt(ctx);
-
-    // Determine active provider name before call
+    // ── Two-Layer Consciousness path (replaces single buildMINDPrompt call) ──
+    // If TwoLayerConsciousness is active, fire consciousness.process intent.
+    // The handler runs FeltLayer → SpokenLayer and resolves the Promise.
+    // Falls back to classic single-prompt path if consciousness is inactive.
     const providerName = this.providerManager.activeProviderName();
+
+    // Ensure consciousness is activated (lazy init)
+    this.activateConsciousness();
 
     let llmText = '';
     try {
-      llmText = await this.providerManager.complete({
-        messages:    [{ role: 'user', content: prompt }],
-        maxTokens:   ctx.saState ? undefined : 600,
-        temperature: ctx.coherenceState?.isCoherent ? 0.75 : 0.85,
-        onChunk
-      });
+      if (this.consciousness?.isEnabled()) {
+        // ── Two-layer path ───────────────────────────────────────────────────
+        llmText = await new Promise<string>((resolve, reject) => {
+          const payload: SpeechRequestPayload = {
+            id:        `req-${Date.now()}`,
+            userInput,
+            mindCtx:   ctx,
+            era,
+            onChunk,
+            resolve,
+            reject
+          };
+          this.intent.send('consciousness.process', payload);
+        });
+      } else {
+        // ── Classic single-prompt fallback ───────────────────────────────────
+        const prompt = buildMINDPrompt(ctx);
+        llmText = await this.providerManager.complete({
+          messages:    [{ role: 'user', content: prompt }],
+          maxTokens:   ctx.saState ? undefined : 600,
+          temperature: ctx.coherenceState?.isCoherent ? 0.75 : 0.85,
+          onChunk
+        });
+      }
     } catch (err) {
       // LLM failed — fall back to template
       console.warn('[MindSpeechSystem] LLM error, falling back to template:', err);
@@ -220,8 +263,8 @@ export class MindSpeechSystem {
       };
     }
 
-    // ── Blend if era warrants mixing ──────────────────
-    const shouldBlend = era >= 2 && !coherenceActive;
+    // ── Era-based blending (low-era responses blend template flavour in) ──────
+    const shouldBlend = era >= 2 && !coherenceActive && !this.consciousness?.isEnabled();
     if (shouldBlend) {
       const templateFragment = this.templateEngine.generate({
         emotionalState:      ctx.emotionalState,

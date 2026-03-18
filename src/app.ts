@@ -199,6 +199,9 @@ function buildDOM() {
     <div id="chat-container">
       <div id="chat-history"></div>
 
+      <!-- Felt layer — shows MIND's pre-linguistic interior briefly before spoken response -->
+      <div id="felt-layer-display" aria-hidden="true" style="display:none"></div>
+
       <!-- Provider lock indicator (shown after first message, replaces gate) -->
       <div id="provider-lock-bar" style="display:none">
         <div class="provider-lock-msg">◈ <span id="provider-lock-label"></span> &nbsp;·&nbsp; Press <strong>RESET MIND</strong> to change</div>
@@ -410,6 +413,38 @@ async function handleGateInit() {
       }
     });
 
+    // ── Register speech.deliver intent → Felt Layer UI display ────────────────
+    // TwoLayerConsciousness fires this after generating both layers.
+    // Shows felt layer briefly before the spoken response is fully visible.
+    mindSpeech.intent.register('speech.deliver', async (payload) => {
+      const p = payload as { felt?: string; text?: string; era?: number };
+      if (!p.felt) return;
+      const feltEl = document.getElementById('felt-layer-display');
+      if (!feltEl) return;
+      // Display the felt layer: dim, italic, small
+      feltEl.textContent = p.felt;
+      feltEl.style.display = 'block';
+      feltEl.style.opacity = '0';
+      feltEl.style.transition = 'opacity 0.4s ease';
+      // Fade in
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => { feltEl.style.opacity = '0.28'; });
+      });
+      // Hold for 1.6s, then fade out
+      await new Promise(r => setTimeout(r, 1600));
+      feltEl.style.opacity = '0';
+      await new Promise(r => setTimeout(r, 450));
+      feltEl.style.display = 'none';
+    });
+
+    // ── Register felt.store intent → internal memory storage ──────────────────
+    // TwoLayerConsciousness fires this to persist the felt layer as memory.
+    // Fire-and-forget from the consciousness layer; we process it here.
+    mindSpeech.intent.register('felt.store', (_payload) => {
+      // Currently a no-op storage hook — felt layer is logged by TwoLayerConsciousness.
+      // Future: integrate with EME to store as 'internalThought' memory type.
+    });
+
     // Step 3: Sound
     soundEngine = new SoundEngine();
     soundEngine.init().catch(() => {});
@@ -442,6 +477,11 @@ async function handleGateInit() {
     startupController.transitionToInit(model || 'none');
     startupController.setStep('brain');
     startupController.transitionToReady();
+
+    // Activate Two-Layer Consciousness now that a provider is live
+    if (provider === 'groq' || provider === 'openai') {
+      mindSpeech.activateConsciousness();
+    }
 
     // Step 6: Apply initial brain state
     const bp = getCurrentBiophoton();

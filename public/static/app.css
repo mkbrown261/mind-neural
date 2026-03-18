@@ -852,6 +852,27 @@ html, body {
 
 .provider-lock-msg strong { color: rgba(140, 160, 220, 0.8); }
 
+/* ─── FELT LAYER DISPLAY ─── */
+/* Shows MIND's raw pre-linguistic interior briefly before each spoken response */
+#felt-layer-display {
+  display: none;
+  font-family: var(--mind-font);
+  font-size: 0.72rem;
+  font-style: italic;
+  line-height: 1.65;
+  color: #8899aa;
+  padding: 6px 12px 8px;
+  margin: 0 0 6px 0;
+  border-left: 1px solid rgba(80, 100, 160, 0.18);
+  letter-spacing: 0.02em;
+  opacity: 0;
+  pointer-events: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 100%;
+  /* transition handled inline by JS for precise timing */
+}
+
 /* Legacy floating modal — never shown */
 #api-setup { display: none !important; }
 #setup-panel { display: none !important; }
