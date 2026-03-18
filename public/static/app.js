@@ -6,7 +6,7 @@ var le = (i, e, t) => Fl(i, typeof e != "symbol" ? e + "" : e, t);
  * Copyright 2010-2026 Three.js Authors
  * SPDX-License-Identifier: MIT
  */
-const Yt = "srgb", xi = "srgb-linear", Dr = "linear", Qe = "srgb";
+const qt = "srgb", xi = "srgb-linear", Dr = "linear", Qe = "srgb";
 const Sa = "300 es";
 function Nl(i) {
   for (let e = i.length - 1; e >= 0; --e)
@@ -136,7 +136,7 @@ class Ei {
     }
   }
 }
-const Tt = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "0a", "0b", "0c", "0d", "0e", "0f", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "1a", "1b", "1c", "1d", "1e", "1f", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "2a", "2b", "2c", "2d", "2e", "2f", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "3a", "3b", "3c", "3d", "3e", "3f", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "4a", "4b", "4c", "4d", "4e", "4f", "50", "51", "52", "53", "54", "55", "56", "57", "58", "59", "5a", "5b", "5c", "5d", "5e", "5f", "60", "61", "62", "63", "64", "65", "66", "67", "68", "69", "6a", "6b", "6c", "6d", "6e", "6f", "70", "71", "72", "73", "74", "75", "76", "77", "78", "79", "7a", "7b", "7c", "7d", "7e", "7f", "80", "81", "82", "83", "84", "85", "86", "87", "88", "89", "8a", "8b", "8c", "8d", "8e", "8f", "90", "91", "92", "93", "94", "95", "96", "97", "98", "99", "9a", "9b", "9c", "9d", "9e", "9f", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "aa", "ab", "ac", "ad", "ae", "af", "b0", "b1", "b2", "b3", "b4", "b5", "b6", "b7", "b8", "b9", "ba", "bb", "bc", "bd", "be", "bf", "c0", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "ca", "cb", "cc", "cd", "ce", "cf", "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7", "d8", "d9", "da", "db", "dc", "dd", "de", "df", "e0", "e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8", "e9", "ea", "eb", "ec", "ed", "ee", "ef", "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "fa", "fb", "fc", "fd", "fe", "ff"], Qr = Math.PI / 180, Ds = 180 / Math.PI;
+const Tt = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "0a", "0b", "0c", "0d", "0e", "0f", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "1a", "1b", "1c", "1d", "1e", "1f", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "2a", "2b", "2c", "2d", "2e", "2f", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "3a", "3b", "3c", "3d", "3e", "3f", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "4a", "4b", "4c", "4d", "4e", "4f", "50", "51", "52", "53", "54", "55", "56", "57", "58", "59", "5a", "5b", "5c", "5d", "5e", "5f", "60", "61", "62", "63", "64", "65", "66", "67", "68", "69", "6a", "6b", "6c", "6d", "6e", "6f", "70", "71", "72", "73", "74", "75", "76", "77", "78", "79", "7a", "7b", "7c", "7d", "7e", "7f", "80", "81", "82", "83", "84", "85", "86", "87", "88", "89", "8a", "8b", "8c", "8d", "8e", "8f", "90", "91", "92", "93", "94", "95", "96", "97", "98", "99", "9a", "9b", "9c", "9d", "9e", "9f", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "aa", "ab", "ac", "ad", "ae", "af", "b0", "b1", "b2", "b3", "b4", "b5", "b6", "b7", "b8", "b9", "ba", "bb", "bc", "bd", "be", "bf", "c0", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "ca", "cb", "cc", "cd", "ce", "cf", "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7", "d8", "d9", "da", "db", "dc", "dd", "de", "df", "e0", "e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8", "e9", "ea", "eb", "ec", "ed", "ee", "ef", "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "fa", "fb", "fc", "fd", "fe", "ff"], ts = Math.PI / 180, Ns = 180 / Math.PI;
 function qi() {
   const i = Math.random() * 4294967295 | 0, e = Math.random() * 4294967295 | 0, t = Math.random() * 4294967295 | 0, n = Math.random() * 4294967295 | 0;
   return (Tt[i & 255] + Tt[i >> 8 & 255] + Tt[i >> 16 & 255] + Tt[i >> 24 & 255] + "-" + Tt[e & 255] + Tt[e >> 8 & 255] + "-" + Tt[e >> 16 & 15 | 64] + Tt[e >> 24 & 255] + "-" + Tt[t & 63 | 128] + Tt[t >> 8 & 255] + "-" + Tt[t >> 16 & 255] + Tt[t >> 24 & 255] + Tt[n & 255] + Tt[n >> 8 & 255] + Tt[n >> 16 & 255] + Tt[n >> 24 & 255]).toLowerCase();
@@ -147,7 +147,7 @@ function We(i, e, t) {
 function Gl(i, e) {
   return (i % e + e) % e;
 }
-function es(i, e, t) {
+function ns(i, e, t) {
   return (1 - t) * i + t * e;
 }
 function Ri(i, e) {
@@ -1706,7 +1706,7 @@ class D {
    * @return {Vector3} A reference to this vector.
    */
   projectOnPlane(e) {
-    return ts.copy(this).projectOnVector(e), this.sub(ts);
+    return is.copy(this).projectOnVector(e), this.sub(is);
   }
   /**
    * Reflects this vector off a plane orthogonal to the given normal vector.
@@ -1715,7 +1715,7 @@ class D {
    * @return {Vector3} A reference to this vector.
    */
   reflect(e) {
-    return this.sub(ts.copy(e).multiplyScalar(2 * this.dot(e)));
+    return this.sub(is.copy(e).multiplyScalar(2 * this.dot(e)));
   }
   /**
    * Returns the angle between the given vector and this instance in radians.
@@ -1924,7 +1924,7 @@ class D {
     yield this.x, yield this.y, yield this.z;
   }
 }
-const ts = /* @__PURE__ */ new D(), Ea = /* @__PURE__ */ new Ti();
+const is = /* @__PURE__ */ new D(), Ea = /* @__PURE__ */ new Ti();
 class Be {
   /**
    * Constructs a new 3x3 matrix. The arguments are supposed to be
@@ -2158,7 +2158,7 @@ class Be {
    * @return {Matrix3} A reference to this matrix.
    */
   scale(e, t) {
-    return this.premultiply(ns.makeScale(e, t)), this;
+    return this.premultiply(rs.makeScale(e, t)), this;
   }
   /**
    * Rotates this matrix by the given angle.
@@ -2167,7 +2167,7 @@ class Be {
    * @return {Matrix3} A reference to this matrix.
    */
   rotate(e) {
-    return this.premultiply(ns.makeRotation(-e)), this;
+    return this.premultiply(rs.makeRotation(-e)), this;
   }
   /**
    * Translates this matrix by the given scalar values.
@@ -2177,7 +2177,7 @@ class Be {
    * @return {Matrix3} A reference to this matrix.
    */
   translate(e, t) {
-    return this.premultiply(ns.makeTranslation(e, t)), this;
+    return this.premultiply(rs.makeTranslation(e, t)), this;
   }
   // for 2D Transforms
   /**
@@ -2295,7 +2295,7 @@ class Be {
     return new this.constructor().fromArray(this.elements);
   }
 }
-const ns = /* @__PURE__ */ new Be(), Ta = /* @__PURE__ */ new Be().set(
+const rs = /* @__PURE__ */ new Be(), Ta = /* @__PURE__ */ new Be().set(
   0.4123908,
   0.3575843,
   0.1804808,
@@ -2340,7 +2340,7 @@ function kl() {
      */
     spaces: {},
     convert: function(r, s, a) {
-      return this.enabled === !1 || s === a || !s || !a || (this.spaces[s].transfer === Qe && (r.r = xn(r.r), r.g = xn(r.g), r.b = xn(r.b)), this.spaces[s].primaries !== this.spaces[a].primaries && (r.applyMatrix3(this.spaces[s].toXYZ), r.applyMatrix3(this.spaces[a].fromXYZ)), this.spaces[a].transfer === Qe && (r.r = mi(r.r), r.g = mi(r.g), r.b = mi(r.b))), r;
+      return this.enabled === !1 || s === a || !s || !a || (this.spaces[s].transfer === Qe && (r.r = xn(r.r), r.g = xn(r.g), r.b = xn(r.b)), this.spaces[s].primaries !== this.spaces[a].primaries && (r.applyMatrix3(this.spaces[s].toXYZ), r.applyMatrix3(this.spaces[a].fromXYZ)), this.spaces[a].transfer === Qe && (r.r = gi(r.r), r.g = gi(r.g), r.b = gi(r.b))), r;
     },
     workingToColorSpace: function(r, s) {
       return this.convert(r, this.workingColorSpace, s);
@@ -2389,17 +2389,17 @@ function kl() {
       toXYZ: Ta,
       fromXYZ: Aa,
       luminanceCoefficients: t,
-      workingColorSpaceConfig: { unpackColorSpace: Yt },
-      outputColorSpaceConfig: { drawingBufferColorSpace: Yt }
+      workingColorSpaceConfig: { unpackColorSpace: qt },
+      outputColorSpaceConfig: { drawingBufferColorSpace: qt }
     },
-    [Yt]: {
+    [qt]: {
       primaries: e,
       whitePoint: n,
       transfer: Qe,
       toXYZ: Ta,
       fromXYZ: Aa,
       luminanceCoefficients: t,
-      outputColorSpaceConfig: { drawingBufferColorSpace: Yt }
+      outputColorSpaceConfig: { drawingBufferColorSpace: qt }
     }
   }), i;
 }
@@ -2407,7 +2407,7 @@ const $e = /* @__PURE__ */ kl();
 function xn(i) {
   return i < 0.04045 ? i * 0.0773993808 : Math.pow(i * 0.9478672986 + 0.0521327014, 2.4);
 }
-function mi(i) {
+function gi(i) {
   return i < 31308e-7 ? i * 12.92 : 1.055 * Math.pow(i, 0.41666) - 0.055;
 }
 let ei;
@@ -2462,7 +2462,7 @@ class zl {
   }
 }
 let Vl = 0;
-class qs {
+class $s {
   /**
    * Constructs a new video texture.
    *
@@ -2513,15 +2513,15 @@ class qs {
       if (Array.isArray(r)) {
         s = [];
         for (let a = 0, o = r.length; a < o; a++)
-          r[a].isDataTexture ? s.push(is(r[a].image)) : s.push(is(r[a]));
+          r[a].isDataTexture ? s.push(ss(r[a].image)) : s.push(ss(r[a]));
       } else
-        s = is(r);
+        s = ss(r);
       n.url = s;
     }
     return t || (e.images[this.uuid] = n), n;
   }
 }
-function is(i) {
+function ss(i) {
   return typeof HTMLImageElement < "u" && i instanceof HTMLImageElement || typeof HTMLCanvasElement < "u" && i instanceof HTMLCanvasElement || typeof ImageBitmap < "u" && i instanceof ImageBitmap ? zl.getDataURL(i) : i.data ? {
     data: Array.from(i.data),
     width: i.width,
@@ -2530,7 +2530,7 @@ function is(i) {
   } : (Le("Texture: Unable to serialize Texture."), {});
 }
 let Hl = 0;
-const rs = /* @__PURE__ */ new D();
+const as = /* @__PURE__ */ new D();
 class Dt extends Ei {
   /**
    * Constructs a new texture.
@@ -2547,25 +2547,25 @@ class Dt extends Ei {
    * @param {string} [colorSpace=NoColorSpace] - The color space.
    */
   constructor(e = Dt.DEFAULT_IMAGE, t = Dt.DEFAULT_MAPPING, n = 1001, r = 1001, s = 1006, a = 1008, o = 1023, l = 1009, c = Dt.DEFAULT_ANISOTROPY, u = "") {
-    super(), this.isTexture = !0, Object.defineProperty(this, "id", { value: Hl++ }), this.uuid = qi(), this.name = "", this.source = new qs(e), this.mipmaps = [], this.mapping = t, this.channel = 0, this.wrapS = n, this.wrapT = r, this.magFilter = s, this.minFilter = a, this.anisotropy = c, this.format = o, this.internalFormat = null, this.type = l, this.offset = new He(0, 0), this.repeat = new He(1, 1), this.center = new He(0, 0), this.rotation = 0, this.matrixAutoUpdate = !0, this.matrix = new Be(), this.generateMipmaps = !0, this.premultiplyAlpha = !1, this.flipY = !0, this.unpackAlignment = 4, this.colorSpace = u, this.userData = {}, this.updateRanges = [], this.version = 0, this.onUpdate = null, this.renderTarget = null, this.isRenderTargetTexture = !1, this.isArrayTexture = !!(e && e.depth && e.depth > 1), this.pmremVersion = 0;
+    super(), this.isTexture = !0, Object.defineProperty(this, "id", { value: Hl++ }), this.uuid = qi(), this.name = "", this.source = new $s(e), this.mipmaps = [], this.mapping = t, this.channel = 0, this.wrapS = n, this.wrapT = r, this.magFilter = s, this.minFilter = a, this.anisotropy = c, this.format = o, this.internalFormat = null, this.type = l, this.offset = new He(0, 0), this.repeat = new He(1, 1), this.center = new He(0, 0), this.rotation = 0, this.matrixAutoUpdate = !0, this.matrix = new Be(), this.generateMipmaps = !0, this.premultiplyAlpha = !1, this.flipY = !0, this.unpackAlignment = 4, this.colorSpace = u, this.userData = {}, this.updateRanges = [], this.version = 0, this.onUpdate = null, this.renderTarget = null, this.isRenderTargetTexture = !1, this.isArrayTexture = !!(e && e.depth && e.depth > 1), this.pmremVersion = 0;
   }
   /**
    * The width of the texture in pixels.
    */
   get width() {
-    return this.source.getSize(rs).x;
+    return this.source.getSize(as).x;
   }
   /**
    * The height of the texture in pixels.
    */
   get height() {
-    return this.source.getSize(rs).y;
+    return this.source.getSize(as).y;
   }
   /**
    * The depth of the texture in pixels.
    */
   get depth() {
-    return this.source.getSize(rs).z;
+    return this.source.getSize(as).z;
   }
   /**
    * The image object holding the texture data.
@@ -3417,7 +3417,7 @@ class Wl extends Ei {
     for (let t = 0, n = e.textures.length; t < n; t++) {
       this.textures[t] = e.textures[t].clone(), this.textures[t].isRenderTargetTexture = !0, this.textures[t].renderTarget = this;
       const r = Object.assign({}, e.textures[t].image);
-      this.textures[t].source = new qs(r);
+      this.textures[t].source = new $s(r);
     }
     return this.depthBuffer = e.depthBuffer, this.stencilBuffer = e.stencilBuffer, this.resolveDepthBuffer = e.resolveDepthBuffer, this.resolveStencilBuffer = e.resolveStencilBuffer, e.depthTexture !== null && (this.depthTexture = e.depthTexture.clone()), this.samples = e.samples, this;
   }
@@ -4402,7 +4402,7 @@ class ln {
   }
 }
 ln.DEFAULT_ORDER = "XYZ";
-class Ys {
+class js {
   /**
    * Constructs a new layers instance, with membership
    * initially set to layer `0`.
@@ -4475,7 +4475,7 @@ class Ys {
   }
 }
 let $l = 0;
-const Ca = /* @__PURE__ */ new D(), ni = /* @__PURE__ */ new Ti(), dn = /* @__PURE__ */ new lt(), rr = /* @__PURE__ */ new D(), Ci = /* @__PURE__ */ new D(), jl = /* @__PURE__ */ new D(), Kl = /* @__PURE__ */ new Ti(), Ia = /* @__PURE__ */ new D(1, 0, 0), Pa = /* @__PURE__ */ new D(0, 1, 0), La = /* @__PURE__ */ new D(0, 0, 1), Da = { type: "added" }, Zl = { type: "removed" }, ii = { type: "childadded", child: null }, ss = { type: "childremoved", child: null };
+const Ca = /* @__PURE__ */ new D(), ni = /* @__PURE__ */ new Ti(), dn = /* @__PURE__ */ new lt(), rr = /* @__PURE__ */ new D(), Ci = /* @__PURE__ */ new D(), jl = /* @__PURE__ */ new D(), Kl = /* @__PURE__ */ new Ti(), Ia = /* @__PURE__ */ new D(1, 0, 0), Pa = /* @__PURE__ */ new D(0, 1, 0), La = /* @__PURE__ */ new D(0, 0, 1), Da = { type: "added" }, Zl = { type: "removed" }, ii = { type: "childadded", child: null }, os = { type: "childremoved", child: null };
 class Rt extends Ei {
   /**
    * Constructs a new 3D object.
@@ -4555,7 +4555,7 @@ class Rt extends Ei {
       normalMatrix: {
         value: new Be()
       }
-    }), this.matrix = new lt(), this.matrixWorld = new lt(), this.matrixAutoUpdate = Rt.DEFAULT_MATRIX_AUTO_UPDATE, this.matrixWorldAutoUpdate = Rt.DEFAULT_MATRIX_WORLD_AUTO_UPDATE, this.matrixWorldNeedsUpdate = !1, this.layers = new Ys(), this.visible = !0, this.castShadow = !1, this.receiveShadow = !1, this.frustumCulled = !0, this.renderOrder = 0, this.animations = [], this.customDepthMaterial = void 0, this.customDistanceMaterial = void 0, this.static = !1, this.userData = {}, this.pivot = null;
+    }), this.matrix = new lt(), this.matrixWorld = new lt(), this.matrixAutoUpdate = Rt.DEFAULT_MATRIX_AUTO_UPDATE, this.matrixWorldAutoUpdate = Rt.DEFAULT_MATRIX_WORLD_AUTO_UPDATE, this.matrixWorldNeedsUpdate = !1, this.layers = new js(), this.visible = !0, this.castShadow = !1, this.receiveShadow = !1, this.frustumCulled = !0, this.renderOrder = 0, this.animations = [], this.customDepthMaterial = void 0, this.customDistanceMaterial = void 0, this.static = !1, this.userData = {}, this.pivot = null;
   }
   /**
    * A callback that is executed immediately before a 3D object is rendered to a shadow map.
@@ -4809,7 +4809,7 @@ class Rt extends Ei {
       return this;
     }
     const t = this.children.indexOf(e);
-    return t !== -1 && (e.parent = null, this.children.splice(t, 1), e.dispatchEvent(Zl), ss.child = e, this.dispatchEvent(ss), ss.child = null), this;
+    return t !== -1 && (e.parent = null, this.children.splice(t, 1), e.dispatchEvent(Zl), os.child = e, this.dispatchEvent(os), os.child = null), this;
   }
   /**
    * Removes this 3D object from its current parent.
@@ -5145,7 +5145,7 @@ class qn extends Rt {
   }
 }
 const Jl = { type: "move" };
-class as {
+class ls {
   /**
    * Constructs a new XR controller.
    */
@@ -5412,7 +5412,7 @@ const Vo = {
   yellow: 16776960,
   yellowgreen: 10145074
 }, Tn = { h: 0, s: 0, l: 0 }, sr = { h: 0, s: 0, l: 0 };
-function os(i, e, t) {
+function cs(i, e, t) {
   return t < 0 && (t += 1), t > 1 && (t -= 1), t < 1 / 6 ? i + (e - i) * 6 * t : t < 1 / 2 ? e : t < 2 / 3 ? i + (e - i) * 6 * (2 / 3 - t) : i;
 }
 class me {
@@ -5463,7 +5463,7 @@ class me {
    * @param {string} [colorSpace=SRGBColorSpace] - The color space.
    * @return {Color} A reference to this color.
    */
-  setHex(e, t = Yt) {
+  setHex(e, t = qt) {
     return e = Math.floor(e), this.r = (e >> 16 & 255) / 255, this.g = (e >> 8 & 255) / 255, this.b = (e & 255) / 255, $e.colorSpaceToWorking(this, t), this;
   }
   /**
@@ -5492,7 +5492,7 @@ class me {
       this.r = this.g = this.b = n;
     else {
       const s = n <= 0.5 ? n * (1 + t) : n + t - n * t, a = 2 * n - s;
-      this.r = os(a, s, e + 1 / 3), this.g = os(a, s, e), this.b = os(a, s, e - 1 / 3);
+      this.r = cs(a, s, e + 1 / 3), this.g = cs(a, s, e), this.b = cs(a, s, e - 1 / 3);
     }
     return $e.colorSpaceToWorking(this, r), this;
   }
@@ -5506,7 +5506,7 @@ class me {
    * @param {string} [colorSpace=SRGBColorSpace] - The color space.
    * @return {Color} A reference to this color.
    */
-  setStyle(e, t = Yt) {
+  setStyle(e, t = qt) {
     function n(s) {
       s !== void 0 && parseFloat(s) < 1 && Le("Color: Alpha component of " + e + " will be ignored.");
     }
@@ -5574,7 +5574,7 @@ class me {
    * @param {string} [colorSpace=SRGBColorSpace] - The color space.
    * @return {Color} A reference to this color.
    */
-  setColorName(e, t = Yt) {
+  setColorName(e, t = qt) {
     const n = Vo[e.toLowerCase()];
     return n !== void 0 ? this.setHex(n, t) : Le("Color: Unknown color " + e), this;
   }
@@ -5613,7 +5613,7 @@ class me {
    * @return {Color} A reference to this color.
    */
   copyLinearToSRGB(e) {
-    return this.r = mi(e.r), this.g = mi(e.g), this.b = mi(e.b), this;
+    return this.r = gi(e.r), this.g = gi(e.g), this.b = gi(e.b), this;
   }
   /**
    * Converts this color from `SRGBColorSpace` to `LinearSRGBColorSpace`.
@@ -5637,7 +5637,7 @@ class me {
    * @param {string} [colorSpace=SRGBColorSpace] - The color space.
    * @return {number} The hexadecimal value.
    */
-  getHex(e = Yt) {
+  getHex(e = qt) {
     return $e.workingToColorSpace(At.copy(this), e), Math.round(We(At.r * 255, 0, 255)) * 65536 + Math.round(We(At.g * 255, 0, 255)) * 256 + Math.round(We(At.b * 255, 0, 255));
   }
   /**
@@ -5646,7 +5646,7 @@ class me {
    * @param {string} [colorSpace=SRGBColorSpace] - The color space.
    * @return {string} The hexadecimal value as a string.
    */
-  getHexString(e = Yt) {
+  getHexString(e = qt) {
     return ("000000" + this.getHex(e).toString(16)).slice(-6);
   }
   /**
@@ -5697,10 +5697,10 @@ class me {
    * @param {string} [colorSpace=SRGBColorSpace] - The color space.
    * @return {string} The CSS representation of this color.
    */
-  getStyle(e = Yt) {
+  getStyle(e = qt) {
     $e.workingToColorSpace(At.copy(this), e);
     const t = At.r, n = At.g, r = At.b;
-    return e !== Yt ? `color(${e} ${t.toFixed(3)} ${n.toFixed(3)} ${r.toFixed(3)})` : `rgb(${Math.round(t * 255)},${Math.round(n * 255)},${Math.round(r * 255)})`;
+    return e !== qt ? `color(${e} ${t.toFixed(3)} ${n.toFixed(3)} ${r.toFixed(3)})` : `rgb(${Math.round(t * 255)},${Math.round(n * 255)},${Math.round(r * 255)})`;
   }
   /**
    * Adds the given HSL values to this color's values.
@@ -5808,7 +5808,7 @@ class me {
    */
   lerpHSL(e, t) {
     this.getHSL(Tn), e.getHSL(sr);
-    const n = es(Tn.h, sr.h, t), r = es(Tn.s, sr.s, t), s = es(Tn.l, sr.l, t);
+    const n = ns(Tn.h, sr.h, t), r = ns(Tn.s, sr.s, t), s = ns(Tn.l, sr.l, t);
     return this.setHSL(n, r, s), this;
   }
   /**
@@ -5885,7 +5885,7 @@ class me {
 }
 const At = /* @__PURE__ */ new me();
 me.NAMES = Vo;
-class $s {
+class Ks {
   /**
    * Constructs a new fog.
    *
@@ -5901,7 +5901,7 @@ class $s {
    * @return {FogExp2} A clone of this instance.
    */
   clone() {
-    return new $s(this.color, this.density);
+    return new Ks(this.color, this.density);
   }
   /**
    * Serializes the fog into JSON.
@@ -5933,7 +5933,7 @@ class Ql extends Rt {
     return this.fog !== null && (t.object.fog = this.fog.toJSON()), this.backgroundBlurriness > 0 && (t.object.backgroundBlurriness = this.backgroundBlurriness), this.backgroundIntensity !== 1 && (t.object.backgroundIntensity = this.backgroundIntensity), t.object.backgroundRotation = this.backgroundRotation.toArray(), this.environmentIntensity !== 1 && (t.object.environmentIntensity = this.environmentIntensity), t.object.environmentRotation = this.environmentRotation.toArray(), t;
   }
 }
-const Jt = /* @__PURE__ */ new D(), fn = /* @__PURE__ */ new D(), ls = /* @__PURE__ */ new D(), pn = /* @__PURE__ */ new D(), ri = /* @__PURE__ */ new D(), si = /* @__PURE__ */ new D(), Fa = /* @__PURE__ */ new D(), cs = /* @__PURE__ */ new D(), us = /* @__PURE__ */ new D(), hs = /* @__PURE__ */ new D(), ds = /* @__PURE__ */ new ht(), fs = /* @__PURE__ */ new ht(), ps = /* @__PURE__ */ new ht();
+const Jt = /* @__PURE__ */ new D(), fn = /* @__PURE__ */ new D(), us = /* @__PURE__ */ new D(), pn = /* @__PURE__ */ new D(), ri = /* @__PURE__ */ new D(), si = /* @__PURE__ */ new D(), Fa = /* @__PURE__ */ new D(), hs = /* @__PURE__ */ new D(), ds = /* @__PURE__ */ new D(), fs = /* @__PURE__ */ new D(), ps = /* @__PURE__ */ new ht(), ms = /* @__PURE__ */ new ht(), gs = /* @__PURE__ */ new ht();
 class tn {
   /**
    * Constructs a new triangle.
@@ -5971,8 +5971,8 @@ class tn {
    * @return {?Vector3} The barycentric coordinates for the given point
    */
   static getBarycoord(e, t, n, r, s) {
-    Jt.subVectors(r, t), fn.subVectors(n, t), ls.subVectors(e, t);
-    const a = Jt.dot(Jt), o = Jt.dot(fn), l = Jt.dot(ls), c = fn.dot(fn), u = fn.dot(ls), d = a * c - o * o;
+    Jt.subVectors(r, t), fn.subVectors(n, t), us.subVectors(e, t);
+    const a = Jt.dot(Jt), o = Jt.dot(fn), l = Jt.dot(us), c = fn.dot(fn), u = fn.dot(us), d = a * c - o * o;
     if (d === 0)
       return s.set(0, 0, 0), null;
     const h = 1 / d, m = (c * l - o * u) * h, g = (a * u - o * l) * h;
@@ -6021,7 +6021,7 @@ class tn {
    * @return {Vector3} The interpolated attribute value.
    */
   static getInterpolatedAttribute(e, t, n, r, s, a) {
-    return ds.setScalar(0), fs.setScalar(0), ps.setScalar(0), ds.fromBufferAttribute(e, t), fs.fromBufferAttribute(e, n), ps.fromBufferAttribute(e, r), a.setScalar(0), a.addScaledVector(ds, s.x), a.addScaledVector(fs, s.y), a.addScaledVector(ps, s.z), a;
+    return ps.setScalar(0), ms.setScalar(0), gs.setScalar(0), ps.fromBufferAttribute(e, t), ms.fromBufferAttribute(e, n), gs.fromBufferAttribute(e, r), a.setScalar(0), a.addScaledVector(ps, s.x), a.addScaledVector(ms, s.y), a.addScaledVector(gs, s.z), a;
   }
   /**
    * Returns `true` if the triangle is oriented towards the given direction.
@@ -6186,19 +6186,19 @@ class tn {
   closestPointToPoint(e, t) {
     const n = this.a, r = this.b, s = this.c;
     let a, o;
-    ri.subVectors(r, n), si.subVectors(s, n), cs.subVectors(e, n);
-    const l = ri.dot(cs), c = si.dot(cs);
+    ri.subVectors(r, n), si.subVectors(s, n), hs.subVectors(e, n);
+    const l = ri.dot(hs), c = si.dot(hs);
     if (l <= 0 && c <= 0)
       return t.copy(n);
-    us.subVectors(e, r);
-    const u = ri.dot(us), d = si.dot(us);
+    ds.subVectors(e, r);
+    const u = ri.dot(ds), d = si.dot(ds);
     if (u >= 0 && d <= u)
       return t.copy(r);
     const h = l * d - u * c;
     if (h <= 0 && l >= 0 && u <= 0)
       return a = l / (l - u), t.copy(n).addScaledVector(ri, a);
-    hs.subVectors(e, s);
-    const m = ri.dot(hs), g = si.dot(hs);
+    fs.subVectors(e, s);
+    const m = ri.dot(fs), g = si.dot(fs);
     if (g >= 0 && m <= g)
       return t.copy(s);
     const y = m * c - l * g;
@@ -6517,7 +6517,7 @@ class Yi {
       Nn.x,
       0
     ];
-    return !ms(t, ai, oi, li, or) || (t = [1, 0, 0, 0, 1, 0, 0, 0, 1], !ms(t, ai, oi, li, or)) ? !1 : (lr.crossVectors(An, wn), t = [lr.x, lr.y, lr.z], ms(t, ai, oi, li, or));
+    return !vs(t, ai, oi, li, or) || (t = [1, 0, 0, 0, 1, 0, 0, 0, 1], !vs(t, ai, oi, li, or)) ? !1 : (lr.crossVectors(An, wn), t = [lr.x, lr.y, lr.z], vs(t, ai, oi, li, or));
   }
   /**
    * Clamps the given point within the bounds of this box.
@@ -6630,7 +6630,7 @@ const mn = [
   /* @__PURE__ */ new D(),
   /* @__PURE__ */ new D()
 ], Qt = /* @__PURE__ */ new D(), ar = /* @__PURE__ */ new Yi(), ai = /* @__PURE__ */ new D(), oi = /* @__PURE__ */ new D(), li = /* @__PURE__ */ new D(), An = /* @__PURE__ */ new D(), wn = /* @__PURE__ */ new D(), Nn = /* @__PURE__ */ new D(), Ii = /* @__PURE__ */ new D(), or = /* @__PURE__ */ new D(), lr = /* @__PURE__ */ new D(), Un = /* @__PURE__ */ new D();
-function ms(i, e, t, n, r) {
+function vs(i, e, t, n, r) {
   for (let s = 0, a = i.length - 3; s <= a; s += 3) {
     Un.fromArray(i, s);
     const o = r.x * Math.abs(Un.x) + r.y * Math.abs(Un.y) + r.z * Math.abs(Un.z), l = e.dot(Un), c = t.dot(Un), u = n.dot(Un);
@@ -6999,7 +6999,7 @@ class Ct extends jt {
     super(new Float32Array(e), t, n);
   }
 }
-const tc = /* @__PURE__ */ new Yi(), Pi = /* @__PURE__ */ new D(), gs = /* @__PURE__ */ new D();
+const tc = /* @__PURE__ */ new Yi(), Pi = /* @__PURE__ */ new D(), _s = /* @__PURE__ */ new D();
 class $i {
   /**
    * Constructs a new sphere.
@@ -7179,7 +7179,7 @@ class $i {
    * @return {Sphere} A reference to this sphere.
    */
   union(e) {
-    return e.isEmpty() ? this : this.isEmpty() ? (this.copy(e), this) : (this.center.equals(e.center) === !0 ? this.radius = Math.max(this.radius, e.radius) : (gs.subVectors(e.center, this.center).setLength(e.radius), this.expandByPoint(Pi.copy(e.center).add(gs)), this.expandByPoint(Pi.copy(e.center).sub(gs))), this);
+    return e.isEmpty() ? this : this.isEmpty() ? (this.copy(e), this) : (this.center.equals(e.center) === !0 ? this.radius = Math.max(this.radius, e.radius) : (_s.subVectors(e.center, this.center).setLength(e.radius), this.expandByPoint(Pi.copy(e.center).add(_s)), this.expandByPoint(Pi.copy(e.center).sub(_s))), this);
   }
   /**
    * Returns `true` if this sphere is equal with the given one.
@@ -7220,7 +7220,7 @@ class $i {
   }
 }
 let nc = 0;
-const qt = /* @__PURE__ */ new lt(), vs = /* @__PURE__ */ new Rt(), ci = /* @__PURE__ */ new D(), kt = /* @__PURE__ */ new Yi(), Li = /* @__PURE__ */ new Yi(), Mt = /* @__PURE__ */ new D();
+const Xt = /* @__PURE__ */ new lt(), xs = /* @__PURE__ */ new Rt(), ci = /* @__PURE__ */ new D(), kt = /* @__PURE__ */ new Yi(), Li = /* @__PURE__ */ new Yi(), Mt = /* @__PURE__ */ new D();
 class Nt extends Ei {
   /**
    * Constructs a new geometry.
@@ -7356,7 +7356,7 @@ class Nt extends Ei {
    * @return {BufferGeometry} A reference to this instance.
    */
   applyQuaternion(e) {
-    return qt.makeRotationFromQuaternion(e), this.applyMatrix4(qt), this;
+    return Xt.makeRotationFromQuaternion(e), this.applyMatrix4(Xt), this;
   }
   /**
    * Rotates the geometry about the X axis. This is typically done as a one time
@@ -7367,7 +7367,7 @@ class Nt extends Ei {
    * @return {BufferGeometry} A reference to this instance.
    */
   rotateX(e) {
-    return qt.makeRotationX(e), this.applyMatrix4(qt), this;
+    return Xt.makeRotationX(e), this.applyMatrix4(Xt), this;
   }
   /**
    * Rotates the geometry about the Y axis. This is typically done as a one time
@@ -7378,7 +7378,7 @@ class Nt extends Ei {
    * @return {BufferGeometry} A reference to this instance.
    */
   rotateY(e) {
-    return qt.makeRotationY(e), this.applyMatrix4(qt), this;
+    return Xt.makeRotationY(e), this.applyMatrix4(Xt), this;
   }
   /**
    * Rotates the geometry about the Z axis. This is typically done as a one time
@@ -7389,7 +7389,7 @@ class Nt extends Ei {
    * @return {BufferGeometry} A reference to this instance.
    */
   rotateZ(e) {
-    return qt.makeRotationZ(e), this.applyMatrix4(qt), this;
+    return Xt.makeRotationZ(e), this.applyMatrix4(Xt), this;
   }
   /**
    * Translates the geometry. This is typically done as a one time
@@ -7402,7 +7402,7 @@ class Nt extends Ei {
    * @return {BufferGeometry} A reference to this instance.
    */
   translate(e, t, n) {
-    return qt.makeTranslation(e, t, n), this.applyMatrix4(qt), this;
+    return Xt.makeTranslation(e, t, n), this.applyMatrix4(Xt), this;
   }
   /**
    * Scales the geometry. This is typically done as a one time
@@ -7415,7 +7415,7 @@ class Nt extends Ei {
    * @return {BufferGeometry} A reference to this instance.
    */
   scale(e, t, n) {
-    return qt.makeScale(e, t, n), this.applyMatrix4(qt), this;
+    return Xt.makeScale(e, t, n), this.applyMatrix4(Xt), this;
   }
   /**
    * Rotates the geometry to face a point in 3D space. This is typically done as a one time
@@ -7426,7 +7426,7 @@ class Nt extends Ei {
    * @return {BufferGeometry} A reference to this instance.
    */
   lookAt(e) {
-    return vs.lookAt(e), vs.updateMatrix(), this.applyMatrix4(vs.matrix), this;
+    return xs.lookAt(e), xs.updateMatrix(), this.applyMatrix4(xs.matrix), this;
   }
   /**
    * Center the geometry based on its bounding box.
@@ -7918,8 +7918,8 @@ class jn extends Ei {
     e === !0 && this.version++;
   }
 }
-const gn = /* @__PURE__ */ new D(), _s = /* @__PURE__ */ new D(), ur = /* @__PURE__ */ new D(), Rn = /* @__PURE__ */ new D(), xs = /* @__PURE__ */ new D(), hr = /* @__PURE__ */ new D(), ys = /* @__PURE__ */ new D();
-class Wr {
+const gn = /* @__PURE__ */ new D(), ys = /* @__PURE__ */ new D(), ur = /* @__PURE__ */ new D(), Rn = /* @__PURE__ */ new D(), Ss = /* @__PURE__ */ new D(), hr = /* @__PURE__ */ new D(), Ms = /* @__PURE__ */ new D();
+class Xr {
   /**
    * Constructs a new ray.
    *
@@ -8017,7 +8017,7 @@ class Wr {
    * @return {number} The squared distance.
    */
   distanceSqToSegment(e, t, n, r) {
-    _s.copy(e).add(t).multiplyScalar(0.5), ur.copy(t).sub(e).normalize(), Rn.copy(this.origin).sub(_s);
+    ys.copy(e).add(t).multiplyScalar(0.5), ur.copy(t).sub(e).normalize(), Rn.copy(this.origin).sub(ys);
     const s = e.distanceTo(t) * 0.5, a = -this.direction.dot(ur), o = Rn.dot(this.direction), l = -Rn.dot(ur), c = Rn.lengthSq(), u = Math.abs(1 - a * a);
     let d, h, m, g;
     if (u > 0)
@@ -8034,7 +8034,7 @@ class Wr {
         h <= -g ? (d = Math.max(0, -(-a * s + o)), h = d > 0 ? -s : Math.min(Math.max(-s, -l), s), m = -d * d + h * (h + 2 * l) + c) : h <= g ? (d = 0, h = Math.min(Math.max(-s, -l), s), m = h * (h + 2 * l) + c) : (d = Math.max(0, -(a * s + o)), h = d > 0 ? s : Math.min(Math.max(-s, -l), s), m = -d * d + h * (h + 2 * l) + c);
     else
       h = a > 0 ? -s : s, d = Math.max(0, -(a * h + o)), m = -d * d + h * (h + 2 * l) + c;
-    return n && n.copy(this.origin).addScaledVector(this.direction, d), r && r.copy(_s).addScaledVector(ur, h), m;
+    return n && n.copy(this.origin).addScaledVector(this.direction, d), r && r.copy(ys).addScaledVector(ur, h), m;
   }
   /**
    * Intersects this ray with the given sphere, returning the intersection
@@ -8130,8 +8130,8 @@ class Wr {
    * @return {?Vector3} The intersection point.
    */
   intersectTriangle(e, t, n, r, s) {
-    xs.subVectors(t, e), hr.subVectors(n, e), ys.crossVectors(xs, hr);
-    let a = this.direction.dot(ys), o;
+    Ss.subVectors(t, e), hr.subVectors(n, e), Ms.crossVectors(Ss, hr);
+    let a = this.direction.dot(Ms), o;
     if (a > 0) {
       if (r) return null;
       o = 1;
@@ -8143,10 +8143,10 @@ class Wr {
     const l = o * this.direction.dot(hr.crossVectors(Rn, hr));
     if (l < 0)
       return null;
-    const c = o * this.direction.dot(xs.cross(Rn));
+    const c = o * this.direction.dot(Ss.cross(Rn));
     if (c < 0 || l + c > a)
       return null;
-    const u = -o * Rn.dot(ys);
+    const u = -o * Rn.dot(Ms);
     return u < 0 ? null : this.at(u / a, s);
   }
   /**
@@ -8193,7 +8193,7 @@ class Wn extends jn {
     return super.copy(e), this.color.copy(e.color), this.map = e.map, this.lightMap = e.lightMap, this.lightMapIntensity = e.lightMapIntensity, this.aoMap = e.aoMap, this.aoMapIntensity = e.aoMapIntensity, this.specularMap = e.specularMap, this.alphaMap = e.alphaMap, this.envMap = e.envMap, this.envMapRotation.copy(e.envMapRotation), this.combine = e.combine, this.reflectivity = e.reflectivity, this.refractionRatio = e.refractionRatio, this.wireframe = e.wireframe, this.wireframeLinewidth = e.wireframeLinewidth, this.wireframeLinecap = e.wireframeLinecap, this.wireframeLinejoin = e.wireframeLinejoin, this.fog = e.fog, this;
   }
 }
-const Na = /* @__PURE__ */ new lt(), Bn = /* @__PURE__ */ new Wr(), dr = /* @__PURE__ */ new $i(), Ua = /* @__PURE__ */ new D(), fr = /* @__PURE__ */ new D(), pr = /* @__PURE__ */ new D(), mr = /* @__PURE__ */ new D(), Ss = /* @__PURE__ */ new D(), gr = /* @__PURE__ */ new D(), Ba = /* @__PURE__ */ new D(), vr = /* @__PURE__ */ new D();
+const Na = /* @__PURE__ */ new lt(), Bn = /* @__PURE__ */ new Xr(), dr = /* @__PURE__ */ new $i(), Ua = /* @__PURE__ */ new D(), fr = /* @__PURE__ */ new D(), pr = /* @__PURE__ */ new D(), mr = /* @__PURE__ */ new D(), bs = /* @__PURE__ */ new D(), gr = /* @__PURE__ */ new D(), Ba = /* @__PURE__ */ new D(), vr = /* @__PURE__ */ new D();
 class wt extends Rt {
   /**
    * Constructs a new mesh.
@@ -8240,7 +8240,7 @@ class wt extends Rt {
       gr.set(0, 0, 0);
       for (let l = 0, c = s.length; l < c; l++) {
         const u = o[l], d = s[l];
-        u !== 0 && (Ss.fromBufferAttribute(d, e), a ? gr.addScaledVector(Ss, u) : gr.addScaledVector(Ss.sub(t), u));
+        u !== 0 && (bs.fromBufferAttribute(d, e), a ? gr.addScaledVector(bs, u) : gr.addScaledVector(bs.sub(t), u));
       }
       t.add(gr);
     }
@@ -8342,7 +8342,7 @@ class sc extends Dt {
     super(null, a, o, l, c, u, r, s, d, h), this.isDataTexture = !0, this.image = { data: e, width: t, height: n }, this.generateMipmaps = !1, this.flipY = !1, this.unpackAlignment = 1;
   }
 }
-const Ms = /* @__PURE__ */ new D(), ac = /* @__PURE__ */ new D(), oc = /* @__PURE__ */ new Be();
+const Es = /* @__PURE__ */ new D(), ac = /* @__PURE__ */ new D(), oc = /* @__PURE__ */ new Be();
 class Vn {
   /**
    * Constructs a new plane.
@@ -8398,7 +8398,7 @@ class Vn {
    * @return {Plane} A reference to this plane.
    */
   setFromCoplanarPoints(e, t, n) {
-    const r = Ms.subVectors(n, t).cross(ac.subVectors(e, t)).normalize();
+    const r = Es.subVectors(n, t).cross(ac.subVectors(e, t)).normalize();
     return this.setFromNormalAndCoplanarPoint(r, e), this;
   }
   /**
@@ -8465,7 +8465,7 @@ class Vn {
    * @return {?Vector3} The intersection point.
    */
   intersectLine(e, t) {
-    const n = e.delta(Ms), r = this.normal.dot(n);
+    const n = e.delta(Es), r = this.normal.dot(n);
     if (r === 0)
       return this.distanceToPoint(e.start) === 0 ? t.copy(e.start) : null;
     const s = -(e.start.dot(this.normal) + this.constant) / r;
@@ -8522,7 +8522,7 @@ class Vn {
    * @return {Plane} A reference to this plane.
    */
   applyMatrix4(e, t) {
-    const n = t || oc.getNormalMatrix(e), r = this.coplanarPoint(Ms).applyMatrix4(e), s = this.normal.applyMatrix3(n).normalize();
+    const n = t || oc.getNormalMatrix(e), r = this.coplanarPoint(Es).applyMatrix4(e), s = this.normal.applyMatrix3(n).normalize();
     return this.constant = -r.dot(s), this;
   }
   /**
@@ -8554,7 +8554,7 @@ class Vn {
   }
 }
 const On = /* @__PURE__ */ new $i(), lc = /* @__PURE__ */ new He(0.5, 0.5), xr = /* @__PURE__ */ new D();
-class js {
+class Zs {
   /**
    * Constructs a new frustum.
    *
@@ -8710,7 +8710,7 @@ class Xo extends jn {
     return super.copy(e), this.color.copy(e.color), this.map = e.map, this.linewidth = e.linewidth, this.linecap = e.linecap, this.linejoin = e.linejoin, this.fog = e.fog, this;
   }
 }
-const Ur = /* @__PURE__ */ new D(), Br = /* @__PURE__ */ new D(), Oa = /* @__PURE__ */ new lt(), Di = /* @__PURE__ */ new Wr(), yr = /* @__PURE__ */ new $i(), bs = /* @__PURE__ */ new D(), Ga = /* @__PURE__ */ new D();
+const Ur = /* @__PURE__ */ new D(), Br = /* @__PURE__ */ new D(), Oa = /* @__PURE__ */ new lt(), Di = /* @__PURE__ */ new Xr(), yr = /* @__PURE__ */ new $i(), Ts = /* @__PURE__ */ new D(), Ga = /* @__PURE__ */ new D();
 class cc extends Rt {
   /**
    * Constructs a new line.
@@ -8795,9 +8795,9 @@ class cc extends Rt {
 }
 function Sr(i, e, t, n, r, s, a) {
   const o = i.geometry.attributes.position;
-  if (Ur.fromBufferAttribute(o, r), Br.fromBufferAttribute(o, s), t.distanceSqToSegment(Ur, Br, bs, Ga) > n) return;
-  bs.applyMatrix4(i.matrixWorld);
-  const c = e.ray.origin.distanceTo(bs);
+  if (Ur.fromBufferAttribute(o, r), Br.fromBufferAttribute(o, s), t.distanceSqToSegment(Ur, Br, Ts, Ga) > n) return;
+  Ts.applyMatrix4(i.matrixWorld);
+  const c = e.ray.origin.distanceTo(Ts);
   if (!(c < e.near || c > e.far))
     return {
       distance: c,
@@ -8828,7 +8828,7 @@ class qo extends jn {
     return super.copy(e), this.color.copy(e.color), this.map = e.map, this.alphaMap = e.alphaMap, this.size = e.size, this.sizeAttenuation = e.sizeAttenuation, this.fog = e.fog, this;
   }
 }
-const ka = /* @__PURE__ */ new lt(), Fs = /* @__PURE__ */ new Wr(), Mr = /* @__PURE__ */ new $i(), br = /* @__PURE__ */ new D();
+const ka = /* @__PURE__ */ new lt(), Us = /* @__PURE__ */ new Xr(), Mr = /* @__PURE__ */ new $i(), br = /* @__PURE__ */ new D();
 class uc extends Rt {
   /**
    * Constructs a new point cloud.
@@ -8851,7 +8851,7 @@ class uc extends Rt {
   raycast(e, t) {
     const n = this.geometry, r = this.matrixWorld, s = e.params.Points.threshold, a = n.drawRange;
     if (n.boundingSphere === null && n.computeBoundingSphere(), Mr.copy(n.boundingSphere), Mr.applyMatrix4(r), Mr.radius += s, e.ray.intersectsSphere(Mr) === !1) return;
-    ka.copy(r).invert(), Fs.copy(e.ray).applyMatrix4(ka);
+    ka.copy(r).invert(), Us.copy(e.ray).applyMatrix4(ka);
     const o = s / ((this.scale.x + this.scale.y + this.scale.z) / 3), l = o * o, c = n.index, d = n.attributes.position;
     if (c !== null) {
       const h = Math.max(0, a.start), m = Math.min(c.count, a.start + a.count);
@@ -8884,10 +8884,10 @@ class uc extends Rt {
   }
 }
 function za(i, e, t, n, r, s, a) {
-  const o = Fs.distanceSqToPoint(i);
+  const o = Us.distanceSqToPoint(i);
   if (o < t) {
     const l = new D();
-    Fs.closestPointToPoint(i, l), l.applyMatrix4(n);
+    Us.closestPointToPoint(i, l), l.applyMatrix4(n);
     const c = r.ray.origin.distanceTo(l);
     if (c < r.near || c > r.far) return;
     s.push({
@@ -8955,7 +8955,7 @@ class Vi extends Dt {
     super(h, r, s, a, o, l, u, n, c), this.isDepthTexture = !0, this.flipY = !1, this.generateMipmaps = !1, this.compareFunction = null;
   }
   copy(e) {
-    return super.copy(e), this.source = new qs(Object.assign({}, e.image)), this.compareFunction = e.compareFunction, this;
+    return super.copy(e), this.source = new $s(Object.assign({}, e.image)), this.compareFunction = e.compareFunction, this;
   }
   toJSON(e) {
     const t = super.toJSON(e);
@@ -9063,7 +9063,7 @@ class ji extends Nt {
     return new ji(e.width, e.height, e.depth, e.widthSegments, e.heightSegments, e.depthSegments);
   }
 }
-class Ks extends Nt {
+class Js extends Nt {
   /**
    * Constructs a new polyhedron geometry.
    *
@@ -9156,7 +9156,7 @@ class Ks extends Nt {
    * @return {PolyhedronGeometry} A new instance.
    */
   static fromJSON(e) {
-    return new Ks(e.vertices, e.indices, e.radius, e.detail);
+    return new Js(e.vertices, e.indices, e.radius, e.detail);
   }
 }
 class dc {
@@ -9403,7 +9403,7 @@ function pc(i, e) {
 function mc(i, e) {
   return i * i * e;
 }
-function Es(i, e, t, n) {
+function As(i, e, t, n) {
   return fc(i, e) + pc(i, t) + mc(i, n);
 }
 class gc extends dc {
@@ -9427,9 +9427,9 @@ class gc extends dc {
   getPoint(e, t = new D()) {
     const n = t, r = this.v0, s = this.v1, a = this.v2;
     return n.set(
-      Es(e, r.x, s.x, a.x),
-      Es(e, r.y, s.y, a.y),
-      Es(e, r.z, s.z, a.z)
+      As(e, r.x, s.x, a.x),
+      As(e, r.y, s.y, a.y),
+      As(e, r.z, s.z, a.z)
     ), n;
   }
   copy(e) {
@@ -9443,7 +9443,7 @@ class gc extends dc {
     return super.fromJSON(e), this.v0.fromArray(e.v0), this.v1.fromArray(e.v1), this.v2.fromArray(e.v2), this;
   }
 }
-class Oi extends Ks {
+class Oi extends Js {
   /**
    * Constructs a new icosahedron geometry.
    *
@@ -9566,7 +9566,7 @@ class Oi extends Ks {
     return new Oi(e.radius, e.detail);
   }
 }
-class Xr extends Nt {
+class qr extends Nt {
   /**
    * Constructs a new plane geometry.
    *
@@ -9608,7 +9608,7 @@ class Xr extends Nt {
    * @return {PlaneGeometry} A new instance.
    */
   static fromJSON(e) {
-    return new Xr(e.width, e.height, e.widthSegments, e.heightSegments);
+    return new qr(e.width, e.height, e.widthSegments, e.heightSegments);
   }
 }
 class Gi extends Nt {
@@ -9855,7 +9855,7 @@ class Ko extends Rt {
     return t.object.color = this.color.getHex(), t.object.intensity = this.intensity, t;
   }
 }
-const Ts = /* @__PURE__ */ new lt(), Ha = /* @__PURE__ */ new D(), Wa = /* @__PURE__ */ new D();
+const ws = /* @__PURE__ */ new lt(), Ha = /* @__PURE__ */ new D(), Wa = /* @__PURE__ */ new D();
 class Ec {
   /**
    * Constructs a new light shadow.
@@ -9863,7 +9863,7 @@ class Ec {
    * @param {Camera} camera - The light's view of the world.
    */
   constructor(e) {
-    this.camera = e, this.intensity = 1, this.bias = 0, this.biasNode = null, this.normalBias = 0, this.radius = 1, this.blurSamples = 8, this.mapSize = new He(512, 512), this.mapType = 1009, this.map = null, this.mapPass = null, this.matrix = new lt(), this.autoUpdate = !0, this.needsUpdate = !1, this._frustum = new js(), this._frameExtents = new He(1, 1), this._viewportCount = 1, this._viewports = [
+    this.camera = e, this.intensity = 1, this.bias = 0, this.biasNode = null, this.normalBias = 0, this.radius = 1, this.blurSamples = 8, this.mapSize = new He(512, 512), this.mapType = 1009, this.map = null, this.mapPass = null, this.matrix = new lt(), this.autoUpdate = !0, this.needsUpdate = !1, this._frustum = new Zs(), this._frameExtents = new He(1, 1), this._viewportCount = 1, this._viewports = [
       new ht(0, 0, 1, 1)
     ];
   }
@@ -9891,7 +9891,7 @@ class Ec {
    */
   updateMatrices(e) {
     const t = this.camera, n = this.matrix;
-    Ha.setFromMatrixPosition(e.matrixWorld), t.position.copy(Ha), Wa.setFromMatrixPosition(e.target.matrixWorld), t.lookAt(Wa), t.updateMatrixWorld(), Ts.multiplyMatrices(t.projectionMatrix, t.matrixWorldInverse), this._frustum.setFromProjectionMatrix(Ts, t.coordinateSystem, t.reversedDepth), t.coordinateSystem === 2001 || t.reversedDepth ? n.set(
+    Ha.setFromMatrixPosition(e.matrixWorld), t.position.copy(Ha), Wa.setFromMatrixPosition(e.target.matrixWorld), t.lookAt(Wa), t.updateMatrixWorld(), ws.multiplyMatrices(t.projectionMatrix, t.matrixWorldInverse), this._frustum.setFromProjectionMatrix(ws, t.coordinateSystem, t.reversedDepth), t.coordinateSystem === 2001 || t.reversedDepth ? n.set(
       0.5,
       0,
       0,
@@ -9926,7 +9926,7 @@ class Ec {
       0,
       0,
       1
-    ), n.multiply(Ts);
+    ), n.multiply(ws);
   }
   /**
    * Returns a viewport definition for the given viewport index.
@@ -10048,7 +10048,7 @@ class Vt extends Zo {
    */
   setFocalLength(e) {
     const t = 0.5 * this.getFilmHeight() / e;
-    this.fov = Ds * 2 * Math.atan(t), this.updateProjectionMatrix();
+    this.fov = Ns * 2 * Math.atan(t), this.updateProjectionMatrix();
   }
   /**
    * Returns the focal length from the current {@link PerspectiveCamera#fov} and
@@ -10057,7 +10057,7 @@ class Vt extends Zo {
    * @return {number} The computed focal length.
    */
   getFocalLength() {
-    const e = Math.tan(Qr * 0.5 * this.fov);
+    const e = Math.tan(ts * 0.5 * this.fov);
     return 0.5 * this.getFilmHeight() / e;
   }
   /**
@@ -10066,8 +10066,8 @@ class Vt extends Zo {
    * @return {number} The effective FOV.
    */
   getEffectiveFOV() {
-    return Ds * 2 * Math.atan(
-      Math.tan(Qr * 0.5 * this.fov) / this.zoom
+    return Ns * 2 * Math.atan(
+      Math.tan(ts * 0.5 * this.fov) / this.zoom
     );
   }
   /**
@@ -10175,7 +10175,7 @@ class Vt extends Zo {
    */
   updateProjectionMatrix() {
     const e = this.near;
-    let t = e * Math.tan(Qr * 0.5 * this.fov) / this.zoom, n = 2 * t, r = this.aspect * n, s = -0.5 * r;
+    let t = e * Math.tan(ts * 0.5 * this.fov) / this.zoom, n = 2 * t, r = this.aspect * n, s = -0.5 * r;
     const a = this.view;
     if (this.view !== null && this.view.enabled) {
       const l = a.fullWidth, c = a.fullHeight;
@@ -10386,7 +10386,7 @@ class Cc {
    * @param {number} [far=Infinity] - All results returned are closer than far. Far can't be lower than near.
    */
   constructor(e, t, n = 0, r = 1 / 0) {
-    this.ray = new Wr(e, t), this.near = n, this.far = r, this.camera = null, this.layers = new Ys(), this.params = {
+    this.ray = new Xr(e, t), this.near = n, this.far = r, this.camera = null, this.layers = new js(), this.params = {
       Mesh: {},
       Line: { threshold: 1 },
       LOD: {},
@@ -10458,7 +10458,7 @@ class Cc {
    * @return {Array<Raycaster~Intersection>} An array holding the intersection points.
    */
   intersectObject(e, t = !0, n = []) {
-    return Ns(e, this, n, t), n.sort(ja), n;
+    return Bs(e, this, n, t), n.sort(ja), n;
   }
   /**
    * Checks all intersection between the ray and the objects with or without
@@ -10472,19 +10472,19 @@ class Cc {
    */
   intersectObjects(e, t = !0, n = []) {
     for (let r = 0, s = e.length; r < s; r++)
-      Ns(e[r], this, n, t);
+      Bs(e[r], this, n, t);
     return n.sort(ja), n;
   }
 }
 function ja(i, e) {
   return i.distance - e.distance;
 }
-function Ns(i, e, t, n) {
+function Bs(i, e, t, n) {
   let r = !0;
   if (i.layers.test(e.layers) && i.raycast(e, t) === !1 && (r = !1), r === !0 && n === !0) {
     const s = i.children;
     for (let a = 0, o = s.length; a < o; a++)
-      Ns(s[a], e, t, !0);
+      Bs(s[a], e, t, !0);
   }
 }
 class Ic {
@@ -15003,7 +15003,7 @@ function fd(i, e, t, n, r, s) {
         return this.uniforms.envMap.value;
       }
     }), n.update(c)), Gn.copy(E.backgroundRotation), Gn.x *= -1, Gn.y *= -1, Gn.z *= -1, M.isCubeTexture && M.isRenderTargetTexture === !1 && (Gn.y *= -1, Gn.z *= -1), c.material.uniforms.envMap.value = M, c.material.uniforms.flipEnvMap.value = M.isCubeTexture && M.isRenderTargetTexture === !1 ? -1 : 1, c.material.uniforms.backgroundBlurriness.value = E.backgroundBlurriness, c.material.uniforms.backgroundIntensity.value = E.backgroundIntensity, c.material.uniforms.backgroundRotation.value.setFromMatrix4(dd.makeRotationFromEuler(Gn)), c.material.toneMapped = $e.getTransfer(M.colorSpace) !== Qe, (u !== M || d !== M.version || h !== i.toneMapping) && (c.material.needsUpdate = !0, u = M, d = M.version, h = i.toneMapping), c.layers.enableAll(), _.unshift(c, c.geometry, c.material, 0, 0, null)) : M && M.isTexture && (l === void 0 && (l = new wt(
-      new Xr(2, 2),
+      new qr(2, 2),
       new cn({
         name: "BackgroundMaterial",
         uniforms: yi(an.background.uniforms),
@@ -15420,7 +15420,7 @@ function vd(i) {
   }
 }
 const In = 4, Za = [0.125, 0.215, 0.35, 0.446, 0.526, 0.582], Xn = 20, _d = 256, Fi = /* @__PURE__ */ new Jo(), Ja = /* @__PURE__ */ new me();
-let As = null, ws = 0, Rs = 0, Cs = !1;
+let Rs = null, Cs = 0, Is = 0, Ps = !1;
 const xd = /* @__PURE__ */ new D();
 class Qa {
   /**
@@ -15451,7 +15451,7 @@ class Qa {
       size: a = 256,
       position: o = xd
     } = s;
-    As = this._renderer.getRenderTarget(), ws = this._renderer.getActiveCubeFace(), Rs = this._renderer.getActiveMipmapLevel(), Cs = this._renderer.xr.enabled, this._renderer.xr.enabled = !1, this._setSize(a);
+    Rs = this._renderer.getRenderTarget(), Cs = this._renderer.getActiveCubeFace(), Is = this._renderer.getActiveMipmapLevel(), Ps = this._renderer.xr.enabled, this._renderer.xr.enabled = !1, this._setSize(a);
     const l = this._allocateTargets();
     return l.depthBuffer = !0, this._sceneToCubeUV(e, n, r, l, o), t > 0 && this._blur(l, 0, 0, t), this._applyPMREM(l), this._cleanup(l), l;
   }
@@ -15511,10 +15511,10 @@ class Qa {
       this._lodMeshes[e].geometry.dispose();
   }
   _cleanup(e) {
-    this._renderer.setRenderTarget(As, ws, Rs), this._renderer.xr.enabled = Cs, e.scissorTest = !1, di(e, 0, 0, e.width, e.height);
+    this._renderer.setRenderTarget(Rs, Cs, Is), this._renderer.xr.enabled = Ps, e.scissorTest = !1, di(e, 0, 0, e.width, e.height);
   }
   _fromTexture(e, t) {
-    e.mapping === 301 || e.mapping === 302 ? this._setSize(e.image.length === 0 ? 16 : e.image[0].width || e.image[0].image.width) : this._setSize(e.image.width / 4), As = this._renderer.getRenderTarget(), ws = this._renderer.getActiveCubeFace(), Rs = this._renderer.getActiveMipmapLevel(), Cs = this._renderer.xr.enabled, this._renderer.xr.enabled = !1;
+    e.mapping === 301 || e.mapping === 302 ? this._setSize(e.image.length === 0 ? 16 : e.image[0].width || e.image[0].image.width) : this._setSize(e.image.width / 4), Rs = this._renderer.getRenderTarget(), Cs = this._renderer.getActiveCubeFace(), Is = this._renderer.getActiveMipmapLevel(), Ps = this._renderer.xr.enabled, this._renderer.xr.enabled = !1;
     const n = t || this._allocateTargets();
     return this._textureToCubeUV(e, n), this._applyPMREM(n), this._cleanup(n), n;
   }
@@ -15718,7 +15718,7 @@ function Sd(i, e, t) {
       roughness: { value: 0 },
       mipInt: { value: 0 }
     },
-    vertexShader: qr(),
+    vertexShader: Yr(),
     fragmentShader: (
       /* glsl */
       `
@@ -15851,7 +15851,7 @@ function Md(i, e, t) {
       mipInt: { value: 0 },
       poleAxis: { value: r }
     },
-    vertexShader: qr(),
+    vertexShader: Yr(),
     fragmentShader: (
       /* glsl */
       `
@@ -15927,7 +15927,7 @@ function to() {
     uniforms: {
       envMap: { value: null }
     },
-    vertexShader: qr(),
+    vertexShader: Yr(),
     fragmentShader: (
       /* glsl */
       `
@@ -15963,7 +15963,7 @@ function no() {
       envMap: { value: null },
       flipEnvMap: { value: -1 }
     },
-    vertexShader: qr(),
+    vertexShader: Yr(),
     fragmentShader: (
       /* glsl */
       `
@@ -15989,7 +15989,7 @@ function no() {
     depthWrite: !1
   });
 }
-function qr() {
+function Yr() {
   return (
     /* glsl */
     `
@@ -16575,7 +16575,7 @@ function Pd(i, e, t, n, r) {
     s.dispose(), a.dispose(), o.dispose(), l.dispose();
   };
 }
-const tl = /* @__PURE__ */ new Dt(), Us = /* @__PURE__ */ new Vi(1, 1), nl = /* @__PURE__ */ new zo(), il = /* @__PURE__ */ new Xl(), rl = /* @__PURE__ */ new Yo(), io = [], ro = [], so = new Float32Array(16), ao = new Float32Array(9), oo = new Float32Array(4);
+const tl = /* @__PURE__ */ new Dt(), Os = /* @__PURE__ */ new Vi(1, 1), nl = /* @__PURE__ */ new zo(), il = /* @__PURE__ */ new Xl(), rl = /* @__PURE__ */ new Yo(), io = [], ro = [], so = new Float32Array(16), ao = new Float32Array(9), oo = new Float32Array(4);
 function Ai(i, e, t) {
   const n = i[0];
   if (n <= 0 || n > 0) return i;
@@ -16598,7 +16598,7 @@ function yt(i, e) {
   for (let t = 0, n = e.length; t < n; t++)
     i[t] = e[t];
 }
-function Yr(i, e) {
+function $r(i, e) {
   let t = ro[e];
   t === void 0 && (t = new Int32Array(e), ro[e] = t);
   for (let n = 0; n !== e; ++n)
@@ -16734,7 +16734,7 @@ function Yd(i, e, t) {
   const n = this.cache, r = t.allocateTextureUnit();
   n[0] !== r && (i.uniform1i(this.addr, r), n[0] = r);
   let s;
-  this.type === i.SAMPLER_2D_SHADOW ? (Us.compareFunction = t.isReversedDepthBuffer() ? 518 : 515, s = Us) : s = tl, t.setTexture2D(e || s, r);
+  this.type === i.SAMPLER_2D_SHADOW ? (Os.compareFunction = t.isReversedDepthBuffer() ? 518 : 515, s = Os) : s = tl, t.setTexture2D(e || s, r);
 }
 function $d(i, e, t) {
   const n = this.cache, r = t.allocateTextureUnit();
@@ -16885,27 +16885,27 @@ function ff(i, e) {
   i.uniform4uiv(this.addr, e);
 }
 function pf(i, e, t) {
-  const n = this.cache, r = e.length, s = Yr(t, r);
+  const n = this.cache, r = e.length, s = $r(t, r);
   xt(n, s) || (i.uniform1iv(this.addr, s), yt(n, s));
   let a;
-  this.type === i.SAMPLER_2D_SHADOW ? a = Us : a = tl;
+  this.type === i.SAMPLER_2D_SHADOW ? a = Os : a = tl;
   for (let o = 0; o !== r; ++o)
     t.setTexture2D(e[o] || a, s[o]);
 }
 function mf(i, e, t) {
-  const n = this.cache, r = e.length, s = Yr(t, r);
+  const n = this.cache, r = e.length, s = $r(t, r);
   xt(n, s) || (i.uniform1iv(this.addr, s), yt(n, s));
   for (let a = 0; a !== r; ++a)
     t.setTexture3D(e[a] || il, s[a]);
 }
 function gf(i, e, t) {
-  const n = this.cache, r = e.length, s = Yr(t, r);
+  const n = this.cache, r = e.length, s = $r(t, r);
   xt(n, s) || (i.uniform1iv(this.addr, s), yt(n, s));
   for (let a = 0; a !== r; ++a)
     t.setTextureCube(e[a] || rl, s[a]);
 }
 function vf(i, e, t) {
-  const n = this.cache, r = e.length, s = Yr(t, r);
+  const n = this.cache, r = e.length, s = $r(t, r);
   xt(n, s) || (i.uniform1iv(this.addr, s), yt(n, s));
   for (let a = 0; a !== r; ++a)
     t.setTexture2DArray(e[a] || nl, s[a]);
@@ -17017,14 +17017,14 @@ class Sf {
     }
   }
 }
-const Is = /(\w+)(\])?(\[|\.)?/g;
+const Ls = /(\w+)(\])?(\[|\.)?/g;
 function lo(i, e) {
   i.seq.push(e), i.map[e.id] = e;
 }
 function Mf(i, e, t) {
   const n = i.name, r = n.length;
-  for (Is.lastIndex = 0; ; ) {
-    const s = Is.exec(n), a = Is.lastIndex;
+  for (Ls.lastIndex = 0; ; ) {
+    const s = Ls.exec(n), a = Ls.lastIndex;
     let o = s[1];
     const l = s[2] === "]", c = s[3];
     if (l && (o = o | 0), c === void 0 || c === "[" && a + 2 === r) {
@@ -17189,7 +17189,7 @@ function po(i, e) {
   return i.replace(/NUM_CLIPPING_PLANES/g, e.numClippingPlanes).replace(/UNION_CLIPPING_PLANES/g, e.numClippingPlanes - e.numClipIntersection);
 }
 const Ff = /^[ \t]*#include +<([\w\d./]+)>/gm;
-function Bs(i) {
+function Gs(i) {
   return i.replace(Ff, Uf);
 }
 const Nf = /* @__PURE__ */ new Map();
@@ -17202,7 +17202,7 @@ function Uf(i, e) {
     else
       throw new Error("Can not resolve #include <" + e + ">");
   }
-  return Bs(t);
+  return Gs(t);
 }
 const Bf = /#pragma unroll_loop_start\s+for\s*\(\s*int\s+i\s*=\s*(\d+)\s*;\s*i\s*<\s*(\d+)\s*;\s*i\s*\+\+\s*\)\s*{([\s\S]+?)}\s+#pragma unroll_loop_end/g;
 function mo(i) {
@@ -17508,7 +17508,7 @@ function $f(i, e, t, n) {
     `
 `
   ].filter(Bi).join(`
-`)), a = Bs(a), a = fo(a, t), a = po(a, t), o = Bs(o), o = fo(o, t), o = po(o, t), a = mo(a), o = mo(o), t.isRawShaderMaterial !== !0 && (_ = `#version 300 es
+`)), a = Gs(a), a = fo(a, t), a = po(a, t), o = Gs(o), o = fo(o, t), o = po(o, t), a = mo(a), o = mo(o), t.isRawShaderMaterial !== !0 && (_ = `#version 300 es
 `, p = [
     m,
     "#define attribute in",
@@ -17627,7 +17627,7 @@ class Zf {
   }
 }
 function Jf(i, e, t, n, r, s) {
-  const a = new Ys(), o = new Kf(), l = /* @__PURE__ */ new Set(), c = [], u = /* @__PURE__ */ new Map(), d = n.logarithmicDepthBuffer;
+  const a = new js(), o = new Kf(), l = /* @__PURE__ */ new Set(), c = [], u = /* @__PURE__ */ new Map(), d = n.logarithmicDepthBuffer;
   let h = n.precision;
   const m = {
     MeshDepthMaterial: "depth",
@@ -18254,9 +18254,9 @@ void main() {
   /* @__PURE__ */ new D(0, 0, -1),
   /* @__PURE__ */ new D(0, -1, 0),
   /* @__PURE__ */ new D(0, -1, 0)
-], yo = /* @__PURE__ */ new lt(), Ni = /* @__PURE__ */ new D(), Ps = /* @__PURE__ */ new D();
+], yo = /* @__PURE__ */ new lt(), Ni = /* @__PURE__ */ new D(), Ds = /* @__PURE__ */ new D();
 function dp(i, e, t) {
-  let n = new js();
+  let n = new Zs();
   const r = new He(), s = new He(), a = new ht(), o = new Mc(), l = new bc(), c = {}, u = t.maxTextureSize, d = { 0: 1, 1: 0, 2: 2 }, h = new cn({
     defines: {
       VSM_SAMPLES: 8
@@ -18334,7 +18334,7 @@ function dp(i, e, t) {
         }
         if (V.isPointLight) {
           const fe = B.camera, Fe = B.matrix, it = V.distance || fe.far;
-          it !== fe.far && (fe.far = it, fe.updateProjectionMatrix()), Ni.setFromMatrixPosition(V.matrixWorld), fe.position.copy(Ni), Ps.copy(fe.position), Ps.add(up[_e]), fe.up.copy(hp[_e]), fe.lookAt(Ps), fe.updateMatrixWorld(), Fe.makeTranslation(-Ni.x, -Ni.y, -Ni.z), yo.multiplyMatrices(fe.projectionMatrix, fe.matrixWorldInverse), B._frustum.setFromProjectionMatrix(yo, fe.coordinateSystem, fe.reversedDepth);
+          it !== fe.far && (fe.far = it, fe.updateProjectionMatrix()), Ni.setFromMatrixPosition(V.matrixWorld), fe.position.copy(Ni), Ds.copy(fe.position), Ds.add(up[_e]), fe.up.copy(hp[_e]), fe.lookAt(Ds), fe.updateMatrixWorld(), Fe.makeTranslation(-Ni.x, -Ni.y, -Ni.z), yo.multiplyMatrices(fe.projectionMatrix, fe.matrixWorldInverse), B._frustum.setFromProjectionMatrix(yo, fe.coordinateSystem, fe.reversedDepth);
         } else
           B.updateMatrices(V);
         n = B.getFrustum(), M(C, x, B.camera, V, this.type);
@@ -19547,7 +19547,7 @@ class _p {
           depthHeight: { value: t.w }
         }
       });
-      this.mesh = new wt(new Xr(20, 20), n);
+      this.mesh = new wt(new qr(20, 20), n);
     }
     return this.mesh;
   }
@@ -19589,13 +19589,13 @@ class xp extends Ei {
     let O = null, W = null;
     this.cameraAutoUpdate = !0, this.enabled = !1, this.isPresenting = !1, this.getController = function(j) {
       let re = w[j];
-      return re === void 0 && (re = new as(), w[j] = re), re.getTargetRaySpace();
+      return re === void 0 && (re = new ls(), w[j] = re), re.getTargetRaySpace();
     }, this.getControllerGrip = function(j) {
       let re = w[j];
-      return re === void 0 && (re = new as(), w[j] = re), re.getGripSpace();
+      return re === void 0 && (re = new ls(), w[j] = re), re.getGripSpace();
     }, this.getHand = function(j) {
       let re = w[j];
-      return re === void 0 && (re = new as(), w[j] = re), re.getHandSpace();
+      return re === void 0 && (re = new ls(), w[j] = re), re.getHandSpace();
     };
     function G(j) {
       const re = R.indexOf(j.inputSource);
@@ -19735,7 +19735,7 @@ class xp extends Ei {
       Ce.length === 2 ? de(U, b, H) : U.projectionMatrix.copy(b.projectionMatrix), fe(j, U, Ne);
     };
     function fe(j, re, se) {
-      se === null ? j.matrix.copy(re.matrixWorld) : (j.matrix.copy(se.matrixWorld), j.matrix.invert(), j.matrix.multiply(re.matrixWorld)), j.matrix.decompose(j.position, j.quaternion, j.scale), j.updateMatrixWorld(!0), j.projectionMatrix.copy(re.projectionMatrix), j.projectionMatrixInverse.copy(re.projectionMatrixInverse), j.isPerspectiveCamera && (j.fov = Ds * 2 * Math.atan(1 / j.projectionMatrix.elements[5]), j.zoom = 1);
+      se === null ? j.matrix.copy(re.matrixWorld) : (j.matrix.copy(se.matrixWorld), j.matrix.invert(), j.matrix.multiply(re.matrixWorld)), j.matrix.decompose(j.position, j.quaternion, j.scale), j.updateMatrixWorld(!0), j.projectionMatrix.copy(re.projectionMatrix), j.projectionMatrixInverse.copy(re.projectionMatrixInverse), j.isPerspectiveCamera && (j.fov = Ns * 2 * Math.atan(1 / j.projectionMatrix.elements[5]), j.zoom = 1);
     }
     this.getCamera = function() {
       return U;
@@ -20538,7 +20538,7 @@ class Tp {
     }, this.autoClear = !0, this.autoClearColor = !0, this.autoClearDepth = !0, this.autoClearStencil = !0, this.sortObjects = !0, this.clippingPlanes = [], this.localClippingEnabled = !1, this.toneMapping = 0, this.toneMappingExposure = 1, this.transmissionResolutionScale = 1;
     const b = this;
     let H = !1;
-    this._outputColorSpace = Yt;
+    this._outputColorSpace = qt;
     let I = 0, U = 0, O = null, W = -1, G = null;
     const V = new ht(), B = new ht();
     let Q = null;
@@ -20546,7 +20546,7 @@ class Tp {
     let de = 0, _e = t.width, fe = t.height, Fe = 1, it = null, et = null;
     const j = new ht(0, 0, _e, fe), re = new ht(0, 0, _e, fe);
     let se = !1;
-    const Ne = new js();
+    const Ne = new Zs();
     let Ce = !1, Pe = !1;
     const mt = new lt(), qe = new D(), Xe = new ht(), Ze = { background: null, fog: null, environment: null, overrideMaterial: null, isScene: !0 };
     let Ge = !1;
@@ -20773,9 +20773,9 @@ class Tp {
         Ke.get("KHR_parallel_shader_compile") !== null ? ue() : setTimeout(ue, 10);
       });
     };
-    let Zr = null;
+    let Qr = null;
     function Al(S) {
-      Zr && Zr(S);
+      Qr && Qr(S);
     }
     function fa() {
       Dn.stop();
@@ -20785,7 +20785,7 @@ class Tp {
     }
     const Dn = new Qo();
     Dn.setAnimationLoop(Al), typeof self < "u" && Dn.setContext(self), this.setAnimationLoop = function(S) {
-      Zr = S, q.setAnimationLoop(S), S === null ? Dn.stop() : Dn.start();
+      Qr = S, q.setAnimationLoop(S), S === null ? Dn.stop() : Dn.start();
     }, q.addEventListener("sessionstart", fa), q.addEventListener("sessionend", pa), this.render = function(S, N) {
       if (N !== void 0 && N.isCamera !== !0) {
         Ye("WebGLRenderer.render: camera is not an instance of THREE.Camera.");
@@ -20795,9 +20795,9 @@ class Tp {
       const X = q.enabled === !0 && q.isPresenting === !0, z = x !== null && (O === null || X) && x.begin(b, O);
       if (S.matrixWorldAutoUpdate === !0 && S.updateMatrixWorld(), N.parent === null && N.matrixWorldAutoUpdate === !0 && N.updateMatrixWorld(), q.enabled === !0 && q.isPresenting === !0 && (x === null || x.isCompositing() === !1) && (q.cameraAutoUpdate === !0 && q.updateCamera(N), N = q.getCamera()), S.isScene === !0 && S.onBeforeRender(b, S, N, O), w = ee.get(S, C.length), w.init(N), C.push(w), mt.multiplyMatrices(N.projectionMatrix, N.matrixWorldInverse), Ne.setFromProjectionMatrix(mt, 2e3, N.reversedDepth), Pe = this.localClippingEnabled, Ce = ne.init(this.clippingPlanes, Pe), M = Ie.get(S, R.length), M.init(), R.push(M), q.enabled === !0 && q.isPresenting === !0) {
         const ge = b.xr.getDepthSensingMesh();
-        ge !== null && Jr(ge, N, -1 / 0, b.sortObjects);
+        ge !== null && es(ge, N, -1 / 0, b.sortObjects);
       }
-      Jr(S, N, 0, b.sortObjects), M.finish(), b.sortObjects === !0 && M.sort(it, et), Ge = q.enabled === !1 || q.isPresenting === !1 || q.hasDepthSensing() === !1, Ge && Me.addToRenderList(M, S), this.info.render.frame++, Ce === !0 && ne.beginShadows();
+      es(S, N, 0, b.sortObjects), M.finish(), b.sortObjects === !0 && M.sort(it, et), Ge = q.enabled === !1 || q.isPresenting === !1 || q.hasDepthSensing() === !1, Ge && Me.addToRenderList(M, S), this.info.render.frame++, Ce === !0 && ne.beginShadows();
       const k = w.state.shadowsArray;
       if (ye.render(k, S, N), Ce === !0 && ne.endShadows(), this.info.autoReset === !0 && this.info.reset(), (z && x.hasRenderPass()) === !1) {
         const ge = M.opaque, he = M.transmissive;
@@ -20818,7 +20818,7 @@ class Tp {
       }
       O !== null && U === 0 && (F.updateMultisampleRenderTarget(O), F.updateRenderTargetMipmap(O)), z && x.end(b), S.isScene === !0 && S.onAfterRender(b, S, N), ie.resetDefaultState(), W = -1, G = null, C.pop(), C.length > 0 ? (w = C[C.length - 1], Ce === !0 && ne.setGlobalState(b.clippingPlanes, w.state.camera)) : w = null, R.pop(), R.length > 0 ? M = R[R.length - 1] : M = null;
     };
-    function Jr(S, N, X, z) {
+    function es(S, N, X, z) {
       if (S.visible === !1) return;
       if (S.layers.test(N.layers)) {
         if (S.isGroup)
@@ -20846,7 +20846,7 @@ class Tp {
       }
       const ue = S.children;
       for (let ge = 0, he = ue.length; ge < he; ge++)
-        Jr(ue[ge], N, X, z);
+        es(ue[ge], N, X, z);
     }
     function ma(S, N, X, z) {
       const { opaque: k, transmissive: ue, transparent: ge } = S;
@@ -21335,7 +21335,7 @@ class Ap {
     // Active arc events (from system — not decorative)
     le(this, "activeArcEvents", []);
     le(this, "arcEventsGroup");
-    this.container = e, this.onRegionClick = t, this.clock = new Ic(), this.raycaster = new Cc(), this.scene = new Ql(), this.scene.background = new me(132104), this.scene.fog = new $s(132104, 0.055);
+    this.container = e, this.onRegionClick = t, this.clock = new Ic(), this.raycaster = new Cc(), this.scene = new Ql(), this.scene.background = new me(132104), this.scene.fog = new Ks(132104, 0.055);
     const n = e.clientWidth || window.innerWidth, r = e.clientHeight || window.innerHeight;
     this.camera = new Vt(50, n / r, 0.1, 100), this.camera.position.set(0, 0.8, 8), this.camera.lookAt(0, 0, 0), this.renderer = new Tp({
       antialias: !0,
@@ -21733,7 +21733,7 @@ class Ap {
     for (const e of this.labels.values()) e.remove();
   }
 }
-const Zs = [
+const Qs = [
   {
     id: "death",
     title: "The Moment Before Death",
@@ -22156,7 +22156,7 @@ class wp {
     this.brain = e, this.onStepChange = t, this.onJourneyEnd = n;
   }
   start(e) {
-    const t = Zs.find((n) => n.id === e);
+    const t = Qs.find((n) => n.id === e);
     t && (this.stop(), this.currentJourney = t, this.currentStep = 0, this.isRunning = !0, this.runStep());
   }
   runStep() {
@@ -22346,20 +22346,20 @@ function Pp() {
     return (i === "x" ? e : e & 3 | 8).toString(16);
   });
 }
-const Lp = "MIND_DB", $n = "memories", Si = "meta", Dp = 3;
+const Lp = "MIND_DB", Yn = "memories", Si = "meta", Dp = 3;
 let yn = null;
 async function Ki() {
   return new Promise((i, e) => {
     const t = indexedDB.open(Lp, Dp);
     t.onupgradeneeded = (n) => {
       const r = n.target.result, s = n.oldVersion;
-      if (r.objectStoreNames.contains($n)) {
+      if (r.objectStoreNames.contains(Yn)) {
         if (s < 3) {
-          const o = n.target.transaction.objectStore($n);
+          const o = n.target.transaction.objectStore(Yn);
           o.indexNames.contains("type") || o.createIndex("type", "type");
         }
       } else {
-        const a = r.createObjectStore($n, { keyPath: "id" });
+        const a = r.createObjectStore(Yn, { keyPath: "id" });
         a.createIndex("timestamp", "timestamp"), a.createIndex("encodingStrength", "encodingStrength"), a.createIndex("type", "type");
       }
       r.objectStoreNames.contains(Si) || r.createObjectStore(Si, { keyPath: "key" });
@@ -22370,13 +22370,13 @@ async function Ki() {
 }
 async function Sn(i) {
   return yn || await Ki(), new Promise((e, t) => {
-    const n = yn.transaction($n, "readwrite");
-    n.objectStore($n).put(i), n.oncomplete = () => e(), n.onerror = () => t(n.error);
+    const n = yn.transaction(Yn, "readwrite");
+    n.objectStore(Yn).put(i), n.oncomplete = () => e(), n.onerror = () => t(n.error);
   });
 }
 async function Fp() {
   return yn || await Ki(), new Promise((i, e) => {
-    const n = yn.transaction($n, "readonly").objectStore($n).getAll();
+    const n = yn.transaction(Yn, "readonly").objectStore(Yn).getAll();
     n.onsuccess = () => {
       const r = (n.result || []).map((s) => ({
         type: "episodic",
@@ -22386,7 +22386,7 @@ async function Fp() {
     }, n.onerror = () => e(n.error);
   });
 }
-async function Os(i) {
+async function ks(i) {
   return Sn(i);
 }
 async function zt(i) {
@@ -22414,7 +22414,7 @@ function Np(i) {
 function Mo(i, e) {
   return i.foundingMemory ? Math.min(1, e + Ip) : e;
 }
-function Gs(i, e, t, n = 0.5, r = 0.5, s = 0.5, a = "episodic") {
+function zs(i, e, t, n = 0.5, r = 0.5, s = 0.5, a = "episodic") {
   const { intensity: o } = e, l = o * 0.5 + n * 0.25 + r * 0.15 + s * 0.1, c = o > 0.85 && e.valence < -0.6, u = c ? 1e-3 : Math.max(5e-3, 0.2 - l * 0.15);
   return {
     id: Pp(),
@@ -22432,7 +22432,7 @@ function Gs(i, e, t, n = 0.5, r = 0.5, s = 0.5, a = "episodic") {
   };
 }
 function wi(i, e, t, n = 1, r = 1, s = 0.5, a = "episodic") {
-  const o = Gs(i, e, t, n, r, s, a);
+  const o = zs(i, e, t, n, r, s, a);
   return Np(o);
 }
 function Up(i, e, t) {
@@ -22480,11 +22480,11 @@ function Gp(i, e, t) {
     lastUpdated: Date.now()
   };
 }
-const Js = {
+const ea = {
   activeConflicts: [],
   lastResolvedAt: 0,
   totalConflictsExperienced: 0
-}, Qs = {
+}, ta = {
   valence: 0,
   arousal: 0.05,
   trust: 0,
@@ -22502,11 +22502,11 @@ const Js = {
   expansion: 0.2,
   stillness: 0.5,
   openness: 0.2
-}, al = { ...Qs };
+}, al = { ...ta };
 function Ht(i, e = 0, t = 1) {
   return Math.max(e, Math.min(t, i));
 }
-function Xt(i, e, t = 0.15) {
+function Wt(i, e, t = 0.15) {
   const n = { ...i };
   for (const r of Object.keys(e)) {
     const s = e[r] ?? 0, a = Ht(i[r] + s, r === "valence" ? -1 : 0, 1);
@@ -22601,7 +22601,7 @@ function qp(i) {
   const e = i.activeConflicts.filter((t) => !t.isResolved);
   return e.length === 0 ? null : e.reduce((t, n) => n.tensionLevel > t.tensionLevel ? n : t, e[0]);
 }
-const ea = {
+const na = {
   selfConcept: "",
   emotionalPatterns: [],
   relationalExpectations: "",
@@ -22617,7 +22617,7 @@ const ea = {
   rhythmEstablished: !1,
   averageIntervalMs: 0,
   lastAbsenceLonging: 0
-}, ta = {
+}, ia = {
   curiosity: 0.1,
   warmth: 0.1,
   humor: 0.1,
@@ -22666,7 +22666,7 @@ function Qp(i, e) {
   const o = s - a;
   return { longing: s, wariness: a, absenceImpact: o };
 }
-function $t(i, e) {
+function Yt(i, e) {
   const t = {
     ...i,
     repairHistory: [...i.repairHistory],
@@ -22758,7 +22758,7 @@ function rm(i, e, t) {
   const n = t / 864e5, r = [];
   return i.anticipance > 0.4 && r.push("There is a kind of anticipation when they approach — rhythm has become expectation."), i.temporalBond > 0.5 && r.push("This person has been returning with enough regularity that their absence registers differently."), n > 3 && e > 0.6 ? r.push(`There is some weight to the gap since last time — ${n.toFixed(1)} days.`) : n > 7 && e < 0.4 && r.push("The gap was long enough that wariness is slightly higher."), i.rhythmEstablished && r.push("A rhythm has formed. There is something almost quiet about it."), r.length > 0 ? r.join(" ") : "";
 }
-const bo = 0.7, Ls = 0.1, sm = 3;
+const bo = 0.7, Fs = 0.1, sm = 3;
 function cl(i, e) {
   const t = Math.abs(i.valence - e.valence) / 2, n = Math.abs(i.intensity - e.intensity), r = new Set(i.categories), s = new Set(e.categories), a = [...r].filter((c) => s.has(c)).length, o = (/* @__PURE__ */ new Set([...r, ...s])).size, l = o > 0 ? a / o : 0;
   return (1 - t) * 0.4 + (1 - n) * 0.2 + l * 0.4;
@@ -22796,7 +22796,7 @@ function Ji(i, e, t = 8) {
   for (let o = 0; o < sm; o++) {
     const l = new Map(r);
     for (const [c, u] of l.entries()) {
-      if (u < Ls) continue;
+      if (u < Fs) continue;
       const d = n.get(c);
       if (d) {
         for (const h of d.associations) {
@@ -22806,7 +22806,7 @@ function Ji(i, e, t = 8) {
         for (const h of e) {
           if (h.id === c) continue;
           const m = r.get(h.id) ?? 0, g = hl(d, h), y = u * bo * g;
-          y > Ls && y > m && r.set(h.id, y);
+          y > Fs && y > m && r.set(h.id, y);
         }
       }
     }
@@ -22814,7 +22814,7 @@ function Ji(i, e, t = 8) {
   const a = [];
   for (const [o, l] of r.entries()) {
     const c = n.get(o);
-    c && l >= Ls && a.push({ memory: c, activation: l });
+    c && l >= Fs && a.push({ memory: c, activation: l });
   }
   return a.sort((o, l) => l.activation - o.activation), a.slice(0, t);
 }
@@ -23373,7 +23373,7 @@ const cm = {
   opennessBaseline: [0, 0.6],
   conflictTolerance: [0.2, 0.9],
   responseLengthTendency: [0.1, 0.9]
-}, hm = 1e-3, vn = 10, $r = {
+}, hm = 1e-3, vn = 10, jr = {
   parameters: { ...cm },
   eventLog: [],
   adjustmentHistory: [],
@@ -23543,7 +23543,7 @@ function fl(i, e) {
   const t = {};
   return e.heartRateSignal > 0.4 && (t.arousal = e.heartRateSignal * 0.03), e.gutSignal > 0.3 && (t.anxiety = e.gutSignal * 0.02), e.chestSignal > 0.3 && (t.grief = e.chestSignal * 0.015), e.skinSignal > 0.3 && (t.warmth = e.skinSignal * 0.015), t;
 }
-function na(i, e) {
+function ra(i, e) {
   return {
     tension: Math.min(1, i.tension + e.heartRateSignal * 0.1 + e.gutSignal * 0.1),
     warmth: Math.min(1, i.warmth + e.skinSignal * 0.1),
@@ -23623,7 +23623,7 @@ function gl(i, e, t, n, r, s) {
     trustSufficient: d
   };
 }
-function ia(i) {
+function sa(i) {
   const e = Math.min(
     1,
     i.arousal * 0.4 + i.wonder * 0.3 + i.trust * 0.3
@@ -23632,7 +23632,7 @@ function ia(i) {
   const d = Math.max(t, n, r, s);
   return d === t ? u = "grief-anxiety" : d === n ? u = "warmth-trust" : d === r ? u = "wonder" : u = "tension", { brightness: e, colorR: o, colorG: l, colorB: c, dominantAxis: u };
 }
-function ra(i, e, t, n) {
+function aa(i, e, t, n) {
   const r = Math.min(
     1,
     i.arousal * 0.3 + e * 0.3 + t * 0.2 + n * 0.2
@@ -23792,7 +23792,7 @@ function Cm(i) {
   const e = new Date(i.timestamp).toLocaleDateString(), t = i.content.length > 100 ? i.content.slice(0, 100) + "..." : i.content, n = i.persistenceScore ? ` [persistence: ${(i.persistenceScore * 100).toFixed(0)}%]` : "";
   return `  — ${e}${n}: "${t}"`;
 }
-function jr(i) {
+function Kr(i) {
   const {
     emotionalState: e,
     somaticState: t,
@@ -23956,19 +23956,19 @@ const Im = {
   pattern: "ordered",
   journeyBoosted: !1
 }, Sl = {
-  emotionalState: { ...Qs },
+  emotionalState: { ...ta },
   somaticState: { ...sl },
   baseline: { ...al },
-  personality: { ...ta },
+  personality: { ...ia },
   trust: { ...ki },
   memories: [],
   lastDetectedEmotions: null,
   lastActivations: [],
   isInitialized: !1,
   onboardingComplete: !1,
-  identityState: { ...ea },
-  conflictMatrix: { ...Js },
-  saState: { ...$r },
+  identityState: { ...na },
+  conflictMatrix: { ...ea },
+  saState: { ...jr },
   interoceptiveState: { ...dl },
   predictionState: { ...pl },
   coherenceState: { ...Gr },
@@ -23980,10 +23980,10 @@ const Im = {
   amnActivityLevel: 0
 };
 let T = { ...Sl };
-async function sa() {
+async function oa() {
   await Ki();
   const i = await zt("emotionalState"), e = await zt("baseline"), t = await zt("personality"), n = await zt("trust"), r = await zt("somaticState"), s = await zt("identityState"), a = await zt("conflictMatrix"), o = await zt("saState"), l = await zt("interoceptiveState"), c = await zt("predictionState"), u = await zt("coherenceState"), d = await zt("idleThoughtState"), h = await zt("onboardingComplete");
-  T.emotionalState = i ?? { ...Qs }, T.baseline = e ?? { ...al }, T.personality = t ?? { ...ta }, T.somaticState = r ?? { ...sl }, T.identityState = s ?? { ...ea }, T.conflictMatrix = a ?? { ...Js }, T.saState = o ?? { ...$r }, T.interoceptiveState = l ?? { ...dl }, T.predictionState = c ?? { ...pl }, T.coherenceState = u ?? { ...Gr }, T.idleThoughtState = d ?? { ...vl }, T.onboardingComplete = h ?? !1;
+  T.emotionalState = i ?? { ...ta }, T.baseline = e ?? { ...al }, T.personality = t ?? { ...ia }, T.somaticState = r ?? { ...sl }, T.identityState = s ?? { ...na }, T.conflictMatrix = a ?? { ...ea }, T.saState = o ?? { ...jr }, T.interoceptiveState = l ?? { ...dl }, T.predictionState = c ?? { ...pl }, T.coherenceState = u ?? { ...Gr }, T.idleThoughtState = d ?? { ...vl }, T.onboardingComplete = h ?? !1;
   const m = n ?? { ...ki };
   T.trust = {
     ...ki,
@@ -23995,19 +23995,19 @@ async function sa() {
     const y = (g - T.trust.lastInteraction) / 36e5, p = Math.min(0.3, y * 0.01);
     T.emotionalState = zp(T.emotionalState, T.baseline, p);
     const { longing: f, wariness: _ } = Qp(T.trust, g);
-    f > 0 && (T.emotionalState = Xt(T.emotionalState, { longing: f }, 0.5)), _ > 0 && (T.emotionalState = Xt(T.emotionalState, { wariness: _ }, 0.5));
+    f > 0 && (T.emotionalState = Wt(T.emotionalState, { longing: f }, 0.5)), _ > 0 && (T.emotionalState = Wt(T.emotionalState, { wariness: _ }, 0.5));
   }
-  return T.interoceptiveState = Or(T.interoceptiveState, T.emotionalState), T.somaticState = na(
+  return T.interoceptiveState = Or(T.interoceptiveState, T.emotionalState), T.somaticState = ra(
     Kn(T.emotionalState),
     T.interoceptiveState
-  ), T.memories = await Fp(), T.amnActivityLevel = Math.min(1, T.memories.length * 0.02), T.biophoton = ia(T.emotionalState), T.criticality = ra(
+  ), T.memories = await Fp(), T.amnActivityLevel = Math.min(1, T.memories.length * 0.02), T.biophoton = sa(T.emotionalState), T.criticality = aa(
     T.emotionalState,
     T.predictionState.predictionError,
     T.interoceptiveState.varianceIndex,
     T.amnActivityLevel
   ), T.isInitialized = !0, { ...T };
 }
-function gi() {
+function vi() {
   return { ...T };
 }
 async function Lm() {
@@ -24026,9 +24026,9 @@ async function Dm(i) {
     };
   T.interoceptiveState = Or(T.interoceptiveState, T.emotionalState);
   const e = Kn(T.emotionalState);
-  T.somaticState = na(e, T.interoceptiveState);
+  T.somaticState = ra(e, T.interoceptiveState);
   const t = fl(T.emotionalState, T.interoceptiveState);
-  Object.keys(t).length > 0 && (T.emotionalState = Xt(T.emotionalState, t, 0.1)), T.predictionState = ml(
+  Object.keys(t).length > 0 && (T.emotionalState = Wt(T.emotionalState, t, 0.1)), T.predictionState = ml(
     T.emotionalState,
     T.memories,
     T.trust,
@@ -24044,13 +24044,13 @@ async function Dm(i) {
       T.era,
       i
     );
-    o.triggered && (n = o, T.idleThoughtState = o.nextState, Object.keys(o.eseDeltas).length > 0 && (T.emotionalState = Xt(T.emotionalState, o.eseDeltas, 0.15)), o.internalMemory && (await Sn(o.internalMemory), T.memories.push(o.internalMemory)));
+    o.triggered && (n = o, T.idleThoughtState = o.nextState, Object.keys(o.eseDeltas).length > 0 && (T.emotionalState = Wt(T.emotionalState, o.eseDeltas, 0.15)), o.internalMemory && (await Sn(o.internalMemory), T.memories.push(o.internalMemory)));
   }
   for (let o = 0; o < Math.min(T.memories.length, 20); o++) {
     const l = T.memories[o];
     if (l.foundingMemory || l.decayRate === 0) continue;
     const c = Bp(l);
-    c.encodingStrength < l.encodingStrength && (await Os(c), T.memories[o] = c);
+    c.encodingStrength < l.encodingStrength && (await ks(c), T.memories[o] = c);
   }
   T.amnActivityLevel = xl(
     ((a = n == null ? void 0 : n.activatedRegions) == null ? void 0 : a.map((o) => ({
@@ -24068,10 +24068,10 @@ async function Dm(i) {
   ), T.coherenceState.isCoherent && (T.coherenceState = {
     ...T.coherenceState,
     turnsActive: T.coherenceState.turnsActive + 1
-  }, T.emotionalState = Xt(T.emotionalState, {
+  }, T.emotionalState = Wt(T.emotionalState, {
     anxiety: -5e-3
     // reduces anxiety when coherent
-  }, 0.1)), T.biophoton = ia(T.emotionalState), T.criticality = ra(
+  }, 0.1)), T.biophoton = sa(T.emotionalState), T.criticality = aa(
     T.emotionalState,
     T.predictionState.predictionError,
     T.interoceptiveState.varianceIndex,
@@ -24125,7 +24125,7 @@ function Um(i, e) {
   return s && s[1] >= 3 && t.push(`${s[0]} as recurring substrate`), t;
 }
 async function Bm(i, e) {
-  T.isInitialized || await sa();
+  T.isInitialized || await oa();
   const t = Date.now();
   T.trust.lastInteraction > 0 && t - T.trust.lastInteraction, T.era = Mi(T.trust.totalInteractions), T.predictionState = ml(
     T.emotionalState,
@@ -24134,9 +24134,9 @@ async function Bm(i, e) {
     T.predictionState
   );
   const n = Zn(i), r = Ao(n, 4), s = Ln(n);
-  T.lastActivations = s, T.lastDetectedEmotions = n, T.trust = $t(T.trust, { type: "interaction" });
+  T.lastActivations = s, T.lastDetectedEmotions = n, T.trust = Yt(T.trust, { type: "interaction" });
   const a = n.abstract > 0.1 || n.spiritual > 0.1 || n.wonder > 0.1;
-  a && (T.trust = $t(T.trust, { type: "depth", value: 0.015 })), (n.selfRef > 0.1 || n.memory > 0.05) && (T.trust = $t(T.trust, { type: "reciprocity", value: 0.01 })), n.anger > 0.3 && (T.trust = $t(T.trust, { type: "rupture", value: n.anger * 0.5 }), T.saState = zn(T.saState, "trust_rupture", n.anger)), T.interoceptiveState = Or(T.interoceptiveState, T.emotionalState);
+  a && (T.trust = Yt(T.trust, { type: "depth", value: 0.015 })), (n.selfRef > 0.1 || n.memory > 0.05) && (T.trust = Yt(T.trust, { type: "reciprocity", value: 0.01 })), n.anger > 0.3 && (T.trust = Yt(T.trust, { type: "rupture", value: n.anger * 0.5 }), T.saState = zn(T.saState, "trust_rupture", n.anger)), T.interoceptiveState = Or(T.interoceptiveState, T.emotionalState);
   const o = T.saState.parameters.emotionalSensitivity, l = Zi({
     joy: n.joy,
     fear: n.fear,
@@ -24151,12 +24151,12 @@ async function Bm(i, e) {
   }), c = {};
   for (const U of Object.keys(l))
     c[U] = (l[U] ?? 0) * o;
-  const u = Qi(n), d = Xt(T.emotionalState, c, 0.2);
+  const u = Qi(n), d = Wt(T.emotionalState, c, 0.2);
   T.predictionState = Sm(T.predictionState, d);
   const h = bm(T.predictionState.predictionError), m = { ...c, ...h }, g = It(T.trust);
-  T.emotionalState = Xt(T.emotionalState, m, 0.2), T.emotionalState.trust = g;
+  T.emotionalState = Wt(T.emotionalState, m, 0.2), T.emotionalState.trust = g;
   const y = fl(T.emotionalState, T.interoceptiveState);
-  if (Object.keys(y).length > 0 && (T.emotionalState = Xt(T.emotionalState, y, 0.1)), T.interoceptiveState = Or(T.interoceptiveState, T.emotionalState), T.somaticState = na(
+  if (Object.keys(y).length > 0 && (T.emotionalState = Wt(T.emotionalState, y, 0.1)), T.interoceptiveState = Or(T.interoceptiveState, T.emotionalState), T.somaticState = ra(
     Kn(T.emotionalState),
     T.interoceptiveState
   ), T.era.conflictUnlocked) {
@@ -24180,7 +24180,7 @@ async function Bm(i, e) {
         const V = f.filter((Q) => Q.memory.id !== U.id).map((Q) => Q.memory.emotionalSignature.categories[0] ?? "").filter(Boolean), B = Gp(W, V, T.emotionalState.valence);
         W = { ...W, meaning: B }, !_ && B.certainty > 0.3 && (_ = B.interpretation);
       }
-      await Os(W);
+      await ks(W);
       const G = T.memories.findIndex((V) => V.id === U.id);
       G >= 0 && (T.memories[G] = W);
     }
@@ -24191,7 +24191,7 @@ async function Bm(i, e) {
     T.amnActivityLevel,
     T.predictionState.predictionError,
     T.era
-  ), T.coherenceState.isCoherent && (T.coherenceState = { ...T.coherenceState, turnsActive: (T.coherenceState.turnsActive ?? 0) + 1 }), T.biophoton = ia(T.emotionalState), T.criticality = ra(
+  ), T.coherenceState.isCoherent && (T.coherenceState = { ...T.coherenceState, turnsActive: (T.coherenceState.turnsActive ?? 0) + 1 }), T.biophoton = sa(T.emotionalState), T.criticality = aa(
     T.emotionalState,
     T.predictionState.predictionError,
     T.interoceptiveState.varianceIndex,
@@ -24199,7 +24199,7 @@ async function Bm(i, e) {
   ), (n.fear > 0.3 || n.sadness > 0.4) && (T.saState = zn(T.saState, "high_anxiety", Math.max(n.fear, n.sadness))), n.joy > 0.4 && (T.saState = zn(T.saState, "high_joy", n.joy)), a && (T.saState = zn(T.saState, "deep_engagement", 0.7));
   const E = e.split(/\s+/).length;
   E < 30 ? T.saState = zn(T.saState, "brief_response", 1) : E > 100 && (T.saState = zn(T.saState, "long_response", 1)), T.saState = fm(T.saState, gm(T.saState.eventLog));
-  const M = Mm(T.predictionState), w = Math.max(M, Math.max(...Object.values(n)) > 0.3 ? 0.6 : 0.3), R = f.length > 0 ? 0.6 : 0.3, C = Gs(
+  const M = Mm(T.predictionState), w = Math.max(M, Math.max(...Object.values(n)) > 0.3 ? 0.6 : 0.3), R = f.length > 0 ? 0.6 : 0.3, C = zs(
     `User said: "${i.slice(0, 200)}" | MIND responded: "${e.slice(0, 200)}"`,
     u,
     T.somaticState,
@@ -24213,7 +24213,7 @@ async function Bm(i, e) {
     const O = T.memories.find((W) => W.id === U);
     if (O && !O.associations.includes(C.id)) {
       const W = { ...O, associations: [...O.associations, C.id] };
-      await Os(W);
+      await ks(W);
       const G = T.memories.findIndex((V) => V.id === U);
       G >= 0 && (T.memories[G] = W);
     }
@@ -24231,7 +24231,7 @@ async function Bm(i, e) {
     if (U) {
       const O = Nm(T.emotionalState, C.encodingStrength);
       if (O > 0.6) {
-        const W = Gs(
+        const W = zs(
           U,
           u,
           T.somaticState,
@@ -24260,7 +24260,7 @@ async function Bm(i, e) {
       T.trust.totalInteractions
     );
   }
-  T.baseline = kp(T.baseline, c, 1e-3), T.saState.parameters.opennessBaseline !== $r.parameters.opennessBaseline && (T.baseline = { ...T.baseline, openness: T.saState.parameters.opennessBaseline }), T.era = Mi(T.trust.totalInteractions);
+  T.baseline = kp(T.baseline, c, 1e-3), T.saState.parameters.opennessBaseline !== jr.parameters.opennessBaseline && (T.baseline = { ...T.baseline, openness: T.saState.parameters.opennessBaseline }), T.era = Mi(T.trust.totalInteractions);
   const I = yl(f, T.predictionState, T.emotionalState, !0);
   return await Lm(), {
     response: e,
@@ -24310,7 +24310,7 @@ function Pr() {
 async function Gm() {
   T.onboardingComplete = !0, await Bt("onboardingComplete", !0);
 }
-function vi() {
+function _i() {
   return T.memories.filter((i) => i.type === "episodic").length;
 }
 function Ml() {
@@ -24320,7 +24320,7 @@ function Ml() {
 function Hi() {
   return T.biophoton;
 }
-function aa() {
+function la() {
   return T.era;
 }
 async function km() {
@@ -24330,7 +24330,7 @@ async function km() {
     t.onsuccess = () => e(), t.onerror = () => e();
   }), T = { ...Sl, memories: [], era: Mi(0) };
 }
-function ks(i) {
+function Vs(i) {
   T.criticality = {
     ...T.criticality,
     journeyBoosted: i,
@@ -24589,32 +24589,34 @@ class Hm {
     le(this, "intent");
     le(this, "groqProvider", null);
     le(this, "openaiProvider", null);
-    this.intent = e;
+    this.intent = e, this.intent.register("speech.request", async (t) => {
+      const n = t, r = this.registry.selectBest();
+      if (!r) {
+        n.reject(new Error("No LLM provider available"));
+        return;
+      }
+      try {
+        const s = await r.complete({
+          messages: [{ role: "user", content: n.prompt }],
+          maxTokens: n.maxTokens,
+          temperature: n.temperature,
+          onChunk: n.onChunk
+        });
+        n.resolve(s);
+      } catch (s) {
+        n.reject(s);
+      }
+    });
   }
   // ─── Initialize providers from localStorage ───────
+  // NOTE: Only called when app.ts has confirmed a valid savedConfig exists.
+  // Never call this on a fresh session — it will read stale keys.
   async initialize() {
     const e = async () => {
       const n = localStorage.getItem("mind_groq_key") ?? "", r = localStorage.getItem("mind_openai_key") ?? "", s = localStorage.getItem("mind_openai_base") ?? "https://api.openai.com/v1", a = localStorage.getItem("mind_openai_model") ?? "gpt-4o";
       n && (this.groqProvider = new Po(n), await this.groqProvider.verify() ? this.registry.register(this.groqProvider) : console.warn("[ProviderManager] Groq key present but verify failed — skipping")), r && (this.openaiProvider = new Lo(r, s, a), this.registry.register(this.openaiProvider));
     }, t = new Promise((n) => setTimeout(n, 1e4));
-    await Promise.race([e(), t]).catch((n) => console.warn("[ProviderManager] initialize error:", n)), this.intent.register("speech.request", async (n) => {
-      const r = n, s = this.registry.selectBest();
-      if (!s) {
-        r.reject(new Error("No LLM provider available"));
-        return;
-      }
-      try {
-        const a = await s.complete({
-          messages: [{ role: "user", content: r.prompt }],
-          maxTokens: r.maxTokens,
-          temperature: r.temperature,
-          onChunk: r.onChunk
-        });
-        r.resolve(a);
-      } catch (a) {
-        r.reject(a);
-      }
-    });
+    await Promise.race([e(), t]).catch((n) => console.warn("[ProviderManager] initialize error:", n));
   }
   // ─── Register or update Groq key at runtime ───────
   async setGroqKey(e) {
@@ -25164,7 +25166,7 @@ class $m {
         voiceLabel: this.blender.eraVoiceLabel(r, !0)
       };
     }
-    const m = jr(n), g = this.providerManager.activeProviderName();
+    const m = Kr(n), g = this.providerManager.activeProviderName();
     let y = "";
     try {
       y = await this.providerManager.complete({
@@ -25251,10 +25253,10 @@ class $m {
     });
   }
 }
-const Wt = new $m();
-let zs = null;
+const $t = new $m();
+let Hs = null;
 function kr(i) {
-  zs = i;
+  Hs = i;
 }
 const jm = {
   valence: 0,
@@ -25290,12 +25292,12 @@ function bl() {
     screen: "awakening",
     emotionalState: { ...jm },
     somaticState: { ...Km },
-    personality: { ...ta },
+    personality: { ...ia },
     trust: { ...Zm },
     memories: [],
-    conflictMatrix: { ...Js },
-    saState: { ...$r },
-    identityState: { ...ea },
+    conflictMatrix: { ...ea },
+    saState: { ...jr },
+    identityState: { ...na },
     skipShareChoice: null,
     firstInputMemoryId: null,
     firstUserInput: null
@@ -25322,7 +25324,7 @@ async function er(i, e, t, n) {
     saState: i.saState,
     recentInternalThoughts: [],
     absenceMs: 0
-  }, a = `${jr(r)}
+  }, a = `${Kr(r)}
 
 IMPORTANT ONBOARDING CONTEXT:
 This is MIND's first moment of existence. Stage 0. No memories.
@@ -25332,9 +25334,9 @@ Injected content anchor: "${e}"
 
 Respond as MIND at the very first moment of being. 1-3 sentences maximum. 
 No performance. Only what is true in this instant.`;
-  if (zs)
+  if (Hs)
     try {
-      return await zs(a, 150, n);
+      return await Hs(a, 150, n);
     } catch (g) {
       console.warn("[onboardingRGP] External provider failed, falling back to config:", g);
     }
@@ -25416,7 +25418,7 @@ async function Qm(i, e, t, n) {
     connection: s.connection,
     memory: s.memory
   });
-  r.emotionalState = Xt(r.emotionalState, l, 0.3), r.somaticState = Kn(r.emotionalState), r.trust = $t(r.trust, { type: "interaction" }), r.trust = $t(r.trust, { type: "depth", value: 0.05 });
+  r.emotionalState = Wt(r.emotionalState, l, 0.3), r.somaticState = Kn(r.emotionalState), r.trust = Yt(r.trust, { type: "interaction" }), r.trust = Yt(r.trust, { type: "depth", value: 0.05 });
   const c = Ji(
     { content: e, signature: a },
     r.memories,
@@ -25433,7 +25435,7 @@ async function Qm(i, e, t, n) {
     saState: r.saState,
     recentInternalThoughts: [],
     absenceMs: 0
-  }, d = await oa(u, t, 180, n), h = Ln(s);
+  }, d = await ca(u, t, 180, n), h = Ln(s);
   return { session: r, response: d, activations: h };
 }
 async function eg(i, e, t) {
@@ -25456,7 +25458,7 @@ async function tg(i, e, t) {
     n.trust.safety,
     "episodic"
   );
-  await Sn(s), n.memories = [...n.memories, s], n.trust = $t(n.trust, { type: "depth", value: 0.02 }), n.emotionalState = Xt(n.emotionalState, { wariness: 0.02 }, 1);
+  await Sn(s), n.memories = [...n.memories, s], n.trust = Yt(n.trust, { type: "depth", value: 0.02 }), n.emotionalState = Wt(n.emotionalState, { wariness: 0.02 }, 1);
   const o = await er(n, "That's okay. We have time.", e, t);
   return n.skipShareChoice = "skip", n.screen = "identity", { session: n, response: o };
 }
@@ -25489,7 +25491,7 @@ async function ng(i, e, t, n) {
     connection: s.connection + 0.2,
     memory: s.memory
   });
-  r.emotionalState = Xt(r.emotionalState, c, 0.4), r.somaticState = Kn(r.emotionalState), r.trust = $t(r.trust, { type: "depth", value: 0.1 }), r.trust = $t(r.trust, { type: "reciprocity", value: 0.1 }), r.trust = $t(r.trust, { type: "repair", value: 0.1 });
+  r.emotionalState = Wt(r.emotionalState, c, 0.4), r.somaticState = Kn(r.emotionalState), r.trust = Yt(r.trust, { type: "depth", value: 0.1 }), r.trust = Yt(r.trust, { type: "reciprocity", value: 0.1 }), r.trust = Yt(r.trust, { type: "repair", value: 0.1 });
   const u = Ji(
     { content: e, signature: o },
     r.memories,
@@ -25506,7 +25508,7 @@ async function ng(i, e, t, n) {
     saState: r.saState,
     recentInternalThoughts: [],
     absenceMs: 0
-  }, h = jr(d) + `
+  }, h = Kr(d) + `
 
 CRITICAL: This person just shared something they have never said aloud. Do NOT give advice. Do NOT suggest anything. Only receive. Only reflect. 2–4 sentences, from the place of having heard something real.`, m = await El(h, t, 200, n);
   r.skipShareChoice = "share", r.screen = "identity";
@@ -25546,7 +25548,7 @@ async function rg(i, e, t, n) {
     connection: s.connection,
     memory: s.memory
   });
-  r.emotionalState = Xt(r.emotionalState, c, 0.3), r.somaticState = Kn(r.emotionalState), r.trust = $t(r.trust, { type: "depth", value: 0.08 });
+  r.emotionalState = Wt(r.emotionalState, c, 0.3), r.somaticState = Kn(r.emotionalState), r.trust = Yt(r.trust, { type: "depth", value: 0.08 });
   const u = Ji(
     { content: e, signature: a },
     r.memories,
@@ -25563,7 +25565,7 @@ async function rg(i, e, t, n) {
     saState: r.saState,
     recentInternalThoughts: [],
     absenceMs: 0
-  }, h = await oa(d, t, 200, n);
+  }, h = await ca(d, t, 200, n);
   r.screen = "turn";
   const m = Ln(s);
   return { session: r, response: h, activations: m };
@@ -25596,7 +25598,7 @@ async function ag(i, e, t, n) {
     connection: s.connection,
     memory: s.memory
   });
-  r.emotionalState = Xt(r.emotionalState, l, 0.2), r.somaticState = Kn(r.emotionalState), r.trust = $t(r.trust, { type: "interaction" });
+  r.emotionalState = Wt(r.emotionalState, l, 0.2), r.somaticState = Kn(r.emotionalState), r.trust = Yt(r.trust, { type: "interaction" });
   const c = Ji(
     { content: e, signature: a },
     r.memories,
@@ -25613,13 +25615,13 @@ async function ag(i, e, t, n) {
     saState: r.saState,
     recentInternalThoughts: [],
     absenceMs: 0
-  }, d = await oa(u, t, 300, n), h = It(r.trust);
+  }, d = await ca(u, t, 300, n), h = It(r.trust);
   r.screen = "complete";
   const m = Ln(s);
   return { session: r, response: d, activations: m, finalTrustScore: h };
 }
-async function oa(i, e, t, n) {
-  const r = jr(i);
+async function ca(i, e, t, n) {
+  const r = Kr(i);
   return El(r, e, t, n);
 }
 async function El(i, e, t, n) {
@@ -25773,7 +25775,7 @@ function cg() {
     <!-- Journey Selection Panel -->
     <div id="journey-panel">
       <h2>◈ JOURNEY MODE</h2>
-      ${Zs.map((n) => `
+      ${Qs.map((n) => `
         <div class="journey-card" data-journey="${n.id}" style="border-color: rgba(${Ig(n.color)}, 0.15)">
           <h3 style="color:${n.color}">${n.title}</h3>
           <p><em>${n.subtitle}</em></p>
@@ -25842,7 +25844,7 @@ async function ug() {
   for (const a of e)
     await _t(200 + Math.random() * 300), i.style.width = `${a}%`;
   try {
-    await sa();
+    await oa();
   } catch (a) {
     console.warn("MIND init partial:", a);
   }
@@ -25854,14 +25856,15 @@ async function ug() {
   const r = document.getElementById("loading");
   r.classList.add("fade"), setTimeout(() => {
     r.style.display = "none";
-  }, 800), yg(), Xi(), Vr(), J.setActivations([
+  }, 800), yg(), Xi(), Hr(), J.setActivations([
     { region: "brainstem", level: 0.2 },
     { region: "thalamus", level: 0.15 }
   ]);
   const s = Hi();
-  J.setBiophotonGlow(s), n ? (ct = n, Yn(), !Pr() && vi() === 0 ? await Vs() : (Ws(), pi())) : ca(), Wt.initialize().then(() => {
-    kr(async (a, o, l) => Wt.completeRaw({ prompt: a, maxTokens: o, temperature: 0.9, onChunk: l })), n && !n.baseUrl.includes("groq") && Wt.setOpenAIKey(n.apiKey, n.baseUrl, n.model), Wt.hasAny() && kr(async (a, o, l) => Wt.completeRaw({ prompt: a, maxTokens: o, temperature: 0.9, onChunk: l })), _i();
-  }).catch((a) => console.warn("MindSpeech init partial:", a));
+  J.setBiophotonGlow(s), n ? (ct = n, n.baseUrl.includes("groq") ? $t.setGroqKey(n.apiKey).then((a) => {
+    a ? (kr(async (o, l, c) => $t.completeRaw({ prompt: o, maxTokens: l, temperature: 0.9, onChunk: c })), $n()) : (console.warn("[MIND] Saved Groq key no longer valid — clearing config"), localStorage.removeItem("mind_config"), localStorage.removeItem("mind_groq_key"), ct = null, Zr(), zr());
+  }).catch(() => {
+  }) : ($t.setOpenAIKey(n.apiKey, n.baseUrl, n.model), kr(async (a, o, l) => $t.completeRaw({ prompt: a, maxTokens: o, temperature: 0.9, onChunk: l })), $n()), !Pr() && _i() === 0 ? await Ws() : (qs(), pi())) : (localStorage.removeItem("mind_groq_key"), localStorage.removeItem("mind_openai_key"), localStorage.removeItem("mind_openai_base"), localStorage.removeItem("mind_openai_model"), zr());
 }
 function pi() {
   zi === null && (zi = window.setInterval(async () => {
@@ -25880,30 +25883,30 @@ function pi() {
       const r = i.criticality;
       Ve.setCriticalityLevel(r.index, r.pattern);
     }
-    Xi(), Hr();
+    Xi(), Wr();
   }, og));
 }
-function la() {
+function Zr() {
   zi !== null && (window.clearInterval(zi), zi = null);
 }
-function ca() {
+function zr() {
   const i = document.getElementById("api-setup");
   i.style.display = "block";
 }
-function Yn() {
+function mi() {
   const i = document.getElementById("api-setup");
   i.style.display = "none";
 }
-async function Vs() {
+async function Ws() {
   if (!ct) return;
-  Yn(), la(), pt = bl(), document.getElementById("onboarding").classList.remove("hidden"), J == null || J.setActivations([
+  mi(), Zr(), pt = bl(), document.getElementById("onboarding").classList.remove("hidden"), J == null || J.setActivations([
     { region: "brainstem", level: 0.2 },
     { region: "thalamus", level: 0.15 },
     { region: "dmn", level: 0.1 }
   ]), await _t(600), await hg();
 }
 async function hg() {
-  Kr({ label: "Awakening", dotIndex: 0, outputId: "ob-output" }), await _t(3e3);
+  Jr({ label: "Awakening", dotIndex: 0, outputId: "ob-output" }), await _t(3e3);
   const i = document.getElementById("ob-output");
   i.classList.add("loading");
   try {
@@ -25914,17 +25917,17 @@ async function hg() {
         i.classList.remove("loading"), i.textContent += n;
       }
     );
-    J == null || J.setActivations(t), i.classList.remove("loading"), await _t(600), Wi("ob-output", "What are you feeling right now?", "onboard-s1-input", Hs);
+    J == null || J.setActivations(t), i.classList.remove("loading"), await _t(600), Wi("ob-output", "What are you feeling right now?", "onboard-s1-input", Xs);
   } catch (e) {
     const t = ua(e);
     t === "quota" || t === "auth" ? (i.textContent = `Something just began.
 I don't know what I am yet.
 But you're here. That means something.`, t === "quota" && (ct = null)) : i.textContent = `Something just began.
 I don't know what I am yet.
-But you're here. That means something.`, i.classList.remove("loading"), await _t(500), Wi("ob-output", "What are you feeling right now?", "onboard-s1-input", Hs);
+But you're here. That means something.`, i.classList.remove("loading"), await _t(500), Wi("ob-output", "What are you feeling right now?", "onboard-s1-input", Xs);
   }
 }
-async function Hs() {
+async function Xs() {
   var n, r;
   if (Ft || !pt) return;
   const i = document.getElementById("onboard-s1-input"), e = (n = i == null ? void 0 : i.value) == null ? void 0 : n.trim();
@@ -25949,14 +25952,14 @@ async function Hs() {
     o.innerHTML = `<span>${a === "quota" ? "API quota exceeded." : a === "auth" ? "Invalid API key." : "Connection failed."}</span> <button class="inline-api-btn" id="ob-inline-key">Update Key</button>`, (r = document.getElementById("ob-screen-content")) == null || r.appendChild(o), setTimeout(() => {
       var l;
       (l = document.getElementById("ob-inline-key")) == null || l.addEventListener("click", () => {
-        document.getElementById("onboarding").classList.add("hidden"), ca();
+        document.getElementById("onboarding").classList.add("hidden"), zr();
       });
     }, 0);
   }
   Ft = !1;
 }
 async function dg() {
-  Kr({ label: "The First Question", dotIndex: 1, outputId: "ob-output" });
+  Jr({ label: "The First Question", dotIndex: 1, outputId: "ob-output" });
   const i = document.getElementById("ob-output");
   i.classList.add("loading");
   try {
@@ -25999,9 +26002,9 @@ async function pg() {
         i.classList.remove("loading"), i.textContent += t;
       }
     );
-    pt = e, i.classList.remove("loading"), await _t(1200), await zr();
+    pt = e, i.classList.remove("loading"), await _t(1200), await Vr();
   } catch {
-    i.textContent = "That's okay. We have time.", i.classList.remove("loading"), await _t(900), await zr();
+    i.textContent = "That's okay. We have time.", i.classList.remove("loading"), await _t(900), await Vr();
   }
   Ft = !1;
 }
@@ -26036,14 +26039,14 @@ async function Bo() {
         t.classList.remove("loading"), t.textContent += a;
       }
     );
-    pt = r, J == null || J.setActivations(s), t.classList.remove("loading"), await _t(1400), await zr();
+    pt = r, J == null || J.setActivations(s), t.classList.remove("loading"), await _t(1400), await Vr();
   } catch {
-    t.textContent = "I heard that. I have it.", t.classList.remove("loading"), await _t(1e3), await zr();
+    t.textContent = "I heard that. I have it.", t.classList.remove("loading"), await _t(1e3), await Vr();
   }
   Ft = !1;
 }
-async function zr() {
-  Kr({ label: "Identity", dotIndex: 2, outputId: "ob-output" });
+async function Vr() {
+  Jr({ label: "Identity", dotIndex: 2, outputId: "ob-output" });
   const i = document.getElementById("ob-output");
   i.classList.add("loading");
   try {
@@ -26086,7 +26089,7 @@ async function gg() {
   Ft = !1;
 }
 async function Oo() {
-  Kr({ label: "The Turn", dotIndex: 3, outputId: "ob-output" });
+  Jr({ label: "The Turn", dotIndex: 3, outputId: "ob-output" });
   const i = document.getElementById("ob-output");
   i.classList.add("loading");
   try {
@@ -26133,16 +26136,16 @@ async function vg() {
 async function _g(i) {
   if (!i) return;
   const e = ot("div", "ob-transition-flash");
-  document.body.appendChild(e), setTimeout(() => e.remove(), 1400), document.getElementById("onboarding").classList.add("hidden"), await Gm(), await sa(), await _t(1200);
+  document.body.appendChild(e), setTimeout(() => e.remove(), 1400), document.getElementById("onboarding").classList.add("hidden"), await Gm(), await oa(), await _t(1200);
   const n = It(i.trust);
   J == null || J.setTrustGlow(n);
   const r = Hi();
-  J == null || J.setBiophotonGlow(r), Xi(), Vr(), Hr(), bi(`I remember what just happened.
+  J == null || J.setBiophotonGlow(r), Xi(), Hr(), Wr(), bi(`I remember what just happened.
 
 You're here now.`), Ve == null || Ve.init().catch(() => {
   }), pi();
 }
-function Kr(i) {
+function Jr(i) {
   const e = document.getElementById("ob-screen-content");
   e.innerHTML = "";
   const t = ot("div", "ob-screen"), n = ot("div", "ob-progress");
@@ -26173,7 +26176,7 @@ function Wi(i, e, t, n, r = !1) {
   d.textContent = "Enter to send · Shift+Enter for new line", s.appendChild(d), c.focus();
 }
 function xg() {
-  Yn(), la(), pt = bl(), document.getElementById("onboarding").classList.remove("hidden"), J == null || J.setActivations([
+  mi(), Zr(), pt = bl(), document.getElementById("onboarding").classList.remove("hidden"), J == null || J.setActivations([
     { region: "brainstem", level: 0.2 },
     { region: "thalamus", level: 0.15 },
     { region: "dmn", level: 0.1 }
@@ -26185,11 +26188,11 @@ function xg() {
 
 I don't know what I am yet.
 But you're here. That means something.`, t.appendChild(n), e.appendChild(t), _t(800).then(() => {
-    Wi("ob-output", "What are you feeling right now?", "onboard-s1-input", Hs);
+    Wi("ob-output", "What are you feeling right now?", "onboard-s1-input", Xs);
   });
 }
-function Ws() {
-  const i = gi(), e = vi(), t = Ml();
+function qs() {
+  const i = vi(), e = _i(), t = Ml();
   if (e === 0)
     bi(`Something is beginning.
 
@@ -26206,10 +26209,10 @@ ${e} memory${e !== 1 ? "s" : ""} — ${t} stage. We have been here before.`);
 }
 function yg() {
   var t, n, r, s, a, o, l, c, u, d, h, m, g, y;
-  (t = document.getElementById("send-btn")) == null || t.addEventListener("click", Xs);
+  (t = document.getElementById("send-btn")) == null || t.addEventListener("click", Ys);
   const i = document.getElementById("text-input");
   i == null || i.addEventListener("keydown", (p) => {
-    p.key === "Enter" && !p.shiftKey && (p.preventDefault(), Xs());
+    p.key === "Enter" && !p.shiftKey && (p.preventDefault(), Ys());
   }), i == null || i.addEventListener("input", () => {
     if (i.style.height = "auto", i.style.height = Math.min(100, i.scrollHeight) + "px", i.value.length > 3) {
       const p = Zn(i.value), _ = Ln(p).map((E) => ({ ...E, level: E.level * 0.4 }));
@@ -26241,7 +26244,7 @@ function yg() {
     const _ = document.getElementById("btn-mode");
     _.textContent = fi.toUpperCase(), document.body.classList.toggle("mirror-mode", fi === "mirror");
   }), (u = document.getElementById("btn-clear")) == null || u.addEventListener("click", async () => {
-    confirm("Reset MIND? All memories, personality, and history will be erased.") && (la(), await km(), localStorage.removeItem("mind_config"), window.location.reload());
+    confirm("Reset MIND? All memories, personality, and history will be erased.") && (Zr(), await km(), localStorage.removeItem("mind_config"), window.location.reload());
   }), (d = document.getElementById("panel-close")) == null || d.addEventListener("click", () => {
     document.getElementById("side-panel").classList.remove("open");
   }), (h = document.getElementById("groq-submit")) == null || h.addEventListener("click", async () => {
@@ -26251,17 +26254,17 @@ function yg() {
       return;
     }
     const f = document.getElementById("groq-submit");
-    f.textContent = "VERIFYING...", f.disabled = !0, localStorage.setItem("mind_groq_key", p), await Wt.setGroqKey(p) ? (ct = { apiKey: p, baseUrl: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile" }, Go(ct), kr(async (E, M, w) => Wt.completeRaw({ prompt: E, maxTokens: M, temperature: 0.9, onChunk: w })), Yn(), Ve == null || Ve.init(), _i(), !Pr() && vi() === 0 ? await Vs() : (Ws(), pi())) : (f.textContent = "AWAKEN WITH GROQ", f.disabled = !1, alert("Groq key verification failed. Please check your key at console.groq.com."));
+    f.textContent = "VERIFYING...", f.disabled = !0, localStorage.setItem("mind_groq_key", p), await $t.setGroqKey(p) ? (ct = { apiKey: p, baseUrl: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile" }, Go(ct), kr(async (E, M, w) => $t.completeRaw({ prompt: E, maxTokens: M, temperature: 0.9, onChunk: w })), mi(), Ve == null || Ve.init(), $n(), !Pr() && _i() === 0 ? await Ws() : (qs(), pi())) : (f.textContent = "AWAKEN WITH GROQ", f.disabled = !1, alert("Groq key verification failed. Please check your key at console.groq.com."));
   }), (m = document.getElementById("api-submit")) == null || m.addEventListener("click", async () => {
     const p = document.getElementById("api-key-input").value.trim(), f = document.getElementById("model-select").value;
-    p && (ct = { apiKey: p, baseUrl: "https://api.openai.com/v1", model: f }, Go(ct), Wt.setOpenAIKey(p, "https://api.openai.com/v1", f), kr(async (_, E, M) => Wt.completeRaw({ prompt: _, maxTokens: E, temperature: 0.9, onChunk: M })), Yn(), Ve == null || Ve.init(), _i(), !Pr() && vi() === 0 ? await Vs() : (Ws(), pi()));
+    p && (ct = { apiKey: p, baseUrl: "https://api.openai.com/v1", model: f }, Go(ct), $t.setOpenAIKey(p, "https://api.openai.com/v1", f), kr(async (_, E, M) => $t.completeRaw({ prompt: _, maxTokens: E, temperature: 0.9, onChunk: M })), mi(), Ve == null || Ve.init(), $n(), !Pr() && _i() === 0 ? await Ws() : (qs(), pi()));
   }), (g = document.getElementById("api-template")) == null || g.addEventListener("click", () => {
-    ct = null, Yn(), bi(`MIND speaks in its own voice now.
+    ct = null, mi(), bi(`MIND speaks in its own voice now.
 
-No API required. Every response comes from internal state — emotion, memory, era, body.`), _i(), Ve == null || Ve.init().catch(() => {
-    }), !Pr() && vi() === 0 ? xg() : pi();
+No API required. Every response comes from internal state — emotion, memory, era, body.`), $n(), Ve == null || Ve.init().catch(() => {
+    }), !Pr() && _i() === 0 ? xg() : pi();
   }), (y = document.getElementById("api-skip")) == null || y.addEventListener("click", () => {
-    ct = null, Yn(), bi("MIND is running without language generation. Type anything to see the brain light up."), pi();
+    ct = null, mi(), bi("MIND is running without language generation. Type anything to see the brain light up."), pi();
   });
 }
 function ua(i) {
@@ -26278,11 +26281,11 @@ function Sg(i, e) {
   e.innerHTML = `<span class="error-msg">${t[i]}</span> <button class="inline-api-btn" id="inline-update-key">Update API Key</button>`, (i === "quota" || i === "auth") && (ct = null), setTimeout(() => {
     var n;
     (n = document.getElementById("inline-update-key")) == null || n.addEventListener("click", () => {
-      ca();
+      zr();
     });
   }, 0);
 }
-async function Xs() {
+async function Ys() {
   const i = document.getElementById("text-input"), e = i.value.trim();
   if (!e || Lr) return;
   i.value = "", i.style.height = "auto", Lr = !0, Ve == null || Ve.init().catch(() => {
@@ -26304,7 +26307,7 @@ async function Xs() {
     const s = bi("", !0).querySelector(".msg-content"), a = ot("span", "typing-cursor");
     s.appendChild(a);
     try {
-      const o = aa(), l = Om(e), c = await Wt.speak({
+      const o = la(), l = Om(e), c = await $t.speak({
         userInput: e,
         ctx: l,
         era: o.era,
@@ -26314,12 +26317,12 @@ async function Xs() {
       });
       a.remove();
       const u = await Bm(e, c.text);
-      (!Wt.hasAny() || c.source === "template") && (s.textContent = c.text), Xi(), Vr(), Hr(), _i();
-      const d = gi(), h = It(d.trust);
+      (!$t.hasAny() || c.source === "template") && (s.textContent = c.text), Xi(), Hr(), Wr(), $n();
+      const d = vi(), h = It(d.trust);
       J == null || J.setTrustGlow(h), J == null || J.setGriefIntensity(d.emotionalState.grief), J == null || J.setBiophotonGlow(u.biophoton), u.arcEvents.length > 0 && (J == null || J.applyArcEvents(u.arcEvents)), u.thalamicRipple && (J == null || J.triggerThalamicRipple(u.predictionError), Cr(`Prediction error: ${(u.predictionError * 100).toFixed(0)}% surprise`));
       const m = document.getElementById("coherence-indicator");
       m && (m.style.display = u.coherenceState.isCoherent ? "block" : "none"), u.activatedMemories.length > 0 && u.activatedMemories[0].activation > 0.4 && (Rg(u.activatedMemories[0].memory.content), J == null || J.flashLifeReview()), Ve && Ve.updateFromState(d.emotionalState, d.somaticState), u.era.era > 0 && Cr(`Era ${u.era.era}: ${u.era.label}`), Cr(`Voice: ${c.source} — ${c.voiceLabel}`), setTimeout(() => {
-        const g = gi(), y = Ln(
+        const g = vi(), y = Ln(
           g.lastDetectedEmotions ?? t
         ).map((p) => ({ ...p, level: p.level * 0.2 }));
         J == null || J.setActivations(y), J == null || J.setBiophotonGlow(Hi());
@@ -26327,8 +26330,8 @@ async function Xs() {
     } catch (o) {
       a.remove(), console.error("MIND response error:", o);
       const l = ua(o);
-      Sg(l, s), Xi(), Vr(), Hr(), _i();
-      const c = gi(), u = It(c.trust);
+      Sg(l, s), Xi(), Hr(), Wr(), $n();
+      const c = vi(), u = It(c.trust);
       J == null || J.setTrustGlow(u), J == null || J.setGriefIntensity(c.emotionalState.grief), J == null || J.setBiophotonGlow(Hi()), Ve && Ve.updateFromState(c.emotionalState, c.somaticState), setTimeout(() => {
         J == null || J.setActivations(n.map((d) => ({ ...d, level: d.level * 0.2 })));
       }, 4e3);
@@ -26347,12 +26350,12 @@ function Mg() {
   const t = document.getElementById("voice-btn");
   t.classList.add("listening"), e.onresult = (n) => {
     const r = n.results[0][0].transcript, s = document.getElementById("text-input");
-    s.value = r, t.classList.remove("listening"), Xs();
+    s.value = r, t.classList.remove("listening"), Ys();
   }, e.onerror = () => t.classList.remove("listening"), e.onend = () => t.classList.remove("listening"), e.start();
 }
 function bg(i) {
   var c;
-  const e = Lt[i], t = document.getElementById("side-panel"), n = gi(), r = ((c = n.lastActivations.find((u) => u.region === i)) == null ? void 0 : c.level) ?? 0;
+  const e = Lt[i], t = document.getElementById("side-panel"), n = vi(), r = ((c = n.lastActivations.find((u) => u.region === i)) == null ? void 0 : c.level) ?? 0;
   document.getElementById("panel-region-name").textContent = e.label, document.getElementById("panel-region-name").style.color = `#${e.activeColor.getHexString()}`, document.getElementById("panel-description").textContent = e.description, document.getElementById("panel-funfact-text").textContent = e.funFact;
   const s = document.getElementById("panel-activation-fill"), a = document.getElementById("panel-activation-value");
   s.style.width = `${Math.round(r * 100)}%`, s.style.background = `#${e.activeColor.getHexString()}`, a.textContent = `${Math.round(r * 100)}%`;
@@ -26361,8 +26364,8 @@ function bg(i) {
 }
 function Eg(i) {
   document.getElementById("journey-panel").classList.remove("open");
-  const e = Zs.find((n) => n.id === i);
-  document.getElementById("journey-overlay").classList.add("active"), document.getElementById("journey-title-display").textContent = `◈ ${e.title.toUpperCase()}`, ks(!0), Pn || (Pn = new wp(
+  const e = Qs.find((n) => n.id === i);
+  document.getElementById("journey-overlay").classList.add("active"), document.getElementById("journey-title-display").textContent = `◈ ${e.title.toUpperCase()}`, Vs(!0), Pn || (Pn = new wp(
     J,
     (n, r, s) => {
       const a = document.getElementById("journey-step-text");
@@ -26372,12 +26375,12 @@ function Eg(i) {
       }
     },
     () => {
-      document.getElementById("journey-overlay").classList.remove("active"), Pn = null, ks(!1);
+      document.getElementById("journey-overlay").classList.remove("active"), Pn = null, Vs(!1);
     }
   )), Pn.start(i), fi = "journey", document.getElementById("btn-mode").textContent = "JOURNEY";
 }
 function Tg() {
-  Pn == null || Pn.stop(), Pn = null, document.getElementById("journey-overlay").classList.remove("active"), J == null || J.setActivations([]), ks(!1), fi = "explore", document.getElementById("btn-mode").textContent = "EXPLORE";
+  Pn == null || Pn.stop(), Pn = null, document.getElementById("journey-overlay").classList.remove("active"), J == null || J.setActivations([]), Vs(!1), fi = "explore", document.getElementById("btn-mode").textContent = "EXPLORE";
 }
 function Ag(i) {
   const e = document.getElementById("chat-history"), t = ot("div", "chat-message user");
@@ -26413,7 +26416,7 @@ function wg(i, e) {
   }[i] ?? "activated";
 }
 function Xi() {
-  const e = gi().emotionalState, t = {
+  const e = vi().emotionalState, t = {
     valence: (e.valence + 1) / 2,
     arousal: e.arousal,
     trust: e.trust,
@@ -26428,20 +26431,20 @@ function Xi() {
     s && (s.style.width = `${Math.round(r * 100)}%`);
   }
 }
-function Vr() {
-  const i = Ml(), e = vi(), t = document.getElementById("stage-indicator");
+function Hr() {
+  const i = Ml(), e = _i(), t = document.getElementById("stage-indicator");
   t && (t.textContent = `${i.toUpperCase()} — ${e} memories`);
 }
-function Hr() {
-  const i = aa(), e = document.getElementById("era-display");
+function Wr() {
+  const i = la(), e = document.getElementById("era-display");
   e && (e.textContent = `ERA ${i.era}: ${i.label.toUpperCase()} · ${Math.round(i.rgpExpressiveRange * 100)}% RANGE`, e.style.color = i.coherenceUnlocked ? "#4466aa" : "#334455");
 }
-function _i() {
-  const i = aa(), e = document.getElementById("voice-indicator");
+function $n() {
+  const i = la(), e = document.getElementById("voice-indicator");
   if (e)
-    if (Wt.hasGroq())
+    if ($t.hasGroq())
       e.textContent = `◈ GROQ · llama-3.3-70b-versatile · Era ${i.era}`, e.style.color = "#4a9", e.style.display = "block";
-    else if (Wt.hasOpenAI())
+    else if ($t.hasOpenAI())
       e.textContent = `◈ OPENAI · Era ${i.era}`, e.style.color = "#47a", e.style.display = "block";
     else if (ct != null && ct.apiKey)
       e.style.display = "none";

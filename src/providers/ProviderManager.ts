@@ -113,9 +113,33 @@ export class ProviderManager {
 
   constructor(intent: IntentLayer) {
     this.intent = intent;
+
+    // Register speech.request intent handler immediately in constructor
+    // so it is available even before any key is set
+    this.intent.register('speech.request', async (payload: unknown) => {
+      const p = payload as SpeechRequestPayload;
+      const provider = this.registry.selectBest();
+      if (!provider) {
+        p.reject(new Error('No LLM provider available'));
+        return;
+      }
+      try {
+        const text = await provider.complete({
+          messages: [{ role: 'user', content: p.prompt }],
+          maxTokens: p.maxTokens,
+          temperature: p.temperature,
+          onChunk: p.onChunk
+        });
+        p.resolve(text);
+      } catch (err) {
+        p.reject(err);
+      }
+    });
   }
 
   // ─── Initialize providers from localStorage ───────
+  // NOTE: Only called when app.ts has confirmed a valid savedConfig exists.
+  // Never call this on a fresh session — it will read stale keys.
   async initialize(): Promise<void> {
     // Hard 10 s ceiling — never block the UI indefinitely
     const initWork = async () => {
@@ -140,27 +164,6 @@ export class ProviderManager {
     const timeout = new Promise<void>(resolve => setTimeout(resolve, 10_000));
     await Promise.race([initWork(), timeout])
       .catch(err => console.warn('[ProviderManager] initialize error:', err));
-
-    // Register speech.request intent handler (always, even if no providers)
-    this.intent.register('speech.request', async (payload: unknown) => {
-      const p = payload as SpeechRequestPayload;
-      const provider = this.registry.selectBest();
-      if (!provider) {
-        p.reject(new Error('No LLM provider available'));
-        return;
-      }
-      try {
-        const text = await provider.complete({
-          messages: [{ role: 'user', content: p.prompt }],
-          maxTokens: p.maxTokens,
-          temperature: p.temperature,
-          onChunk: p.onChunk
-        });
-        p.resolve(text);
-      } catch (err) {
-        p.reject(err);
-      }
-    });
   }
 
   // ─── Register or update Groq key at runtime ───────

@@ -286,44 +286,56 @@ async function startLoading() {
   const bp = getCurrentBiophoton();
   brain.setBiophotonGlow(bp);
 
-  // ── Phase 3: show appropriate panel immediately (don't wait for providers)
+  // ── Phase 3: decide what to show based strictly on saved config
+  //    RULE: No saved config = no providers. Always show API setup.
+  //          Saved config = user explicitly set a key before. Restore it.
   if (savedConfig) {
     config = savedConfig;
-    // Show the main UI right away
-    hideApiSetup();
+    // Only init the specific provider from the saved config (don't read stale localStorage keys)
+    if (savedConfig.baseUrl.includes('groq')) {
+      // Restore Groq key silently in background — don't block UI
+      mindSpeech.setGroqKey(savedConfig.apiKey)
+        .then(ok => {
+          if (!ok) {
+            // Key is stale/revoked — clear everything and ask again
+            console.warn('[MIND] Saved Groq key no longer valid — clearing config');
+            localStorage.removeItem('mind_config');
+            localStorage.removeItem('mind_groq_key');
+            config = null;
+            stopMINDTick();
+            showApiSetup();
+          } else {
+            setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
+              return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
+            });
+            updateVoiceIndicator();
+          }
+        })
+        .catch(() => {});
+    } else {
+      // OpenAI — mark available immediately (no verify call needed here)
+      mindSpeech.setOpenAIKey(savedConfig.apiKey, savedConfig.baseUrl, savedConfig.model);
+      setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
+        return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
+      });
+      updateVoiceIndicator();
+    }
+
     if (!isOnboardingComplete() && getMemoryCount() === 0) {
-      // Start onboarding UI now — providers will be ready by the time user types
       await startOnboarding();
     } else {
       showWelcomeBack();
       startMINDTick();
     }
   } else {
+    // No saved config — wipe any stale keys that might have been left behind,
+    // then show the API setup so the user can enter their key
+    localStorage.removeItem('mind_groq_key');
+    localStorage.removeItem('mind_openai_key');
+    localStorage.removeItem('mind_openai_base');
+    localStorage.removeItem('mind_openai_model');
     showApiSetup();
   }
-
-  // ── Phase 4: initialize providers in the background (never blocks UI)
-  mindSpeech.initialize()
-    .then(() => {
-      // Wire onboarding provider now that init is done
-      setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
-        return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
-      });
-
-      // Re-register saved OpenAI key if needed (Groq already handled by initialize())
-      if (savedConfig && !savedConfig.baseUrl.includes('groq')) {
-        mindSpeech.setOpenAIKey(savedConfig.apiKey, savedConfig.baseUrl, savedConfig.model);
-      }
-
-      // Re-wire onboarding if providers are now available
-      if (mindSpeech.hasAny()) {
-        setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
-          return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
-        });
-      }
-      updateVoiceIndicator();
-    })
-    .catch(e => console.warn('MindSpeech init partial:', e));
 }
 
 // ═══════════════════════════════════════

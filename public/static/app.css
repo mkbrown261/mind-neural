@@ -621,6 +621,7 @@ html, body {
 
 /* ─── API KEY SETUP ─── */
 #api-setup {
+  display: none; /* hidden by default — shown only by showApiSetup() */
   position: fixed;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
