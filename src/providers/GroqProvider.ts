@@ -45,20 +45,28 @@ export class GroqProvider implements LLMProvider {
   // ─── Verify the key with a minimal test call ──────
   async verify(): Promise<boolean> {
     try {
-      const res = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          messages: [{ role: 'user', content: 'hi' }],
-          max_tokens: 3,
-          temperature: 0,
-          stream: false
-        })
-      });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000); // 8 s timeout
+      let res: Response;
+      try {
+        res = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
+          signal: controller.signal,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`
+          },
+          body: JSON.stringify({
+            model: GROQ_MODEL,
+            messages: [{ role: 'user', content: 'hi' }],
+            max_tokens: 3,
+            temperature: 0,
+            stream: false
+          })
+        });
+      } finally {
+        clearTimeout(timer);
+      }
       if (!res.ok) {
         const body = await res.text().catch(() => '');
         console.warn(`[GroqProvider] verify failed: ${res.status} — ${body.slice(0, 200)}`);
@@ -66,7 +74,11 @@ export class GroqProvider implements LLMProvider {
       this.verified = res.ok;
       return this.verified;
     } catch (err) {
-      console.warn('[GroqProvider] verify error:', err);
+      if ((err as Error)?.name === 'AbortError') {
+        console.warn('[GroqProvider] verify timed out after 8s');
+      } else {
+        console.warn('[GroqProvider] verify error:', err);
+      }
       this.verified = false;
       return false;
     }

@@ -232,6 +232,8 @@ function buildDOM() {
 // ─── Loading ──────────────────────────────────────
 async function startLoading() {
   const fill = document.getElementById('loading-bar-fill')!;
+
+  // ── Phase 1: animate bar + init MIND core (fast, synchronous storage reads)
   const steps = [15, 35, 55, 75, 90];
   for (const step of steps) {
     await sleep(200 + Math.random() * 300);
@@ -239,17 +241,11 @@ async function startLoading() {
   }
 
   try { await initMIND(); } catch (e) { console.warn('MIND init partial:', e); }
-  // Initialize mindSpeech (loads keys from localStorage, verifies providers)
-  try {
-    await mindSpeech.initialize();
-    // Wire mindSpeech into onboarding so all 4 screens use Groq/OpenAI automatically
-    setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
-      return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
-    });
-  } catch (e) { console.warn('MindSpeech init partial:', e); }
-  fill.style.width = '100%';
-  await sleep(400);
 
+  fill.style.width = '100%';
+  await sleep(300);
+
+  // ── Phase 2: show UI immediately (do NOT await provider verification here)
   const brainContainer = document.getElementById('brain-canvas')!;
   brain = new BrainVisualization(brainContainer, onRegionClick);
   brain.createLabels(brainContainer);
@@ -259,7 +255,7 @@ async function startLoading() {
 
   const savedConfig = loadConfig();
 
-  await sleep(400);
+  await sleep(300);
   const loading = document.getElementById('loading')!;
   loading.classList.add('fade');
   setTimeout(() => { loading.style.display = 'none'; }, 800);
@@ -268,41 +264,52 @@ async function startLoading() {
   updateStateDisplay();
   updateStageIndicator();
 
-  // Initial low-activation state
   brain.setActivations([
     { region: 'brainstem', level: 0.2 },
     { region: 'thalamus', level: 0.15 }
   ]);
 
-  // Apply initial biophoton glow
   const bp = getCurrentBiophoton();
   brain.setBiophotonGlow(bp);
 
+  // ── Phase 3: show appropriate panel immediately (don't wait for providers)
   if (savedConfig) {
     config = savedConfig;
-    // Re-register saved provider with mindSpeech
-    if (config.baseUrl.includes('groq')) {
-      await mindSpeech.setGroqKey(config.apiKey).catch(() => {});
-    } else {
-      mindSpeech.setOpenAIKey(config.apiKey, config.baseUrl, config.model);
-    }
-    // Always re-wire onboarding provider after key restore
-    if (mindSpeech.hasAny()) {
-      setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
-        return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
-      });
-    }
-    updateVoiceIndicator();
+    // Show the main UI right away
+    hideApiSetup();
     if (!isOnboardingComplete() && getMemoryCount() === 0) {
+      // Start onboarding UI now — providers will be ready by the time user types
       await startOnboarding();
     } else {
-      hideApiSetup();
       showWelcomeBack();
       startMINDTick();
     }
   } else {
     showApiSetup();
   }
+
+  // ── Phase 4: initialize providers in the background (never blocks UI)
+  mindSpeech.initialize()
+    .then(() => {
+      // Wire onboarding provider now that init is done
+      setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
+        return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
+      });
+
+      // Re-register saved OpenAI key if needed (Groq already handled by initialize())
+      if (savedConfig && !savedConfig.baseUrl.includes('groq')) {
+        mindSpeech.setOpenAIKey(savedConfig.apiKey, savedConfig.baseUrl, savedConfig.model);
+      }
+
+      // Re-wire onboarding if providers are now available
+      if (mindSpeech.hasAny()) {
+        setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
+          return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
+        });
+      }
+      updateVoiceIndicator();
+    })
+    .catch(e => console.warn('MindSpeech init partial:', e));
 }
 
 // ═══════════════════════════════════════

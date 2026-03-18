@@ -33,14 +33,26 @@ class OpenAIProvider implements LLMProvider {
 
   async verify(): Promise<boolean> {
     try {
-      const res = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.apiKey}` },
-        body: JSON.stringify({ model: this.model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1, stream: false })
-      });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      let res: Response;
+      try {
+        res = await fetch(`${this.baseUrl}/chat/completions`, {
+          signal: controller.signal,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.apiKey}` },
+          body: JSON.stringify({ model: this.model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 3, stream: false })
+        });
+      } finally {
+        clearTimeout(timer);
+      }
       this._available = res.ok;
       return this._available;
-    } catch { this._available = false; return false; }
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') console.warn('[OpenAIProvider] verify timed out');
+      this._available = false;
+      return false;
+    }
   }
 
   async complete(opts: CompleteOptions): Promise<string> {
@@ -105,23 +117,31 @@ export class ProviderManager {
 
   // ─── Initialize providers from localStorage ───────
   async initialize(): Promise<void> {
-    const groqKey    = localStorage.getItem('mind_groq_key')   ?? '';
-    const openaiKey  = localStorage.getItem('mind_openai_key') ?? '';
-    const openaiBase = localStorage.getItem('mind_openai_base') ?? 'https://api.openai.com/v1';
-    const openaiMod  = localStorage.getItem('mind_openai_model') ?? 'gpt-4o';
+    // Hard 10 s ceiling — never block the UI indefinitely
+    const initWork = async () => {
+      const groqKey    = localStorage.getItem('mind_groq_key')   ?? '';
+      const openaiKey  = localStorage.getItem('mind_openai_key') ?? '';
+      const openaiBase = localStorage.getItem('mind_openai_base') ?? 'https://api.openai.com/v1';
+      const openaiMod  = localStorage.getItem('mind_openai_model') ?? 'gpt-4o';
 
-    if (groqKey) {
-      this.groqProvider = new GroqProvider(groqKey);
-      const ok = await this.groqProvider.verify();
-      if (ok) this.registry.register(this.groqProvider);
-    }
+      if (groqKey) {
+        this.groqProvider = new GroqProvider(groqKey);
+        const ok = await this.groqProvider.verify();
+        if (ok) this.registry.register(this.groqProvider);
+        else console.warn('[ProviderManager] Groq key present but verify failed — skipping');
+      }
 
-    if (openaiKey) {
-      this.openaiProvider = new OpenAIProvider(openaiKey, openaiBase, openaiMod);
-      this.registry.register(this.openaiProvider);
-    }
+      if (openaiKey) {
+        this.openaiProvider = new OpenAIProvider(openaiKey, openaiBase, openaiMod);
+        this.registry.register(this.openaiProvider);
+      }
+    };
 
-    // Register speech.request intent handler
+    const timeout = new Promise<void>(resolve => setTimeout(resolve, 10_000));
+    await Promise.race([initWork(), timeout])
+      .catch(err => console.warn('[ProviderManager] initialize error:', err));
+
+    // Register speech.request intent handler (always, even if no providers)
     this.intent.register('speech.request', async (payload: unknown) => {
       const p = payload as SpeechRequestPayload;
       const provider = this.registry.selectBest();
