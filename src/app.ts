@@ -5,6 +5,8 @@
 // ═══════════════════════════════════════
 
 import { BrainVisualization, REGION_CONFIGS } from './brain/visualization';
+import { BrainStateSync } from './brain/BrainStateSync';
+import { startupController } from './init/StartupController';
 import { JourneyController, JOURNEYS } from './journey/journeys';
 import { SoundEngine } from './sound/audio';
 import {
@@ -27,6 +29,7 @@ import {
   setOnboardingProvider
 } from './engine/onboarding';
 import type { ArcEvent, BiophotonState } from './engine/tick';
+import { MeaningExtractor } from './understanding/MeaningExtractor';
 
 // ─── State ───────────────────────────────────────
 interface AppConfig {
@@ -39,6 +42,7 @@ type AppMode = 'explore' | 'journey' | 'mirror';
 
 let config: AppConfig | null = null;
 let brain: BrainVisualization | null = null;
+let brainSync: BrainStateSync | null = null;
 let soundEngine: SoundEngine | null = null;
 let journeyController: JourneyController | null = null;
 let currentMode: AppMode = 'explore';
@@ -64,6 +68,27 @@ const create = (tag: string, cls?: string) => {
 // ─── Boot ─────────────────────────────────────────
 async function init() {
   buildDOM();
+  // Subscribe to StartupController so we always reflect the current state in UI
+  startupController.subscribe((status) => {
+    // Keep input locked unless READY
+    if (status.state !== 'READY') {
+      setInputLock(true, status.state === 'MODEL_SELECT' || status.state === 'API_KEY'
+        ? 'Select a model and enter your API key to begin.'
+        : 'Initializing MIND...');
+    } else {
+      setInputLock(false);
+    }
+    // Show error message if any
+    const errEl = document.getElementById('startup-error');
+    if (errEl) {
+      if (status.error) {
+        errEl.textContent = status.error;
+        errEl.style.display = 'block';
+      } else {
+        errEl.style.display = 'none';
+      }
+    }
+  });
   startLoading();
 }
 
@@ -191,40 +216,49 @@ function buildDOM() {
     <!-- API Setup Modal -->
     <div id="api-setup">
       <h2>MIND</h2>
+      <p class="provider-desc" style="margin-bottom:16px">Select how MIND should speak.</p>
 
-      <!-- ── Groq Section (primary) ── -->
-      <div class="provider-section">
-        <div class="provider-label">GROQ <span class="provider-badge primary">PRIMARY · FREE</span></div>
-        <p class="provider-desc">Fast, free tier — 14,400 req/day.<br><a href="https://console.groq.com" target="_blank" rel="noopener" class="key-link">Get a free Groq key → console.groq.com</a></p>
-        <input type="password" id="groq-key-input" placeholder="gsk_..." autocomplete="off">
-        <button class="setup-btn primary" id="groq-submit">AWAKEN WITH GROQ</button>
+      <!-- ── Error display ── -->
+      <div id="startup-error" style="display:none;color:#ff6644;font-size:11px;font-family:var(--mind-font);margin-bottom:14px;padding:10px;border:1px solid rgba(255,80,40,0.3);border-radius:6px;text-align:left"></div>
+
+      <!-- ── STEP 1: Model/Provider Selection ── -->
+      <div id="api-step-model">
+        <div class="setup-step-label">STEP 1 — CHOOSE PROVIDER</div>
+
+        <button class="setup-btn primary" id="choose-groq">GROQ &nbsp;<span class="provider-badge primary">FREE · 14,400 req/day</span></button>
+        <button class="setup-btn" id="choose-openai">OPENAI &nbsp;<span class="provider-badge">GPT-4o / GPT-4o-mini</span></button>
+        <div class="provider-divider">— or proceed without language model —</div>
+        <button class="setup-btn template-voice" id="api-template">MIND'S OWN VOICE <span class="provider-badge">No API key</span></button>
+        <button class="setup-btn secondary" id="api-skip">EXPLORE WITHOUT LANGUAGE</button>
       </div>
 
-      <div class="provider-divider">— or —</div>
+      <!-- ── STEP 2: API Key entry (shown after provider selected) ── -->
+      <div id="api-step-key" style="display:none">
+        <div class="setup-step-label" id="api-step-key-label">STEP 2 — ENTER API KEY</div>
 
-      <!-- ── OpenAI Section (fallback) ── -->
-      <div class="provider-section">
-        <div class="provider-label">OPENAI <span class="provider-badge">FALLBACK</span></div>
-        <input type="password" id="api-key-input" placeholder="sk-..." autocomplete="off">
-        <select class="model-select" id="model-select">
-          <option value="gpt-4o">GPT-4o (Recommended)</option>
-          <option value="gpt-4o-mini">GPT-4o-mini (Faster)</option>
-          <option value="gpt-4-turbo">GPT-4 Turbo</option>
-          <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-        </select>
-        <button class="setup-btn" id="api-submit">AWAKEN MIND</button>
+        <!-- Groq key section -->
+        <div id="key-section-groq" style="display:none">
+          <p class="provider-desc"><a href="https://console.groq.com" target="_blank" rel="noopener" class="key-link">Get a free Groq key → console.groq.com</a></p>
+          <input type="password" id="groq-key-input" placeholder="gsk_..." autocomplete="off">
+          <button class="setup-btn primary" id="groq-submit">VERIFY &amp; AWAKEN</button>
+        </div>
+
+        <!-- OpenAI key section -->
+        <div id="key-section-openai" style="display:none">
+          <select class="model-select" id="model-select" style="margin-bottom:10px">
+            <option value="gpt-4o">GPT-4o (Recommended)</option>
+            <option value="gpt-4o-mini">GPT-4o-mini (Faster)</option>
+            <option value="gpt-4-turbo">GPT-4 Turbo</option>
+            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+          </select>
+          <input type="password" id="api-key-input" placeholder="sk-..." autocomplete="off">
+          <button class="setup-btn" id="api-submit">VERIFY &amp; AWAKEN</button>
+        </div>
+
+        <button class="setup-btn secondary" id="api-back" style="margin-top:8px">← BACK</button>
       </div>
 
-      <div class="provider-divider">— or —</div>
-
-      <!-- ── Template voice ── -->
-      <div class="provider-section">
-        <button class="setup-btn template-voice" id="api-template">SPEAK WITH MIND'S OWN VOICE</button>
-        <p class="provider-desc" style="margin-top:6px;text-align:center">No API key required. Era-aware language fragments.</p>
-      </div>
-
-      <button class="setup-btn secondary" id="api-skip">EXPLORE WITHOUT LANGUAGE</button>
-      <p style="font-size:10px;color:#333;margin-top:12px">Your API keys are stored in localStorage only.</p>
+      <p style="font-size:10px;color:#333;margin-top:12px">API keys are stored in localStorage only.</p>
     </div>
   `;
 
@@ -262,6 +296,7 @@ async function startLoading() {
   // ── Phase 2: show UI immediately (do NOT await provider verification here)
   const brainContainer = document.getElementById('brain-canvas')!;
   brain = new BrainVisualization(brainContainer, onRegionClick);
+  brainSync = new BrainStateSync(brain);
   brain.createLabels(brainContainer);
   brain.animate();
 
@@ -286,55 +321,95 @@ async function startLoading() {
   const bp = getCurrentBiophoton();
   brain.setBiophotonGlow(bp);
 
-  // ── Phase 3: decide what to show based strictly on saved config
-  //    RULE: No saved config = no providers. Always show API setup.
-  //          Saved config = user explicitly set a key before. Restore it.
+  // Apply resting idle brain state (real metabolic baseline, not random)
+  const mindStateInitPhase3 = getMINDState();
+  brainSync?.applyIdleState(mindStateInitPhase3.emotionalState, getCurrentBiophoton());
+
+  // ── Phase 3: decide what to show — strict startup state machine
+  //    RULE 1: No saved config  → PRE_INIT → MODEL_SELECT → show API setup
+  //    RULE 2: Saved config     → verify key silently → if ok: INIT → READY
+  //                                                    → if bad: back to MODEL_SELECT
+
+  startupController.transitionToModelSelect();   // PRE_INIT → MODEL_SELECT
+
   if (savedConfig) {
     config = savedConfig;
-    // Only init the specific provider from the saved config (don't read stale localStorage keys)
+    // Input stays locked while we verify in background
+    setInputLock(true, 'Verifying saved key...');
+
     if (savedConfig.baseUrl.includes('groq')) {
-      // Restore Groq key silently in background — don't block UI
+      // Restore Groq key — verify silently in background
       mindSpeech.setGroqKey(savedConfig.apiKey)
         .then(ok => {
           if (!ok) {
-            // Key is stale/revoked — clear everything and ask again
+            // Key is stale/revoked — clear everything, return to model select
             console.warn('[MIND] Saved Groq key no longer valid — clearing config');
             localStorage.removeItem('mind_config');
             localStorage.removeItem('mind_groq_key');
             config = null;
             stopMINDTick();
+            startupController.reset();
+            startupController.transitionToModelSelect();
             showApiSetup();
+            showApiStepModel();
           } else {
             setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
               return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
             });
+            // Force transition through INIT by temporarily resetting to MODEL_SELECT
+            // (transitionToInit requires state !== READY)
+            if (startupController.current === 'MODEL_SELECT') {
+              startupController.transitionToApiKey('groq');
+              startupController.transitionToInit(savedConfig.model);
+            }
+            startupController.setStep('response');
+            startupController.transitionToReady();
             updateVoiceIndicator();
+            hideApiSetup();
+            _afterApiReady();
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          // Network failure — still let user in, treat as template mode
+          config = null;
+          startupController.reset();
+          startupController.transitionToModelSelect();
+          showApiSetup();
+          showApiStepModel();
+        });
     } else {
-      // OpenAI — mark available immediately (no verify call needed here)
+      // OpenAI — accept immediately (trust saved config, no extra verify)
       mindSpeech.setOpenAIKey(savedConfig.apiKey, savedConfig.baseUrl, savedConfig.model);
       setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
         return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
       });
+      startupController.transitionToApiKey('openai');
+      startupController.transitionToInit(savedConfig.model);
+      startupController.setStep('response');
+      startupController.transitionToReady();
       updateVoiceIndicator();
-    }
-
-    if (!isOnboardingComplete() && getMemoryCount() === 0) {
-      await startOnboarding();
-    } else {
-      showWelcomeBack();
-      startMINDTick();
+      hideApiSetup();
+      _afterApiReady();
     }
   } else {
-    // No saved config — wipe any stale keys that might have been left behind,
-    // then show the API setup so the user can enter their key
+    // No saved config — wipe any stale keys that might have been left behind
     localStorage.removeItem('mind_groq_key');
     localStorage.removeItem('mind_openai_key');
     localStorage.removeItem('mind_openai_base');
     localStorage.removeItem('mind_openai_model');
+    // Input stays locked; show the model-select step of setup
     showApiSetup();
+    showApiStepModel();
+  }
+}
+
+// Called after provider is confirmed ready (Groq/OpenAI verified OR returning user)
+async function _afterApiReady() {
+  if (!isOnboardingComplete() && getMemoryCount() === 0) {
+    await startOnboarding();
+  } else {
+    showWelcomeBack();
+    startMINDTick();
   }
 }
 
@@ -410,6 +485,42 @@ function showApiSetup() {
 function hideApiSetup() {
   const modal = document.getElementById('api-setup')!;
   modal.style.display = 'none';
+}
+
+// ─── Two-step setup UI helpers ────────────────────
+function showApiStepModel() {
+  const s1 = document.getElementById('api-step-model');
+  const s2 = document.getElementById('api-step-key');
+  if (s1) s1.style.display = 'block';
+  if (s2) s2.style.display = 'none';
+}
+
+function showApiStepKey(provider: 'groq' | 'openai') {
+  const s1 = document.getElementById('api-step-model');
+  const s2 = document.getElementById('api-step-key');
+  const groqSec   = document.getElementById('key-section-groq');
+  const openaiSec = document.getElementById('key-section-openai');
+  const lbl       = document.getElementById('api-step-key-label');
+  if (s1) s1.style.display = 'none';
+  if (s2) s2.style.display = 'block';
+  if (groqSec)   groqSec.style.display   = provider === 'groq'   ? 'block' : 'none';
+  if (openaiSec) openaiSec.style.display = provider === 'openai' ? 'block' : 'none';
+  if (lbl) lbl.textContent = `STEP 2 — ENTER ${provider.toUpperCase()} API KEY`;
+}
+
+// ─── Input Lock — enforced by StartupController ──
+// Disables the chat input and send button when the system is not ready.
+function setInputLock(locked: boolean, hint?: string): void {
+  const input  = document.getElementById('text-input') as HTMLTextAreaElement | null;
+  const sendBtn = document.getElementById('send-btn') as HTMLButtonElement | null;
+  if (!input || !sendBtn) return;
+  input.disabled  = locked;
+  sendBtn.disabled = locked;
+  if (locked) {
+    input.placeholder = hint ?? 'Initialize MIND first.';
+  } else {
+    input.placeholder = 'Speak to MIND...';
+  }
 }
 
 // ═══════════════════════════════════════
@@ -972,7 +1083,13 @@ function setupMainEventListeners() {
     if (confirm('Reset MIND? All memories, personality, and history will be erased.')) {
       stopMINDTick();
       await clearAllData();
+      // Wipe all stored keys and config — return to PRE_INIT on reload
       localStorage.removeItem('mind_config');
+      localStorage.removeItem('mind_groq_key');
+      localStorage.removeItem('mind_openai_key');
+      localStorage.removeItem('mind_openai_base');
+      localStorage.removeItem('mind_openai_model');
+      startupController.reset();
       window.location.reload();
     }
   });
@@ -981,7 +1098,24 @@ function setupMainEventListeners() {
     document.getElementById('side-panel')!.classList.remove('open');
   });
 
-  // ── Groq: AWAKEN WITH GROQ ────────────────────────
+  // ── Provider selection buttons (STEP 1) ──────────
+  document.getElementById('choose-groq')?.addEventListener('click', () => {
+    startupController.transitionToApiKey('groq');
+    showApiStepKey('groq');
+  });
+
+  document.getElementById('choose-openai')?.addEventListener('click', () => {
+    startupController.transitionToApiKey('openai');
+    showApiStepKey('openai');
+  });
+
+  document.getElementById('api-back')?.addEventListener('click', () => {
+    startupController.reset();
+    startupController.transitionToModelSelect();
+    showApiStepModel();
+  });
+
+  // ── Groq: VERIFY & AWAKEN ────────────────────────
   document.getElementById('groq-submit')?.addEventListener('click', async () => {
     const key = (document.getElementById('groq-key-input') as HTMLInputElement).value.trim();
     if (!key) { alert('Please enter your Groq API key.'); return; }
@@ -997,16 +1131,21 @@ function setupMainEventListeners() {
     const ok = await mindSpeech.setGroqKey(key);
 
     if (ok) {
-      // Also build a legacy config for onboarding LLM calls
+      // Build config
       config = { apiKey: key, baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' };
       saveConfig(config);
       // Re-wire onboarding provider so screens 1-4 use Groq
       setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
         return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
       });
+      // Advance state machine: API_KEY → INIT → READY
+      startupController.transitionToInit(config.model);
+      startupController.setStep('response');
+      startupController.transitionToReady();
       hideApiSetup();
       soundEngine?.init();
       updateVoiceIndicator();
+      // Session locked on first message, not here
       if (!isOnboardingComplete() && getMemoryCount() === 0) {
         await startOnboarding();
       } else {
@@ -1014,25 +1153,29 @@ function setupMainEventListeners() {
         startMINDTick();
       }
     } else {
-      btn.textContent = 'AWAKEN WITH GROQ';
+      btn.textContent = 'VERIFY & AWAKEN';
       btn.disabled = false;
-      alert('Groq key verification failed. Please check your key at console.groq.com.');
+      startupController.fail(null, 'Groq key verification failed. Please check your key at console.groq.com.');
     }
   });
 
-  // ── OpenAI: AWAKEN MIND ───────────────────────────
+  // ── OpenAI: VERIFY & AWAKEN ───────────────────────
   document.getElementById('api-submit')?.addEventListener('click', async () => {
-    const key = (document.getElementById('api-key-input') as HTMLInputElement).value.trim();
+    const key   = (document.getElementById('api-key-input') as HTMLInputElement).value.trim();
     const model = (document.getElementById('model-select') as HTMLSelectElement).value;
-    if (!key) return;
+    if (!key) { alert('Please enter your OpenAI API key.'); return; }
     config = { apiKey: key, baseUrl: 'https://api.openai.com/v1', model };
     saveConfig(config);
-    // Register with mindSpeech as OpenAI fallback
+    // Register with mindSpeech as OpenAI
     mindSpeech.setOpenAIKey(key, 'https://api.openai.com/v1', model);
     // Re-wire onboarding provider
     setOnboardingProvider(async (prompt, maxTokens, onChunk) => {
       return mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk });
     });
+    // Advance state machine
+    startupController.transitionToInit(model);
+    startupController.setStep('response');
+    startupController.transitionToReady();
     hideApiSetup();
     soundEngine?.init();
     updateVoiceIndicator();
@@ -1044,9 +1187,12 @@ function setupMainEventListeners() {
     }
   });
 
-  // ── Template voice: SPEAK WITH MIND'S OWN VOICE ───
+  // ── Template voice: MIND'S OWN VOICE ─────────────
   document.getElementById('api-template')?.addEventListener('click', () => {
     config = null;
+    startupController.transitionToApiKey('template');
+    // transitionToApiKey('template') auto-advances to INIT; now go READY
+    startupController.transitionToReady();
     hideApiSetup();
     addMindMessage('MIND speaks in its own voice now.\n\nNo API required. Every response comes from internal state — emotion, memory, era, body.');
     updateVoiceIndicator();
@@ -1061,6 +1207,8 @@ function setupMainEventListeners() {
   // ── Skip: explore without language ────────────────
   document.getElementById('api-skip')?.addEventListener('click', () => {
     config = null;
+    startupController.transitionToApiKey('none');
+    startupController.transitionToReady();
     hideApiSetup();
     addMindMessage('MIND is running without language generation. Type anything to see the brain light up.');
     startMINDTick();
@@ -1105,6 +1253,17 @@ async function handleSend() {
   const text = textInput.value.trim();
   if (!text || isProcessing) return;
 
+  // Guard: MIND must be READY before any input is processed
+  if (!startupController.isReady) {
+    textInput.placeholder = 'Initialize MIND first.';
+    return;
+  }
+
+  // Lock model/provider selection after first real message
+  if (!startupController.sessionLocked) {
+    startupController.lockSession();
+  }
+
   textInput.value = '';
   textInput.style.height = 'auto';
   isProcessing = true;
@@ -1113,10 +1272,21 @@ async function handleSend() {
   soundEngine?.resume();
   addUserMessage(text);
 
-  // Pre-input emotion detection for immediate visual feedback
-  const emotions = detectEmotions(text);
+  // Pre-input emotion + meaning detection for immediate visual feedback
+  const emotions    = detectEmotions(text);
   const activations = mapEmotionsToBrainRegions(emotions);
-  brain?.setActivations(activations);
+
+  // Drive brain from semantic meaning (BrainStateSync) — not raw emotion map
+  try {
+    const preMeaning = new MeaningExtractor().extract(text);
+    if (brainSync) {
+      brainSync.applyMeaning(preMeaning, getMINDState().emotionalState);
+    } else {
+      brain?.setActivations(activations);
+    }
+  } catch {
+    brain?.setActivations(activations);
+  }
 
   // Audio: trigger on real activation events only
   if (soundEngine) {
@@ -1178,13 +1348,22 @@ async function handleSend() {
       updateEraDisplay();
       updateVoiceIndicator();
 
-      const mindState = getMINDState();
+      const mindState  = getMINDState();
       const trustScore = compositeTrustScore(mindState.trust);
-      brain?.setTrustGlow(trustScore);
-      brain?.setGriefIntensity(mindState.emotionalState.grief);
 
-      // Biophoton: apply resolved state
-      brain?.setBiophotonGlow(result.biophoton);
+      // Drive brain ONLY from resolved state via BrainStateSync
+      if (brainSync) {
+        brainSync.applyTickState(
+          mindState.emotionalState,
+          result.biophoton,
+          trustScore,
+          mindState.emotionalState.grief
+        );
+      } else {
+        brain?.setTrustGlow(trustScore);
+        brain?.setGriefIntensity(mindState.emotionalState.grief);
+        brain?.setBiophotonGlow(result.biophoton);
+      }
 
       // Neural arcs — only from processInput arc events
       if (result.arcEvents.length > 0) {
@@ -1222,15 +1401,19 @@ async function handleSend() {
       // Show voice source in feed
       addFeedItem(`Voice: ${speakResult.source} — ${speakResult.voiceLabel}`);
 
-      // Fade activations back to emotional resting state
+      // Fade activations back to emotional resting state (4s)
       setTimeout(() => {
         const state = getMINDState();
-        const decayedActivations = mapEmotionsToBrainRegions(
-          state.lastDetectedEmotions ?? emotions
-        ).map(a => ({ ...a, level: a.level * 0.2 }));
-        brain?.setActivations(decayedActivations);
-        // Re-apply biophoton after decay
-        brain?.setBiophotonGlow(getCurrentBiophoton());
+        const bp    = getCurrentBiophoton();
+        if (brainSync) {
+          brainSync.applyIdleState(state.emotionalState, bp);
+        } else {
+          const decayedActivations = mapEmotionsToBrainRegions(
+            state.lastDetectedEmotions ?? emotions
+          ).map(a => ({ ...a, level: a.level * 0.2 }));
+          brain?.setActivations(decayedActivations);
+          brain?.setBiophotonGlow(bp);
+        }
       }, 4000);
 
     } catch (e: any) {
@@ -1244,16 +1427,26 @@ async function handleSend() {
       updateStageIndicator();
       updateEraDisplay();
       updateVoiceIndicator();
-      const mindState = getMINDState();
+      const mindState  = getMINDState();
       const trustScore = compositeTrustScore(mindState.trust);
-      brain?.setTrustGlow(trustScore);
-      brain?.setGriefIntensity(mindState.emotionalState.grief);
-      brain?.setBiophotonGlow(getCurrentBiophoton());
+      if (brainSync) {
+        brainSync.applyTickState(
+          mindState.emotionalState,
+          getCurrentBiophoton(),
+          trustScore,
+          mindState.emotionalState.grief
+        );
+      } else {
+        brain?.setTrustGlow(trustScore);
+        brain?.setGriefIntensity(mindState.emotionalState.grief);
+        brain?.setBiophotonGlow(getCurrentBiophoton());
+      }
       if (soundEngine) {
         soundEngine.updateFromState(mindState.emotionalState, mindState.somaticState);
       }
       setTimeout(() => {
-        brain?.setActivations(activations.map(a => ({ ...a, level: a.level * 0.2 })));
+        const state = getMINDState();
+        brainSync?.applyIdleState(state.emotionalState, getCurrentBiophoton());
       }, 4000);
     }
   }

@@ -697,6 +697,33 @@ html, body {
   font-size: 9px;
 }
 
+/* ─── Two-step setup UI ─── */
+.setup-step-label {
+  font-family: var(--mind-font);
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+  text-transform: uppercase;
+}
+
+.setup-btn .provider-badge {
+  font-family: var(--mind-font);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  background: rgba(80,100,255,0.15);
+  border-radius: 3px;
+  padding: 1px 5px;
+  vertical-align: middle;
+  margin-left: 4px;
+  color: var(--text-dim);
+}
+
+.setup-btn .provider-badge.primary {
+  background: rgba(40,200,120,0.15);
+  color: #4a9;
+}
+
 #api-setup .model-select {
   width: 100%;
   background: rgba(10, 15, 30, 0.9);
