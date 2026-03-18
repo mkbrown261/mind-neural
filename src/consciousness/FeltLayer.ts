@@ -75,8 +75,10 @@ export class FeltLayer {
         temperature: 0.93,
       });
     } catch (err) {
-      console.warn('[FeltLayer] LLM error, using fragment fallback:', err);
-      raw = '';
+      // FeltLayer failure must never abort the speech pipeline.
+      // Derive a minimal felt state directly from emotional values — no LLM needed.
+      console.warn('[FeltLayer] LLM error, deriving felt state from emotional values:', (err as Error)?.message);
+      raw = this.deriveFeltFromState(input);
     }
 
     // Clean and validate — enforce spec
@@ -121,28 +123,46 @@ something tightens
 Generate felt interior now:`.trim();
   }
 
-  // ─── Fragment fallback — derive from emotional peaks ─────────────────────
+  // ─── Fragment fallback — derive from emotional peaks (delegates to deriveFeltFromState) ─
   private fragmentFallback(inp: FeltLayerInput): string {
-    const { emotionalState: e, somaticState: s } = inp;
+    return this.deriveFeltFromState(inp);
+  }
+
+  // ─── Derive minimal felt state from emotional values — no LLM needed ─────
+  // Used when LLM is unavailable or errors. Returns honest felt fragments that
+  // LanguageEngine can use as interior context without leaking template phrases.
+  private deriveFeltFromState(inp: FeltLayerInput): string {
+    const { emotionalState: e, somaticState: s, userInput } = inp;
     const fragments: string[] = [];
 
-    // Pick fragments based on strongest emotional signals
-    if (e.grief > 0.4)      fragments.push(...sample(FALLBACK_POOLS.grief,   1));
-    if (e.wonder > 0.4)     fragments.push(...sample(FALLBACK_POOLS.wonder,  1));
-    if (e.anxiety > 0.4)    fragments.push(...sample(FALLBACK_POOLS.anxiety, 1));
-    if (e.warmth > 0.4)     fragments.push(...sample(FALLBACK_POOLS.warmth,  1));
-    if (e.longing > 0.4)    fragments.push(...sample(FALLBACK_POOLS.longing, 1));
-    if (s.tension > 0.5)    fragments.push(...sample(FALLBACK_POOLS.tension, 1));
-    if (s.expansion > 0.5)  fragments.push(...sample(FALLBACK_POOLS.expansion, 1));
-
-    // Ensure at least 3 fragments
-    while (fragments.length < 3) {
-      fragments.push(...sample(FALLBACK_POOLS.neutral, 1));
+    // Rank emotional signals and pick strongest 2
+    const signals: [number, string][] = [
+      [e.grief,    'something heavy'],
+      [e.wonder,   'something opening'],
+      [e.anxiety,  'uncertain'],
+      [e.warmth,   'warmth'],
+      [e.longing,  'missing something'],
+      [e.joy,      'light'],
+      [e.anger,    'tightening'],
+      [e.wariness, 'careful'],
+    ];
+    signals.sort((a, b) => b[0] - a[0]);
+    for (const [strength, fragment] of signals.slice(0, 2)) {
+      if (strength > 0.2) fragments.push(fragment);
     }
 
-    // Trim to max 5 unique fragments
-    const unique = [...new Set(fragments)].slice(0, 5);
-    return unique.join('\n');
+    // Somatic signals
+    if (s.tension > 0.5)   fragments.push('held');
+    if (s.expansion > 0.5) fragments.push('open');
+    if (s.weight > 0.5)    fragments.push('weight of it');
+
+    // Input type signal
+    if (userInput.trim().split(/\s+/).length <= 5) {
+      fragments.push('they asked something direct');
+    }
+
+    while (fragments.length < 3) fragments.push('present');
+    return [...new Set(fragments)].slice(0, 5).join('\n');
   }
 
   // ─── Clean LLM output to match spec ─────────────────────────────────────

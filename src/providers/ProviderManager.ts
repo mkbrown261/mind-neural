@@ -175,6 +175,7 @@ export class ProviderManager {
   hasOpenAI(): boolean { return !!this.openaiProvider?.isAvailable(); }
   hasAny(): boolean { return this.registry.hasAvailable(); }
   activeProviderName(): string { return this.registry.selectBest()?.name ?? 'none'; }
+  getActive(): import('./GroqProvider').LLMProvider | null { return this.registry.selectBest(); }
 
   // ─── Direct completion (bypasses intent, for pipeline) ──
   async complete(opts: CompleteOptions): Promise<string> {

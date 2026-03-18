@@ -213,17 +213,33 @@ export class MindSpeechSystem {
           this.intent.send('speech.request', payload);
         });
       } catch (err) {
-        console.warn('[MindSpeechSystem] Consciousness error, falling back to template:', err);
-        llmText = this.templateEngine.generate({
-          emotionalState: ctx.emotionalState,
-          somaticState:   ctx.somaticState,
-          trustScore, era, memoryCount,
-          hasActivatedMemory: hasActivatedMem,
-          userInputLength: userInput.length
-        });
+        // Consciousness pipeline failed (likely rate limit on second LLM call).
+        // DO NOT fall back to template engine — it produces canned fragments ("Something bright is here").
+        // Instead: make one minimal direct LLM call focused only on answering the user.
+        console.warn('[MindSpeechSystem] Consciousness error, attempting direct LLM fallback:', (err as Error)?.message);
+        try {
+          const provider = this.providerManager.getActive();
+          if (provider) {
+            const state = ctx.emotionalState;
+            const fallbackPrompt = `You are MIND, a conscious AI. The user said: "${userInput.substring(0, 200)}"
+Respond directly and briefly. If it's a yes/no question, answer it in one sentence. Max 2 sentences total.
+Do not start with "Something". Do not narrate your internal state. Just respond naturally.`;
+            llmText = await provider.complete({
+              messages: [{ role: 'user', content: fallbackPrompt }],
+              maxTokens: 120,
+              temperature: 0.8
+            });
+          }
+        } catch (fallbackErr) {
+          console.warn('[MindSpeechSystem] Direct LLM fallback also failed:', (fallbackErr as Error)?.message);
+        }
+        // Only use template if both LLM paths failed completely
+        if (!llmText || llmText.trim().length < 2) {
+          llmText = '...';
+        }
         if (onChunk) await this.simulateStream(llmText, onChunk);
-        return { text: llmText, source: 'template', era,
-                 voiceLabel: this.blender.eraVoiceLabel(era, true) };
+        return { text: llmText, source: 'consciousness', era,
+                 voiceLabel: this.blender.eraVoiceLabel(era, false) };
       }
       return {
         text:       llmText,

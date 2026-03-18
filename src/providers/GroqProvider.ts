@@ -93,6 +93,16 @@ export class GroqProvider implements LLMProvider {
       onChunk
     } = opts;
 
+    const result = await this._completeWithRetry({ messages, maxTokens, temperature, onChunk }, 2);
+    return result;
+  }
+
+  // ─── Internal: complete with retry on 429 rate limit ─────────────────
+  private async _completeWithRetry(
+    opts: CompleteOptions,
+    retriesLeft: number
+  ): Promise<string> {
+    const { messages, maxTokens = 600, temperature = 0.85, onChunk } = opts;
     const streaming = !!onChunk;
 
     const res = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
@@ -112,6 +122,15 @@ export class GroqProvider implements LLMProvider {
         frequency_penalty: 0.2
       })
     });
+
+    // ── Rate limit: wait and retry ────────────────────────────────────────
+    if (res.status === 429 && retriesLeft > 0) {
+      const retryAfter = parseInt(res.headers.get('retry-after') ?? '5', 10);
+      const waitMs = Math.min((isNaN(retryAfter) ? 5 : retryAfter) * 1000, 15000);
+      console.warn(`[GroqProvider] 429 rate limit — waiting ${waitMs}ms then retrying (${retriesLeft} retries left)`);
+      await new Promise(r => setTimeout(r, waitMs));
+      return this._completeWithRetry(opts, retriesLeft - 1);
+    }
 
     if (!res.ok) {
       const errText = await res.text();
