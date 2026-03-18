@@ -25675,14 +25675,10 @@ async function lg() {
   cg(), ug();
 }
 function cg() {
-  const i = document.getElementById("app");
+  const i = document.getElementById("app"), e = document.getElementById("loading");
   i.innerHTML = `
-    <!-- Loading Screen -->
-    <div id="loading">
-      <div id="loading-logo">MIND</div>
-      <div id="loading-sub">Neural Interface</div>
-      <div id="loading-bar"><div id="loading-bar-fill"></div></div>
-    </div>
+    <!-- Loading Screen placeholder — real element reinserted below -->
+    <div id="loading-slot"></div>
 
     <!-- Brain Canvas -->
     <div id="brain-canvas"></div>
@@ -25717,11 +25713,11 @@ function cg() {
     <!-- Emotional State Display -->
     <div id="state-display">
       <h4>MIND STATE</h4>
-      ${["valence", "arousal", "trust", "warmth", "grief", "wonder", "anxiety", "longing"].map((e) => `
+      ${["valence", "arousal", "trust", "warmth", "grief", "wonder", "anxiety", "longing"].map((n) => `
         <div class="state-bar-row">
-          <span class="state-bar-label">${e}</span>
+          <span class="state-bar-label">${n}</span>
           <div class="state-bar-track">
-            <div class="state-bar-fill" id="bar-${e}" style="width:0%;background:${Cg(e)}"></div>
+            <div class="state-bar-fill" id="bar-${n}" style="width:0%;background:${Cg(n)}"></div>
           </div>
         </div>
       `).join("")}
@@ -25777,11 +25773,11 @@ function cg() {
     <!-- Journey Selection Panel -->
     <div id="journey-panel">
       <h2>◈ JOURNEY MODE</h2>
-      ${Zs.map((e) => `
-        <div class="journey-card" data-journey="${e.id}" style="border-color: rgba(${Ig(e.color)}, 0.15)">
-          <h3 style="color:${e.color}">${e.title}</h3>
-          <p><em>${e.subtitle}</em></p>
-          <p style="margin-top:4px; opacity:0.6">${e.description}</p>
+      ${Zs.map((n) => `
+        <div class="journey-card" data-journey="${n.id}" style="border-color: rgba(${Ig(n.color)}, 0.15)">
+          <h3 style="color:${n.color}">${n.title}</h3>
+          <p><em>${n.subtitle}</em></p>
+          <p style="margin-top:4px; opacity:0.6">${n.description}</p>
         </div>
       `).join("")}
       <button class="journey-close-btn" id="journey-panel-close">CLOSE</button>
@@ -25834,6 +25830,12 @@ function cg() {
       <p style="font-size:10px;color:#333;margin-top:12px">Your API keys are stored in localStorage only.</p>
     </div>
   `;
+  const t = document.getElementById("loading-slot");
+  e ? t.replaceWith(e) : t.outerHTML = `<div id="loading">
+      <div id="loading-logo">MIND</div>
+      <div id="loading-sub">Neural Interface</div>
+      <div id="loading-bar"><div id="loading-bar-fill"></div></div>
+    </div>`;
 }
 async function ug() {
   const i = document.getElementById("loading-bar-fill"), e = [15, 35, 55, 75, 90];

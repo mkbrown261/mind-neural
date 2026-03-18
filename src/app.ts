@@ -69,13 +69,13 @@ async function init() {
 
 function buildDOM() {
   const app = document.getElementById('app')!;
+  // Preserve the static #loading element already in the HTML (visible before JS ran).
+  // Save it, rebuild innerHTML with the rest of the UI, then re-insert it at the top.
+  const existingLoading = document.getElementById('loading');
+
   app.innerHTML = `
-    <!-- Loading Screen -->
-    <div id="loading">
-      <div id="loading-logo">MIND</div>
-      <div id="loading-sub">Neural Interface</div>
-      <div id="loading-bar"><div id="loading-bar-fill"></div></div>
-    </div>
+    <!-- Loading Screen placeholder — real element reinserted below -->
+    <div id="loading-slot"></div>
 
     <!-- Brain Canvas -->
     <div id="brain-canvas"></div>
@@ -227,6 +227,20 @@ function buildDOM() {
       <p style="font-size:10px;color:#333;margin-top:12px">Your API keys are stored in localStorage only.</p>
     </div>
   `;
+
+  // Re-insert or create the #loading element at the very top of #app
+  const slot = document.getElementById('loading-slot')!;
+  if (existingLoading) {
+    // The static loading screen was already in the DOM — move it back in
+    slot.replaceWith(existingLoading);
+  } else {
+    // First visit or no static HTML — create it fresh
+    slot.outerHTML = `<div id="loading">
+      <div id="loading-logo">MIND</div>
+      <div id="loading-sub">Neural Interface</div>
+      <div id="loading-bar"><div id="loading-bar-fill"></div></div>
+    </div>`;
+  }
 }
 
 // ─── Loading ──────────────────────────────────────
