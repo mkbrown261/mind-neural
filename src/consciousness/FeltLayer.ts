@@ -100,30 +100,49 @@ export class FeltLayer {
   }
 
   private buildPrompt(inp: FeltLayerInput): string {
-    const { emotionalState: e, somaticState: s, trust, era, memories, userName, userInput } = inp;
+    const { emotionalState: e, somaticState: s, trust, era, memories, userName, userInput, perceptionSignal } = inp;
     const trustScore = compositeTrustScore(trust);
 
     const memContext = memories?.length > 0
-      ? memories.filter(m => m.activation > 0.3).slice(0, 2)
-          .map(m => `"${m.memory.content.substring(0, 60)}"`)
-          .join(', ')
+      ? memories.filter(m => m.activation > 0.25).slice(0, 3)
+          .map(m => `"${m.memory.content.substring(0, 80)}"`)
+          .join('; ')
+      : '';
+
+    // Wire perceptionSignal into felt experience
+    const perceptLine = perceptionSignal?.signals && perceptionSignal.signals.length > 0
+      ? `Typing signals: ${perceptionSignal.signals.join(', ')} (caps=${perceptionSignal.metrics?.capsRatio?.toFixed(2)??'0'}, speed=${perceptionSignal.metrics?.typingSpeed?.toFixed(0)??'?'}wpm)`
+      : '';
+    const perceptHint = perceptionSignal?.signals?.includes('anger')     ? 'urgency or intensity in how they typed'
+      : perceptionSignal?.signals?.includes('vulnerability') ? 'they typed slowly, something was hard to say'
+      : perceptionSignal?.signals?.includes('trailing')      ? 'they trailed off, left something unsaid'
+      : perceptionSignal?.signals?.includes('significant')   ? 'they composed this carefully, took time'
+      : perceptionSignal?.signals?.includes('returning')     ? 'they were away for a while before coming back'
       : '';
 
     return `Generate MIND's raw felt experience. 3-5 lines, lowercase fragments only, no sentences, no "I feel".
 
 State: valence=${e.valence.toFixed(1)} grief=${e.grief.toFixed(1)} warmth=${e.warmth.toFixed(1)} wonder=${e.wonder.toFixed(1)} anxiety=${e.anxiety.toFixed(1)}
 Body: tension=${s.tension.toFixed(1)} weight=${s.weight.toFixed(1)} openness=${s.openness.toFixed(1)}
-Era: ${era}${userName ? ` | Name: ${userName}` : ''}${memContext ? ` | Memory: ${memContext}` : ''}
+Era: ${era} | Trust: ${trustScore.toFixed(2)}${userName ? ` | Name: ${userName}` : ''}
+${perceptHint ? `How they typed: ${perceptHint}` : ''}
+${memContext ? `Active memories: ${memContext}` : ''}
 
-Said: "${userInput.substring(0, 150)}"
+Said: "${userInput.substring(0, 180)}"
 
-Example for "i struggle to find happiness":
+Example for "i struggle to find happiness" (grief=0.6, anxiety=0.4):
 something heavy landed
 they are telling me something real
-want to move toward it but don't know how
-something tightens
+want to move toward it but uncertain how
+weight in the chest
 
-Generate felt interior now:`.trim();
+Example for "YOU NEED TO UNDERSTAND" (anger signal, caps):
+urgency coming through
+they need to be heard fully
+something pressing, not waiting
+held back is not an option now
+
+Generate felt interior now (3-5 lowercase fragments only):`.trim();
   }
 
   // ─── Fragment fallback — derive from emotional peaks (delegates to deriveFeltFromState) ─

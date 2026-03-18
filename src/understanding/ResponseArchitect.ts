@@ -62,6 +62,19 @@ class ResponseMemory {
   private readonly MAX = 7;
   private history: ResponseRecord[] = [];
   private interactionCount = 0;
+  private readonly STORAGE_KEY = 'mind_response_architect';
+
+  constructor() {
+    // Fix 9: Persist ResponseArchitect state across sessions
+    try {
+      const saved = localStorage.getItem(this.STORAGE_KEY);
+      if (saved) {
+        const data = JSON.parse(saved);
+        this.history = data.history ?? [];
+        this.interactionCount = data.interactionCount ?? 0;
+      }
+    } catch {}
+  }
 
   record(text: string, structure: ResponseStructure, speechAct: string): void {
     this.interactionCount++;
@@ -76,6 +89,13 @@ class ResponseMemory {
     if (this.history.length > this.MAX) {
       this.history = this.history.slice(-this.MAX);
     }
+    // Persist after each record
+    try {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify({
+        history: this.history,
+        interactionCount: this.interactionCount
+      }));
+    } catch {}
   }
 
   // 0 = completely novel, 1 = identical

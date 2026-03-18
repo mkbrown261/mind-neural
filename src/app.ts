@@ -1482,7 +1482,9 @@ async function handleSend() {
       const mindState  = getMINDState();
       const trustScore = compositeTrustScore(mindState.trust);
 
-      // Drive brain ONLY from resolved state via BrainStateSync
+      // Drive brain from resolved state + MIND's own spoken response (Fix 10)
+      // MIND's response activates language regions (broca/wernicke) and
+      // emotion regions based on what MIND actually said.
       if (brainSync) {
         brainSync.applyTickState(
           mindState.emotionalState,
@@ -1490,6 +1492,11 @@ async function handleSend() {
           trustScore,
           mindState.emotionalState.grief
         );
+        // Also activate language output regions from MIND's response
+        try {
+          const responseMeaning = new MeaningExtractor().extract(finalResponseText);
+          brainSync.applyMeaning(responseMeaning, mindState.emotionalState);
+        } catch {}
       } else {
         brain?.setTrustGlow(trustScore);
         brain?.setGriefIntensity(mindState.emotionalState.grief);

@@ -27,6 +27,7 @@ import type { SomaticState }   from '../engine/memory';
 import type { PersonalityTraits, TrustState } from '../engine/personality';
 import type { Memory } from '../engine/memory';
 import { compositeTrustScore } from '../engine/personality';
+import { ThreadTracker } from './ThreadTracker';
 
 // ─── Speech request payload (from MindSpeechSystem) ──────────────────────────
 export interface ConsciousnessSpeechRequest {
@@ -82,12 +83,14 @@ export class ConsciousnessEngine {
   // Fix (Issue 2): ResponseArchitect wired into active path for anti-repetition
   private responseArchitect: ResponseArchitect;
   private meaningExtractor:  MeaningExtractor;
+  private threadTracker:     ThreadTracker;
 
   // ── Language Model System (Language Model System integration) ────────────
   private lms: LanguageModelSystem;
 
   // ── CORE governor directive (set by speech.deliver listener, used next cycle) ─
   private pendingCoreDirective: string | null = null;
+  private activeThreadId:       string | null = null; // thread being surfaced this turn
   private pendingCoreNote:      string | null = null;
 
   constructor(intent: IntentLayer, llm: LLMClient) {
@@ -103,6 +106,7 @@ export class ConsciousnessEngine {
     this.balanceEngine  = new ResponseBalanceEngine();
     this.responseArchitect = new ResponseArchitect();
     this.meaningExtractor  = new MeaningExtractor();
+    this.threadTracker     = new ThreadTracker();
     this.lms            = new LanguageModelSystem(null);
 
     // Fix (Issue 3): Restore ResponseBalanceEngine state from localStorage so
@@ -330,6 +334,16 @@ export class ConsciousnessEngine {
     // ── 5. Language — build spoken response ───────────────────────────────
     // Fix (Issue 2): Run ResponseArchitect to get structural guidance / anti-repetition suggestion
     let responseArchitectSuggestion: string | undefined;
+
+    // ── 5a. ThreadTracker — check for open thread to surface ─────────────
+    const currentInteractionN = p.interactionCount + this.interactionCount;
+    const readyThread = this.threadTracker.getReadyThread(currentInteractionN);
+    const openThreadPrompt = readyThread
+      ? this.threadTracker.buildThreadPrompt(readyThread)
+      : undefined;
+    if (readyThread) {
+      this.activeThreadId = readyThread.id; // will be marked surfaced after response
+    }
     try {
       const meaning = this.meaningExtractor.extract(p.userInput);
       const architectState = {
@@ -368,7 +382,9 @@ export class ConsciousnessEngine {
       recentResponseTypes: this.balanceEngine.recentResponseTypes.slice(-3),
       enrichedContext,
       responseArchitectSuggestion,
-      memories:            p.memories
+      memories:            p.memories,
+      openThreadPrompt,
+      opinionViews:        Array.from(this.opinionEngine.views.values()).slice(0, 3)
     });
 
     // ── 6. Anti-echo safety net ────────────────────────────────────────────
@@ -393,6 +409,14 @@ export class ConsciousnessEngine {
 
     // ── 11. Language Model System: post-response processing (unsaid layer) ─
     this.lms.processAfter(feltOutput.raw, finalSpoken, trustScore, p.era);
+
+    // ── 12. ThreadTracker — observe significant topics, mark surfaced ────────
+    const currentInteraction = p.interactionCount + this.interactionCount;
+    this.threadTracker.observe(p.userInput, currentInteraction);
+    if (this.activeThreadId) {
+      this.threadTracker.markSurfaced(this.activeThreadId, currentInteraction);
+      this.activeThreadId = null;
+    }
 
     return { felt: feltOutput.raw, spoken: finalSpoken, mode: agencyDecision.mode };
   }

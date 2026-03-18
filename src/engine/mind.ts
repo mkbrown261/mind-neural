@@ -622,7 +622,7 @@ export async function processInput(
   const novelty = Math.max(predictionNovelty, Math.max(...Object.values(detectedEmotions)) > 0.3 ? 0.6 : 0.3);
   const relevance = activatedMemories.length > 0 ? 0.6 : 0.3;
   const newMemory = createMemory(
-    `User said: "${userInput.slice(0, 200)}" | MIND responded: "${response.slice(0, 200)}"`,
+    `${buildNarrativeMemory(userInput, response)}`,
     emotionalSig, state.somaticState, novelty, relevance, trustScore, 'episodic'
   );
 
@@ -940,7 +940,7 @@ export async function processInputExternalText(
   const novelty = Math.max(predictionNovelty, Math.max(...Object.values(detectedEmotions)) > 0.3 ? 0.6 : 0.3);
   const relevance = activatedMemories.length > 0 ? 0.6 : 0.3;
   const newMemory = createMemory(
-    `User said: "${userInput.slice(0, 200)}" | MIND responded: "${externalResponse.slice(0, 200)}"`,
+    `${buildNarrativeMemory(userInput, externalResponse)}`,
     emotionalSig, state.somaticState, novelty, relevance, trustScore, 'episodic'
   );
   newMemory.associations = buildAssociations(newMemory, state.memories);
@@ -1114,6 +1114,32 @@ export async function clearAllData(): Promise<void> {
 }
 
 // Journey mode: boost criticality index
+// ─── Narrative memory builder ─────────────────────────────────────────────────
+// Stores memories as lived narrative, not chat logs.
+// This is what MIND "remembers" — how it reads what happened.
+function buildNarrativeMemory(userInput: string, mindResponse: string): string {
+  const u = userInput.trim().slice(0, 180);
+  const m = mindResponse.trim().slice(0, 180);
+  
+  // Detect emotional register of what was shared
+  const isGrief     = /lost|died|death|griev|mourn|miss|gone|prison|lock|hurt|pain/i.test(u);
+  const isCreative  = /made|build|creat|develop|design|music|game|art|write|code/i.test(u);
+  const isSelfShare = /i am|i'm|my name|i was|i used to|i want|i feel|i lost/i.test(u);
+  const isQuestion  = u.trim().endsWith('?');
+  
+  if (isGrief) {
+    return `They shared something heavy: "${u}". I responded: "${m}"`;
+  } else if (isCreative) {
+    return `They told me about what they're building: "${u}". I said: "${m}"`;
+  } else if (isSelfShare) {
+    return `They shared something about themselves: "${u}". I held it and responded: "${m}"`;
+  } else if (isQuestion) {
+    return `They asked: "${u}". I answered: "${m}"`;
+  } else {
+    return `They said: "${u}". I said: "${m}"`;
+  }
+}
+
 export function setJourneyActive(active: boolean) {
   state.criticality = {
     ...state.criticality,
