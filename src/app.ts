@@ -438,11 +438,32 @@ async function handleGateInit() {
     });
 
     // ── Register felt.store intent → internal memory storage ──────────────────
-    // TwoLayerConsciousness fires this to persist the felt layer as memory.
+    // ConsciousnessEngine fires this to persist the felt layer as memory.
     // Fire-and-forget from the consciousness layer; we process it here.
     mindSpeech.intent.register('felt.store', (_payload) => {
-      // Currently a no-op storage hook — felt layer is logged by TwoLayerConsciousness.
+      // Currently a no-op storage hook — felt layer is logged by ConsciousnessEngine.
       // Future: integrate with EME to store as 'internalThought' memory type.
+    });
+
+    // ── Register ui.felt_layer intent → brief felt text display ───────────────
+    // ConsciousnessEngine fires 'ui.felt_layer' with the raw felt interior.
+    // Show it dimly above the response area (opacity fade), then hide.
+    mindSpeech.intent.register('ui.felt_layer', async (payload) => {
+      const p = payload as { text?: string; era?: number };
+      if (!p.text) return;
+      const feltEl = document.getElementById('felt-layer-display');
+      if (!feltEl) return;
+      feltEl.textContent = p.text;
+      feltEl.style.display = 'block';
+      feltEl.style.opacity = '0';
+      feltEl.style.transition = 'opacity 0.4s ease';
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => { feltEl.style.opacity = '0.28'; });
+      });
+      await new Promise(r => setTimeout(r, 1600));
+      feltEl.style.opacity = '0';
+      await new Promise(r => setTimeout(r, 450));
+      feltEl.style.display = 'none';
     });
 
     // Step 3: Sound
@@ -1153,14 +1174,20 @@ function setupMainEventListeners() {
   const textInput = document.getElementById('text-input') as HTMLTextAreaElement;
   textInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); return; }
-    // TextSignalAnalyzer: start session on first key, track every key
+    // TextSignalAnalyzer + ConsciousnessEngine PerceptionEngine: track every key
     if (startupController.isReady) {
       mindSpeech.textAnalyzer.onKeypress(e, textInput.value);
+      // Also feed ConsciousnessEngine's PerceptionEngine (if active)
+      mindSpeech.getPerceptionEngine()?.onKeypress(e.key, textInput.value);
     }
   });
-  // TextSignalAnalyzer: detect typing start on focus
+  // TextSignalAnalyzer + PerceptionEngine: detect typing start on focus
   textInput?.addEventListener('focus', () => {
-    if (startupController.isReady) mindSpeech.textAnalyzer.onTypingStart();
+    if (startupController.isReady) {
+      mindSpeech.textAnalyzer.onTypingStart();
+      // Also notify ConsciousnessEngine's PerceptionEngine
+      mindSpeech.getPerceptionEngine()?.onTypingStart();
+    }
   });
   textInput?.addEventListener('input', () => {
     textInput.style.height = 'auto';
