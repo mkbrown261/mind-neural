@@ -68,29 +68,87 @@ const create = (tag: string, cls?: string) => {
 // ─── Boot ─────────────────────────────────────────
 async function init() {
   buildDOM();
-  // Subscribe to StartupController — keep input locked unless READY
+  // Gate is rendered immediately by buildDOM above.
+  // Input is disabled in HTML (disabled attr on textarea + send-btn).
+  // StartupController subscriber keeps input locked until READY.
   startupController.subscribe((status) => {
-    if (status.state !== 'READY') {
-      setInputLock(true, 'Initialize MIND above first.');
-    } else {
-      setInputLock(false);
-    }
+    setInputLock(status.state !== 'READY', 'Initialize MIND first — use the panel above.');
   });
   startLoading();
 }
 
 function buildDOM() {
   const app = document.getElementById('app')!;
-  // Preserve the static #loading element already in the HTML (visible before JS ran).
-  // Save it, rebuild innerHTML with the rest of the UI, then re-insert it at the top.
   const existingLoading = document.getElementById('loading');
 
   app.innerHTML = `
     <!-- Loading Screen placeholder — real element reinserted below -->
     <div id="loading-slot"></div>
 
-    <!-- Brain Canvas -->
-    <div id="brain-canvas"></div>
+    <!-- ═══════════════════════════════════════════════════════
+         MIND GATE — HARD INITIALIZATION BLOCK
+         Visible immediately. Nothing else runs until gate passes.
+         z-index: 200 — above brain, above onboarding, above all.
+    ════════════════════════════════════════════════════════ -->
+    <div id="mind-gate">
+      <div id="mind-gate-inner">
+        <div id="gate-logo">MIND <span>NEURAL INTERFACE</span></div>
+        <div id="gate-subtitle">System must be initialized before activation</div>
+
+        <div id="gate-error" class="gate-error-msg" style="display:none"></div>
+        <div id="gate-status" class="gate-status-msg" style="display:none"></div>
+
+        <!-- STEP 1: Model Selection -->
+        <div id="gate-step-model" class="gate-step">
+          <label class="gate-label">SELECT MODEL</label>
+          <select id="gate-model-select" class="gate-select">
+            <optgroup label="── GROQ (Free)">
+              <option value="groq|llama-3.3-70b-versatile">Groq · Llama 3.3 70B (Recommended)</option>
+              <option value="groq|llama-3.1-8b-instant">Groq · Llama 3.1 8B (Fast)</option>
+              <option value="groq|mixtral-8x7b-32768">Groq · Mixtral 8x7B</option>
+            </optgroup>
+            <optgroup label="── OpenAI">
+              <option value="openai|gpt-4o">OpenAI · GPT-4o</option>
+              <option value="openai|gpt-4o-mini">OpenAI · GPT-4o Mini</option>
+              <option value="openai|gpt-4-turbo">OpenAI · GPT-4 Turbo</option>
+              <option value="openai|gpt-3.5-turbo">OpenAI · GPT-3.5 Turbo</option>
+            </optgroup>
+            <optgroup label="── No API Required">
+              <option value="template|none">Own Voice (template, no key)</option>
+              <option value="skip|none">Silent (no language)</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <!-- STEP 2: API Key Entry — shown for groq/openai only -->
+        <div id="gate-step-key" class="gate-step" style="display:none">
+          <label class="gate-label" id="gate-key-label">API KEY</label>
+          <input
+            type="password"
+            id="gate-key-input"
+            class="gate-key-input"
+            placeholder="Paste your API key here..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <div id="gate-key-hint" class="gate-key-hint">
+            Keys are stored in localStorage only ·
+            <a id="gate-key-link" href="https://console.groq.com" target="_blank" class="gate-link">Get a free Groq key →</a>
+          </div>
+        </div>
+
+        <!-- Initialize Button -->
+        <button id="gate-init-btn" class="gate-init-btn">INITIALIZE MIND</button>
+
+        <div class="gate-footer">
+          This system requires initialization before any function activates.
+          No API calls are made until validation completes.
+        </div>
+      </div>
+    </div>
+
+    <!-- Brain Canvas — hidden until gate passes -->
+    <div id="brain-canvas" style="opacity:0;pointer-events:none"></div>
 
     <!-- ════ ONBOARDING OVERLAY ════ -->
     <div id="onboarding" class="hidden">
@@ -141,55 +199,13 @@ function buildDOM() {
     <div id="chat-container">
       <div id="chat-history"></div>
 
-      <!-- ═══ INLINE SETUP PANEL — above the input box ═══ -->
-      <div id="setup-panel">
-        <!-- STEP 1: choose provider -->
-        <div id="setup-step-1">
-          <div class="setup-label">INITIALIZE MIND — choose a language provider</div>
-          <div class="setup-provider-row">
-            <button class="setup-provider-btn groq" id="choose-groq">
-              GROQ <span class="setup-badge free">FREE</span>
-            </button>
-            <button class="setup-provider-btn openai" id="choose-openai">
-              OPENAI <span class="setup-badge">GPT-4o</span>
-            </button>
-            <button class="setup-provider-btn template" id="api-template">
-              OWN VOICE <span class="setup-badge">no key</span>
-            </button>
-            <button class="setup-provider-btn skip" id="api-skip">
-              SILENT
-            </button>
-          </div>
-        </div>
-
-        <!-- STEP 2: enter key (hidden until provider chosen) -->
-        <div id="setup-step-2" style="display:none">
-          <div class="setup-label" id="setup-step-2-label">ENTER API KEY</div>
-          <div id="setup-error" class="setup-error-msg" style="display:none"></div>
-          <div class="setup-key-row">
-            <input type="password" id="setup-key-input" placeholder="Paste your API key here..." autocomplete="off" class="setup-key-field">
-            <button class="setup-verify-btn" id="setup-verify">VERIFY</button>
-            <button class="setup-back-btn" id="setup-back">✕</button>
-          </div>
-          <div id="setup-model-row" style="display:none">
-            <select id="model-select" class="setup-model-select">
-              <option value="gpt-4o">GPT-4o</option>
-              <option value="gpt-4o-mini">GPT-4o-mini</option>
-              <option value="gpt-4-turbo">GPT-4 Turbo</option>
-              <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-            </select>
-          </div>
-          <div class="setup-hint">Keys stored in localStorage only · <a href="https://console.groq.com" target="_blank" id="setup-key-link" class="setup-link">Get a free Groq key →</a></div>
-        </div>
-
-        <!-- LOCKED state (shown after first message) -->
-        <div id="setup-locked" style="display:none">
-          <div class="setup-locked-msg">◈ <span id="setup-locked-label">GROQ · llama-3.3-70b-versatile</span> &nbsp;·&nbsp; Press <strong>RESET MIND</strong> to change provider</div>
-        </div>
+      <!-- Provider lock indicator (shown after first message, replaces gate) -->
+      <div id="provider-lock-bar" style="display:none">
+        <div class="provider-lock-msg">◈ <span id="provider-lock-label"></span> &nbsp;·&nbsp; Press <strong>RESET MIND</strong> to change</div>
       </div>
 
       <div id="input-area">
-        <textarea id="text-input" placeholder="Initialize MIND above first." rows="1" autocomplete="off" spellcheck="false" disabled></textarea>
+        <textarea id="text-input" placeholder="Initialize MIND first — use the panel above." rows="1" autocomplete="off" spellcheck="false" disabled></textarea>
         <button id="voice-btn" title="Voice input">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
@@ -252,125 +268,245 @@ function buildDOM() {
   // Re-insert or create the #loading element at the very top of #app
   const slot = document.getElementById('loading-slot')!;
   if (existingLoading) {
-    // The static loading screen was already in the DOM — move it back in
     slot.replaceWith(existingLoading);
   } else {
-    // First visit or no static HTML — create it fresh
     slot.outerHTML = `<div id="loading">
       <div id="loading-logo">MIND</div>
       <div id="loading-sub">Neural Interface</div>
       <div id="loading-bar"><div id="loading-bar-fill"></div></div>
     </div>`;
   }
+
+  // Wire gate model-select to show/hide key input immediately (sync, no async)
+  const gateModelSelect = document.getElementById('gate-model-select') as HTMLSelectElement;
+  const gateStepKey     = document.getElementById('gate-step-key')!;
+  const gateKeyLabel    = document.getElementById('gate-key-label')!;
+  const gateKeyLink     = document.getElementById('gate-key-link') as HTMLAnchorElement;
+  const gateKeyInput    = document.getElementById('gate-key-input') as HTMLInputElement;
+
+  function updateGateKeyVisibility() {
+    const val = gateModelSelect.value;
+    const provider = val.split('|')[0];
+    if (provider === 'groq' || provider === 'openai') {
+      gateStepKey.style.display = 'block';
+      gateKeyLabel.textContent  = provider === 'groq' ? 'GROQ API KEY' : 'OPENAI API KEY';
+      gateKeyInput.placeholder  = provider === 'groq' ? 'gsk_...' : 'sk-...';
+      gateKeyLink.href          = provider === 'groq'
+        ? 'https://console.groq.com'
+        : 'https://platform.openai.com/api-keys';
+      gateKeyLink.textContent   = provider === 'groq'
+        ? 'Get a free Groq key →'
+        : 'Get an OpenAI key →';
+    } else {
+      gateStepKey.style.display = 'none';
+    }
+  }
+  gateModelSelect.addEventListener('change', updateGateKeyVisibility);
+  updateGateKeyVisibility(); // set initial state (groq is default → show key field)
 }
 
 // ─── Loading ──────────────────────────────────────
+// Phase 1 only: animate the progress bar, then fade it out.
+// Nothing else initializes here — the gate controls everything.
 async function startLoading() {
   const fill = document.getElementById('loading-bar-fill')!;
-
-  // ── Phase 1: animate bar + init MIND core (fast, synchronous storage reads)
-  const steps = [15, 35, 55, 75, 90];
+  const steps = [20, 45, 70, 90, 100];
   for (const step of steps) {
-    await sleep(200 + Math.random() * 300);
+    await sleep(150 + Math.random() * 200);
     fill.style.width = `${step}%`;
   }
-
-  try { await initMIND(); } catch (e) { console.warn('MIND init partial:', e); }
-
-  fill.style.width = '100%';
   await sleep(300);
 
-  // ── Phase 2: show UI immediately (do NOT await provider verification here)
-  const brainContainer = document.getElementById('brain-canvas')!;
-  brain = new BrainVisualization(brainContainer, onRegionClick);
-  brainSync = new BrainStateSync(brain);
-  brain.createLabels(brainContainer);
-  brain.animate();
-
-  soundEngine = new SoundEngine();
-
-  const savedConfig = loadConfig();
-
-  await sleep(300);
   const loading = document.getElementById('loading')!;
   loading.classList.add('fade');
-  setTimeout(() => { loading.style.display = 'none'; }, 800);
+  setTimeout(() => { loading.style.display = 'none'; }, 700);
 
+  // Gate is already in the DOM (built by buildDOM) — it will now be visible.
+  // Wire the Initialize button.
+  setupGateEventListeners();
   setupMainEventListeners();
-  updateStateDisplay();
-  updateStageIndicator();
+}
 
-  brain.setActivations([
-    { region: 'brainstem', level: 0.2 },
-    { region: 'thalamus', level: 0.15 }
-  ]);
+// ─── Gate Event Listeners ─────────────────────────
+// Wired AFTER loading bar fades so the gate is visible.
+function setupGateEventListeners() {
+  const initBtn  = document.getElementById('gate-init-btn') as HTMLButtonElement;
+  const keyInput = document.getElementById('gate-key-input') as HTMLInputElement;
 
-  const bp = getCurrentBiophoton();
-  brain.setBiophotonGlow(bp);
+  // Enter in key field triggers init
+  keyInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') initBtn?.click();
+  });
 
-  // Apply resting idle brain state (real metabolic baseline, not random)
-  const mindStateInitPhase3 = getMINDState();
-  brainSync?.applyIdleState(mindStateInitPhase3.emotionalState, getCurrentBiophoton());
+  initBtn?.addEventListener('click', handleGateInit);
+}
 
-  // ── Phase 3: Startup state machine
-  // Wipe stale standalone keys — config is the only source of truth
-  localStorage.removeItem('mind_groq_key');
-  localStorage.removeItem('mind_openai_key');
-  localStorage.removeItem('mind_openai_base');
-  localStorage.removeItem('mind_openai_model');
+// ─── GATE: Initialize handler ─────────────────────
+// This is the HARD GATE. Nothing below runs until this succeeds.
+async function handleGateInit() {
+  const initBtn   = document.getElementById('gate-init-btn') as HTMLButtonElement;
+  const modelSel  = document.getElementById('gate-model-select') as HTMLSelectElement;
+  const keyInput  = document.getElementById('gate-key-input') as HTMLInputElement;
 
-  startupController.transitionToModelSelect();
+  const [provider, model] = modelSel.value.split('|') as [string, string];
+  const apiKey = keyInput?.value.trim() ?? '';
 
-  if (savedConfig) {
-    // Returning user: silently re-verify key in background.
-    // Show a "Reconnecting…" indicator but keep panel visible in case it fails.
-    showSetupReconnecting(savedConfig);
-    if (savedConfig.baseUrl.includes('groq')) {
-      (async () => {
-        const ok = await mindSpeech.setGroqKey(savedConfig.apiKey);
-        if (ok) {
-          config = savedConfig;
-          setOnboardingProvider(async (prompt, maxTokens, onChunk) =>
-            mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk }));
-          startupController.transitionToApiKey('groq');
-          startupController.transitionToInit(savedConfig.model || 'llama-3.3-70b-versatile');
-          startupController.setStep('response');
-          startupController.transitionToReady();
-          hideSetupPanel();
-          soundEngine?.init().catch(() => {});
-          updateVoiceIndicator();
-          await _afterApiReady();
-        } else {
-          // Key stale — ask user to re-enter
-          localStorage.removeItem('mind_config');
-          config = null;
-          startupController.reset();
-          startupController.transitionToModelSelect();
-          showSetupStep1();
-          setSetupError('Saved key is no longer valid. Please enter a new key.');
-        }
-      })();
-    } else {
-      // OpenAI — trust without round-trip verify
-      (async () => {
-        config = savedConfig;
-        mindSpeech.setOpenAIKey(savedConfig.apiKey, savedConfig.baseUrl, savedConfig.model);
-        setOnboardingProvider(async (prompt, maxTokens, onChunk) =>
-          mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk }));
-        startupController.transitionToApiKey('openai');
-        startupController.transitionToInit(savedConfig.model || 'gpt-4o');
-        startupController.setStep('response');
-        startupController.transitionToReady();
-        hideSetupPanel();
-        soundEngine?.init().catch(() => {});
-        updateVoiceIndicator();
-        await _afterApiReady();
-      })();
-    }
-  } else {
-    // Fresh start — show provider selection
-    showSetupStep1();
+  clearGateError();
+
+  // ── GUARD 1: model selected?
+  if (!provider) { setGateError('Select a model to continue.'); return; }
+
+  // ── GUARD 2: API key required for groq/openai
+  if ((provider === 'groq' || provider === 'openai') && !apiKey) {
+    setGateError('API key required to start MIND.');
+    keyInput?.focus();
+    return;
   }
+
+  // Disable button, show status
+  initBtn.disabled = true;
+  initBtn.textContent = 'VALIDATING…';
+  setGateStatus('Validating API key…');
+
+  // ── GUARD 3: validate API key (for groq/openai)
+  if (provider === 'groq') {
+    const ok = await mindSpeech.setGroqKey(apiKey);
+    if (!ok) {
+      initBtn.disabled = false;
+      initBtn.textContent = 'INITIALIZE MIND';
+      clearGateStatus();
+      setGateError('Invalid API key. Check your key at console.groq.com');
+      return;
+    }
+  } else if (provider === 'openai') {
+    // OpenAI: set key and trust (no free validation endpoint available)
+    mindSpeech.setOpenAIKey(apiKey, 'https://api.openai.com/v1', model);
+  }
+
+  // ── All guards passed — now initialize systems in order
+  setGateStatus('Initializing Memory systems…');
+  initBtn.textContent = 'INITIALIZING…';
+
+  try {
+    // Step 1: Memory (EME, AMN) + State (ESE, SSM) + Personality + Trust
+    await initMIND();
+
+    // Step 2: Build brain visualization
+    setGateStatus('Building neural architecture…');
+    const brainContainer = document.getElementById('brain-canvas')!;
+    brain = new BrainVisualization(brainContainer, onRegionClick);
+    brainSync = new BrainStateSync(brain);
+    brain.createLabels(brainContainer);
+    brain.animate();
+    // Reveal canvas
+    brainContainer.style.opacity = '1';
+    brainContainer.style.pointerEvents = 'auto';
+
+    // Step 3: Sound
+    soundEngine = new SoundEngine();
+    soundEngine.init().catch(() => {});
+
+    // Step 4: Set config + provider
+    if (provider === 'groq') {
+      config = { apiKey, baseUrl: 'https://api.groq.com/openai/v1', model };
+      saveConfig(config);
+      setOnboardingProvider(async (prompt, maxTokens, onChunk) =>
+        mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk }));
+    } else if (provider === 'openai') {
+      config = { apiKey, baseUrl: 'https://api.openai.com/v1', model };
+      saveConfig(config);
+      setOnboardingProvider(async (prompt, maxTokens, onChunk) =>
+        mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk }));
+    } else {
+      // template / skip — no config
+      config = null;
+      localStorage.removeItem('mind_config');
+    }
+
+    // Step 5: Advance state machine to READY
+    startupController.transitionToModelSelect();
+    startupController.transitionToApiKey(
+      provider === 'groq' ? 'groq'
+      : provider === 'openai' ? 'openai'
+      : provider === 'template' ? 'template'
+      : 'none'
+    );
+    startupController.transitionToInit(model || 'none');
+    startupController.setStep('brain');
+    startupController.transitionToReady();
+
+    // Step 6: Apply initial brain state
+    const bp = getCurrentBiophoton();
+    brain.setActivations([
+      { region: 'brainstem', level: 0.2 },
+      { region: 'thalamus', level: 0.15 }
+    ]);
+    brain.setBiophotonGlow(bp);
+    const ms0 = getMINDState();
+    brainSync.applyIdleState(ms0.emotionalState, bp);
+
+    updateStateDisplay();
+    updateStageIndicator();
+    updateVoiceIndicator();
+
+    // Step 7: Dismiss gate
+    setGateStatus('Ready.');
+    await sleep(400);
+    dismissGate(provider, model);
+
+    // Step 8: Start MIND_TICK and onboarding/welcome
+    await _afterApiReady();
+
+  } catch (err: any) {
+    // Fail-safe: stay on gate, show error, allow retry
+    initBtn.disabled = false;
+    initBtn.textContent = 'INITIALIZE MIND';
+    clearGateStatus();
+    setGateError(`Initialization failed: ${err?.message ?? 'Unknown error'}. Please retry.`);
+    console.error('[MIND GATE] init failed:', err);
+  }
+}
+
+// ─── Gate dismiss ─────────────────────────────────
+function dismissGate(provider: string, model: string) {
+  const gate = document.getElementById('mind-gate')!;
+  gate.classList.add('gate-dismissed');
+  setTimeout(() => { gate.style.display = 'none'; }, 500);
+
+  // Lock model selector — session is now active
+  const modelSel = document.getElementById('gate-model-select') as HTMLSelectElement;
+  if (modelSel) modelSel.disabled = true;
+
+  // Show provider lock bar in chat
+  const providerLabel = provider === 'groq'
+    ? `GROQ · ${model}`
+    : provider === 'openai'
+      ? `OPENAI · ${model}`
+      : provider === 'template'
+        ? "MIND'S OWN VOICE"
+        : 'SILENT MODE';
+  const lockBar = document.getElementById('provider-lock-bar');
+  const lockLabel = document.getElementById('provider-lock-label');
+  if (lockBar) lockBar.style.display = 'block';
+  if (lockLabel) lockLabel.textContent = providerLabel;
+}
+
+// ─── Gate UI helpers ──────────────────────────────
+function setGateError(msg: string) {
+  const el = document.getElementById('gate-error');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+}
+function clearGateError() {
+  const el = document.getElementById('gate-error');
+  if (el) { el.textContent = ''; el.style.display = 'none'; }
+}
+function setGateStatus(msg: string) {
+  const el = document.getElementById('gate-status');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+}
+function clearGateStatus() {
+  const el = document.getElementById('gate-status');
+  if (el) { el.textContent = ''; el.style.display = 'none'; }
 }
 
 // Called after provider is confirmed ready (Groq/OpenAI verified OR returning user)
@@ -446,91 +582,6 @@ function stopMINDTick() {
   }
 }
 
-// ─── Inline Setup Panel helpers ──────────────────
-// The setup panel lives inside #chat-container, above the textarea.
-// No floating modal. User sees it immediately on first load.
-
-function showSetupStep1() {
-  const s1 = document.getElementById('setup-step-1');
-  const s2 = document.getElementById('setup-step-2');
-  const sl = document.getElementById('setup-locked');
-  if (s1) s1.style.display = 'block';
-  if (s2) s2.style.display = 'none';
-  if (sl) sl.style.display = 'none';
-  clearSetupError();
-}
-
-function showSetupStep2(provider: 'groq' | 'openai') {
-  const s1  = document.getElementById('setup-step-1');
-  const s2  = document.getElementById('setup-step-2');
-  const lbl = document.getElementById('setup-step-2-label');
-  const modelRow = document.getElementById('setup-model-row');
-  const keyInput = document.getElementById('setup-key-input') as HTMLInputElement;
-  const link = document.getElementById('setup-key-link') as HTMLAnchorElement;
-  if (s1) s1.style.display = 'none';
-  if (s2) s2.style.display = 'block';
-  if (lbl) lbl.textContent = provider === 'groq'
-    ? 'ENTER GROQ API KEY'
-    : 'ENTER OPENAI API KEY';
-  if (modelRow) modelRow.style.display = provider === 'openai' ? 'block' : 'none';
-  if (keyInput) {
-    keyInput.placeholder = provider === 'groq' ? 'gsk_...' : 'sk-...';
-    keyInput.value = '';
-    keyInput.focus();
-  }
-  if (link) {
-    link.href    = provider === 'groq' ? 'https://console.groq.com' : 'https://platform.openai.com/api-keys';
-    link.textContent = provider === 'groq' ? 'Get a free Groq key →' : 'Get an OpenAI key →';
-  }
-  clearSetupError();
-}
-
-function hideSetupPanel() {
-  const panel = document.getElementById('setup-panel');
-  if (panel) panel.style.display = 'none';
-}
-
-function showSetupLocked(label: string) {
-  const s1 = document.getElementById('setup-step-1');
-  const s2 = document.getElementById('setup-step-2');
-  const sl = document.getElementById('setup-locked');
-  const lbl = document.getElementById('setup-locked-label');
-  if (s1) s1.style.display = 'none';
-  if (s2) s2.style.display = 'none';
-  if (sl) sl.style.display = 'block';
-  if (lbl) lbl.textContent = label;
-}
-
-function showSetupReconnecting(cfg: AppConfig) {
-  // Show step 2 with pre-filled key and a "Reconnecting…" message
-  const providerHint = cfg.baseUrl.includes('groq') ? 'groq' : 'openai';
-  showSetupStep2(providerHint);
-  const ki = document.getElementById('setup-key-input') as HTMLInputElement;
-  if (ki) ki.value = cfg.apiKey;
-  const ms = document.getElementById('model-select') as HTMLSelectElement;
-  if (ms && cfg.model) ms.value = cfg.model;
-  const lbl = document.getElementById('setup-step-2-label');
-  if (lbl) lbl.textContent = 'RECONNECTING…';
-  const verifyBtn = document.getElementById('setup-verify') as HTMLButtonElement;
-  if (verifyBtn) { verifyBtn.textContent = 'RECONNECTING…'; verifyBtn.disabled = true; }
-}
-
-function setSetupError(msg: string) {
-  const el = document.getElementById('setup-error');
-  if (el) { el.textContent = msg; el.style.display = 'block'; }
-}
-
-function clearSetupError() {
-  const el = document.getElementById('setup-error');
-  if (el) { el.textContent = ''; el.style.display = 'none'; }
-}
-
-// Legacy stubs — no-ops now that the modal is gone
-function showApiSetup() {}
-function hideApiSetup() {}
-function showApiStepModel() { showSetupStep1(); }
-function showApiStepKey(provider: 'groq' | 'openai') { showSetupStep2(provider); }
-
 // ─── Input Lock — enforced by StartupController ──
 // Disables the chat input and send button when the system is not ready.
 function setInputLock(locked: boolean, hint?: string): void {
@@ -540,7 +591,7 @@ function setInputLock(locked: boolean, hint?: string): void {
   input.disabled  = locked;
   sendBtn.disabled = locked;
   if (locked) {
-    input.placeholder = hint ?? 'Initialize MIND first.';
+    input.placeholder = hint ?? 'Initialize MIND first — use the panel above.';
   } else {
     input.placeholder = 'Speak to MIND...';
   }
@@ -552,7 +603,7 @@ function setInputLock(locked: boolean, hint?: string): void {
 
 async function startOnboarding() {
   if (!config) return;
-  hideSetupPanel();
+  // Gate is already dismissed at this point
   stopMINDTick(); // No autonomous tick during onboarding
 
   obSession = createOnboardingSession();
@@ -631,14 +682,22 @@ async function handleScreen1Submit() {
     outputEl.textContent = '[Connection error. Please check your API key.]';
     outputEl.classList.remove('loading');
     inputEl.disabled = false;
-    // Show inline update key button
+    // Show inline update key button — clicking it shows the gate again
     const errDiv = create('div', 'ob-error-inline');
     errDiv.innerHTML = `<span>${errType === 'quota' ? 'API quota exceeded.' : errType === 'auth' ? 'Invalid API key.' : 'Connection failed.'}</span> <button class="inline-api-btn" id="ob-inline-key">Update Key</button>`;
     document.getElementById('ob-screen-content')?.appendChild(errDiv);
     setTimeout(() => {
       document.getElementById('ob-inline-key')?.addEventListener('click', () => {
         document.getElementById('onboarding')!.classList.add('hidden');
-        showSetupStep1();
+        // Show gate again so user can enter new key
+        const gate = document.getElementById('mind-gate');
+        if (gate) { gate.style.display = 'flex'; gate.classList.remove('gate-dismissed'); }
+        const gateErr = document.getElementById('gate-error');
+        if (gateErr) { gateErr.textContent = 'API key invalid or quota exceeded. Enter a new key.'; gateErr.style.display = 'block'; }
+        const initBtn = document.getElementById('gate-init-btn') as HTMLButtonElement;
+        if (initBtn) { initBtn.disabled = false; initBtn.textContent = 'INITIALIZE MIND'; }
+        startupController.reset();
+        startupController.transitionToModelSelect();
       });
     }, 0);
   }
@@ -994,7 +1053,7 @@ function renderObInputBelow(
 
 // ─── Template-only onboarding (no LLM) ───────────
 function startOnboardingTemplate() {
-  hideSetupPanel();
+  // Gate is already dismissed
   stopMINDTick();
 
   obSession = createOnboardingSession();
@@ -1050,6 +1109,8 @@ function setupMainEventListeners() {
   textInput?.addEventListener('input', () => {
     textInput.style.height = 'auto';
     textInput.style.height = Math.min(100, textInput.scrollHeight) + 'px';
+    // Only drive brain visuals if system is initialized
+    if (!startupController.isReady) return;
     if (textInput.value.length > 3) {
       const emotions = detectEmotions(textInput.value);
       const activations = mapEmotionsToBrainRegions(emotions);
@@ -1102,11 +1163,11 @@ function setupMainEventListeners() {
     document.body.classList.toggle('mirror-mode', currentMode === 'mirror');
   });
 
+  // RESET — wipes everything and reloads to gate
   document.getElementById('btn-clear')?.addEventListener('click', async () => {
     if (confirm('Reset MIND? All memories, personality, and history will be erased.')) {
       stopMINDTick();
       await clearAllData();
-      // Wipe all stored keys and config — return to PRE_INIT on reload
       localStorage.removeItem('mind_config');
       localStorage.removeItem('mind_groq_key');
       localStorage.removeItem('mind_openai_key');
@@ -1119,125 +1180,6 @@ function setupMainEventListeners() {
 
   document.getElementById('panel-close')?.addEventListener('click', () => {
     document.getElementById('side-panel')!.classList.remove('open');
-  });
-
-  // ── Provider selection buttons (STEP 1) ──────────
-  document.getElementById('choose-groq')?.addEventListener('click', () => {
-    startupController.transitionToApiKey('groq');
-    showSetupStep2('groq');
-  });
-
-  document.getElementById('choose-openai')?.addEventListener('click', () => {
-    startupController.transitionToApiKey('openai');
-    showSetupStep2('openai');
-  });
-
-  // Back button — returns to step 1
-  document.getElementById('setup-back')?.addEventListener('click', () => {
-    startupController.returnToModelSelect();
-    showSetupStep1();
-  });
-
-  // ── Unified verify handler (Groq or OpenAI) ──────
-  let _verifyProvider: 'groq' | 'openai' = 'groq';
-  document.getElementById('choose-groq')?.addEventListener('click',   () => { _verifyProvider = 'groq'; });
-  document.getElementById('choose-openai')?.addEventListener('click', () => { _verifyProvider = 'openai'; });
-
-  document.getElementById('setup-verify')?.addEventListener('click', async () => {
-    const key   = (document.getElementById('setup-key-input') as HTMLInputElement).value.trim();
-    const model = (_verifyProvider === 'openai')
-      ? (document.getElementById('model-select') as HTMLSelectElement)?.value ?? 'gpt-4o'
-      : 'llama-3.3-70b-versatile';
-
-    if (!key) { setSetupError('Please paste your API key.'); return; }
-
-    const btn = document.getElementById('setup-verify') as HTMLButtonElement;
-    btn.textContent = 'VERIFYING...';
-    btn.disabled = true;
-    clearSetupError();
-
-    // Ensure correct state before transitioning — reset if needed
-    if (startupController.current !== 'API_KEY') {
-      startupController.returnToModelSelect();
-      startupController.transitionToApiKey(_verifyProvider);
-    }
-
-    if (_verifyProvider === 'groq') {
-      const ok = await mindSpeech.setGroqKey(key);
-      if (ok) {
-        config = { apiKey: key, baseUrl: 'https://api.groq.com/openai/v1', model };
-        saveConfig(config);
-        setOnboardingProvider(async (prompt, maxTokens, onChunk) =>
-          mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk }));
-        startupController.transitionToInit(model);
-        startupController.setStep('response');
-        startupController.transitionToReady();
-        hideSetupPanel();
-        soundEngine?.init();
-        updateVoiceIndicator();
-        if (!isOnboardingComplete() && getMemoryCount() === 0) {
-          await startOnboarding();
-        } else {
-          showWelcomeBack();
-          startMINDTick();
-        }
-      } else {
-        btn.textContent = 'VERIFY';
-        btn.disabled = false;
-        setSetupError('Key verification failed. Check your key at console.groq.com');
-        startupController.fail(null, 'Groq key verification failed.');
-      }
-    } else {
-      // OpenAI — save and trust without a verify round-trip
-      config = { apiKey: key, baseUrl: 'https://api.openai.com/v1', model };
-      saveConfig(config);
-      mindSpeech.setOpenAIKey(key, 'https://api.openai.com/v1', model);
-      setOnboardingProvider(async (prompt, maxTokens, onChunk) =>
-        mindSpeech.completeRaw({ prompt, maxTokens, temperature: 0.9, onChunk }));
-      startupController.transitionToInit(model);
-      startupController.setStep('response');
-      startupController.transitionToReady();
-      hideSetupPanel();
-      soundEngine?.init();
-      updateVoiceIndicator();
-      if (!isOnboardingComplete() && getMemoryCount() === 0) {
-        await startOnboarding();
-      } else {
-        showWelcomeBack();
-        startMINDTick();
-      }
-    }
-  });
-
-  // Allow Enter in key input to trigger verify
-  document.getElementById('setup-key-input')?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') document.getElementById('setup-verify')?.click();
-  });
-
-  // ── Template voice: MIND'S OWN VOICE ─────────────
-  document.getElementById('api-template')?.addEventListener('click', () => {
-    config = null;
-    startupController.transitionToApiKey('template');
-    startupController.transitionToReady();
-    hideSetupPanel();
-    addMindMessage('MIND speaks in its own voice now.\n\nNo API required. Every response comes from internal state — emotion, memory, era, body.');
-    updateVoiceIndicator();
-    soundEngine?.init().catch(() => {});
-    if (!isOnboardingComplete() && getMemoryCount() === 0) {
-      startOnboardingTemplate();
-    } else {
-      startMINDTick();
-    }
-  });
-
-  // ── Skip: explore without language ────────────────
-  document.getElementById('api-skip')?.addEventListener('click', () => {
-    config = null;
-    startupController.transitionToApiKey('none');
-    startupController.transitionToReady();
-    hideSetupPanel();
-    addMindMessage('MIND is running without language generation. Type anything to see the brain light up.');
-    startMINDTick();
   });
 }
 
@@ -1257,20 +1199,12 @@ function handleApiFailure(errorType: 'quota' | 'auth' | 'network' | 'other', con
     network: 'Connection lost. MIND continues — language generation will resume when connected.',
     other:   'Language generation unavailable. MIND is still processing your input internally.'
   };
-  contentEl.innerHTML = `<span class="error-msg">${messages[errorType]}</span> <button class="inline-api-btn" id="inline-update-key">Update API Key</button>`;
-  
-  // If quota or auth error, clear the bad config so we don't keep hammering the API
+  contentEl.innerHTML = `<span class="error-msg">${messages[errorType]}</span>`;
+
+  // Clear bad config so we don't keep hammering a broken key
   if (errorType === 'quota' || errorType === 'auth') {
     config = null;
-    // Don't delete from localStorage — user may want to see their key again
   }
-
-  // Attach update key button handler
-  setTimeout(() => {
-    document.getElementById('inline-update-key')?.addEventListener('click', () => {
-      showSetupStep1();
-    });
-  }, 0);
 }
 
 // ─── Main Send Handler ─────────────────────────────
@@ -1279,22 +1213,15 @@ async function handleSend() {
   const text = textInput.value.trim();
   if (!text || isProcessing) return;
 
-  // Guard: MIND must be READY before any input is processed
+  // HARD GATE: MIND must be READY — no exceptions
   if (!startupController.isReady) {
-    textInput.placeholder = 'Initialize MIND first.';
+    textInput.placeholder = 'Initialize MIND first — use the panel above.';
     return;
   }
 
-  // Lock model/provider selection after first real message
+  // Lock session after first message
   if (!startupController.sessionLocked) {
     startupController.lockSession();
-    // Show a compact locked indicator in the setup panel
-    const providerLabel = mindSpeech.hasGroq()
-      ? 'GROQ · llama-3.3-70b-versatile'
-      : mindSpeech.hasOpenAI()
-        ? `OPENAI · ${config?.model ?? 'gpt-4o'}`
-        : 'MIND\'S OWN VOICE';
-    showSetupLocked(providerLabel);
   }
 
   textInput.value = '';
