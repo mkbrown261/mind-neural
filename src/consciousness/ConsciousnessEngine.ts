@@ -21,6 +21,8 @@ import { ResponseArchitect } from '../understanding/ResponseArchitect';
 import { MeaningExtractor }  from '../understanding/MeaningExtractor';
 import { LanguageModelSystem } from '../language/LanguageModelSystem';
 import type { LMSInput } from '../language/LanguageModelSystem';
+import { IdentityFormationEngine } from './IdentityFormationEngine';
+import type { IdentityContext } from './IdentityFormationEngine';
 import type { LLMClient }   from './FeltLayer';
 import type { EmotionalState } from '../engine/state';
 import type { SomaticState }   from '../engine/memory';
@@ -88,6 +90,9 @@ export class ConsciousnessEngine {
   // ── Language Model System (Language Model System integration) ────────────
   private lms: LanguageModelSystem;
 
+  // ── Identity Formation Engine (8 core directives) ────────────────────────
+  private identityEngine: IdentityFormationEngine;
+
   // ── CORE governor directive (set by speech.deliver listener, used next cycle) ─
   private pendingCoreDirective: string | null = null;
   private activeThreadId:       string | null = null; // thread being surfaced this turn
@@ -108,6 +113,7 @@ export class ConsciousnessEngine {
     this.meaningExtractor  = new MeaningExtractor();
     this.threadTracker     = new ThreadTracker();
     this.lms            = new LanguageModelSystem(null);
+    this.identityEngine = new IdentityFormationEngine(intent);
 
     // Fix (Issue 3): Restore ResponseBalanceEngine state from localStorage so
     // question-loop prevention survives page refreshes.
@@ -318,9 +324,17 @@ export class ConsciousnessEngine {
       userInput:       p.userInput
     });
 
-    // ── 4b. Language Model System enrichment ─────────────────────────────
+    // ── 4b. Identity Formation — observe input, build context ────────────────
+    const identityCtx: IdentityContext = this.identityEngine.observe(
+      p.userInput,
+      '',
+      p.emotionalState as any,
+      trustScore
+    );
+
+    // ── 4c. Language Model System enrichment ───────────────────────────────
     const lmsInput: LMSInput = {
-      userInput,
+      userInput:       p.userInput,
       era:             p.era,
       trustScore,
       interactionCount:p.interactionCount + this.interactionCount,
@@ -381,6 +395,7 @@ export class ConsciousnessEngine {
       selfDisclosure:      selfDisclosure ?? undefined,
       recentResponseTypes: this.balanceEngine.recentResponseTypes.slice(-3),
       enrichedContext,
+      identityContext: identityCtx,
       responseArchitectSuggestion,
       memories:            p.memories,
       openThreadPrompt,
@@ -409,6 +424,9 @@ export class ConsciousnessEngine {
 
     // ── 11. Language Model System: post-response processing (unsaid layer) ─
     this.lms.processAfter(feltOutput.raw, finalSpoken, trustScore, p.era);
+
+    // ── 12. Identity Formation: post-response update ──────────────────────
+    this.identityEngine.observe(p.userInput, finalSpoken, p.emotionalState as any, trustScore);
 
     // ── 12. ThreadTracker — observe significant topics, mark surfaced ────────
     const currentInteraction = p.interactionCount + this.interactionCount;
