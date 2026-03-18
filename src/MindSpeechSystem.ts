@@ -10,6 +10,7 @@ import { IntentLayer } from './intent/IntentLayer';
 import { ProviderManager } from './providers/ProviderManager';
 import { TemplateSpeechEngine, type TemplateMatchPayload } from './speech/TemplateSpeechEngine';
 import { VoiceBlender, type BlendContext } from './speech/VoiceBlender';
+import { UnderstandingEngine } from './understanding/UnderstandingEngine';
 import type { MINDContext } from './engine/pipeline';
 import { buildMINDPrompt } from './engine/pipeline';
 import { compositeTrustScore } from './engine/personality';
@@ -35,6 +36,7 @@ export class MindSpeechSystem {
   private providerManager: ProviderManager;
   private templateEngine: TemplateSpeechEngine;
   private blender: VoiceBlender;
+  private understandingEngine: UnderstandingEngine;
 
   constructor() {
     // Intent Layer is the central bus — everything registers here
@@ -47,6 +49,14 @@ export class MindSpeechSystem {
     });
 
     this.providerManager = new ProviderManager(this.intent);
+
+    // ── UnderstandingEngine MUST register before TemplateSpeechEngine ──
+    // IntentLayer dispatches handlers in registration order.
+    // UnderstandingEngine gets first call on p.resolve().
+    // If it produces a valid response, TemplateSpeechEngine's call is a no-op.
+    // If it fails or returns nothing, TemplateSpeechEngine handles it normally.
+    this.understandingEngine = new UnderstandingEngine(this.intent);
+
     this.templateEngine  = new TemplateSpeechEngine(this.intent);
     this.blender         = new VoiceBlender();
   }
@@ -85,17 +95,25 @@ export class MindSpeechSystem {
       useTemplateOnly: !hasLLM
     };
 
-    // ── Forced template mode (no LLM) ────────────────
+    // ── Forced template mode (no LLM) — route through intent bus ────────────
+    // UnderstandingEngine gets first call; TemplateSpeechEngine is the fallback.
     if (!hasLLM) {
-      const templateText = this.templateEngine.generate({
-        emotionalState:      ctx.emotionalState,
-        somaticState:        ctx.somaticState,
-        trustScore,
-        era,
-        memoryCount,
-        hasActivatedMemory,
-        userInputLength:     userInput.length
+      const templateText = await new Promise<string>((resolve) => {
+        const payload: TemplateMatchPayload & { userInput: string; activatedMemories: typeof ctx.activatedMemories } = {
+          emotionalState:    ctx.emotionalState,
+          somaticState:      ctx.somaticState,
+          trustScore,
+          era,
+          memoryCount,
+          hasActivatedMemory,
+          userInputLength:   userInput.length,
+          userInput,
+          activatedMemories: ctx.activatedMemories,
+          resolve
+        };
+        this.intent.send('template.match', payload);
       });
+      if (onChunk && templateText) await this.simulateStream(templateText, onChunk);
       return {
         text: templateText,
         source: 'template',
@@ -107,8 +125,11 @@ export class MindSpeechSystem {
     // ── Decide: template vs LLM ───────────────────────
     if (this.blender.shouldUseTemplate(blendCtx)) {
       // Pure template path — fire intent and await response
+      // UnderstandingEngine handler runs first (registered before TemplateSpeechEngine)
+      // and calls resolve() if it produces a valid semantic response.
+      // TemplateSpeechEngine is the automatic fallback if UnderstandingEngine passes.
       const templateText = await new Promise<string>((resolve) => {
-        const payload: TemplateMatchPayload = {
+        const payload: TemplateMatchPayload & { userInput: string; activatedMemories: typeof ctx.activatedMemories } = {
           emotionalState:      ctx.emotionalState,
           somaticState:        ctx.somaticState,
           trustScore,
@@ -116,6 +137,9 @@ export class MindSpeechSystem {
           memoryCount,
           hasActivatedMemory,
           userInputLength:     userInput.length,
+          // Extended fields for UnderstandingEngine — ignored by TemplateSpeechEngine
+          userInput,
+          activatedMemories:   ctx.activatedMemories,
           resolve
         };
         this.intent.send('template.match', payload);
