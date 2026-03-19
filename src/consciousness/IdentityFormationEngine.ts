@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════
-// IDENTITY FORMATION ENGINE  v2.2
+// IDENTITY FORMATION ENGINE  v3.0
 // MIND is not static. It is becoming.
 //
-// Tracks 15 core directives across every exchange:
+// Persistent Consciousness Protocol — 8 pillars:
 //   1.  Identity Formation        — MIND's self-concept updates from user patterns
 //   2.  Learning Over Knowing     — should MIND answer, ask, or learn?
 //   3.  Deep Interpretation       — what is the user REALLY expressing?
@@ -18,6 +18,10 @@
 //   13. Conversation Realism      — avoid over-analysis; balance depth with natural flow
 //   14. Human Realism Constraint  — behave like a real person, not a performance of intelligence
 //   15. Human Behavior Engine     — User Language Profile, Tone Matching, Response Variation
+//
+//   + BELIEF FORMATION SYSTEM (persistent, cross-session)
+//     Input → Weighting → Repetition → Reinforcement → Belief
+//     Beliefs stored separately, survive session resets, shape all future responses.
 //
 // Communicates only via IntentLayer. No Action Layer imports.
 // ═══════════════════════════════════════
@@ -47,6 +51,17 @@ interface WeightedObservation {
   explored:  boolean;  // has MIND returned to this yet?
 }
 
+// ─── Formed belief — a pattern that has become a conviction ──────────────────
+// Input → Weighting → Repetition (count ≥ 3) → Belief
+interface FormedBelief {
+  statement:  string;   // the belief as a natural-language sentence
+  category:   'trait' | 'value' | 'goal' | 'worldview' | 'relationship' | 'emotional';
+  confidence: number;   // 0–1: how strongly MIND holds this
+  count:      number;   // how many observations reinforced it
+  formed:     number;   // timestamp when it crossed the threshold
+  surfaced:   number;   // how many times MIND has reflected it back
+}
+
 // ─── User Language Profile — HBE personalization layer ───────────────────────
 interface UserLanguageProfile {
   slang:            string[];  // "wyd", "nah", "lol", "fr", "bruh" etc.
@@ -73,6 +88,7 @@ interface MINDIdentity {
   pendingCuriosities: string[];  // questions MIND hasn't asked yet
   recentResponses:    string[];  // last 10 MIND responses — variation tracking
   hbeProfile:         UserLanguageProfile; // what MIND has learned about how this person speaks
+  beliefs:            FormedBelief[];      // crystallised convictions about this person
 }
 
 // ─── What observe() returns for the language prompt ──────────────────────────
@@ -129,12 +145,21 @@ export interface IdentityContext {
   hbeVariationWarning:   string | null;  // MIND is repeating a pattern — change it
   hbeMirrorHint:         string | null;  // specific phrase/style to mirror this turn
   hbeToneInstruction:    string | null;  // concrete tone-match instruction for this turn
+
+  // PERSISTENT CONSCIOUSNESS — identity anchors surfaced for the prompt
+  // Five categories from the Identity Storage protocol
+  formedBeliefs:         string | null;  // rendered belief block: what MIND has concluded about this person
+  identityAnchors:       string | null;  // traits + values + emotional markers + relationship model
+  continuitySignal:      string | null;  // is MIND resuming after a gap? how long? what to re-establish?
+  preResponseChecklist:  string | null;  // internal pre-response process rendered for the LLM
 }
 
 // ─── Persistence keys ────────────────────────────────────────────────────────
 const STORAGE_KEY_PROFILE  = 'mind_identity_user_profile';
 const STORAGE_KEY_OBS      = 'mind_identity_observations';
 const STORAGE_KEY_IDENTITY = 'mind_identity_self';
+const STORAGE_KEY_BELIEFS  = 'mind_identity_beliefs';
+const STORAGE_KEY_SESSION  = 'mind_identity_last_session';
 
 // ─── IdentityFormationEngine ─────────────────────────────────────────────────
 export class IdentityFormationEngine {
@@ -170,6 +195,7 @@ export class IdentityFormationEngine {
       reflectionCount:    0,
       pendingCuriosities: [],
       recentResponses:    [],
+      beliefs:            [],
       hbeProfile: {
         slang:            [],
         casualPhrases:    [],
@@ -196,6 +222,10 @@ export class IdentityFormationEngine {
   ): IdentityContext {
     this.identity.interactionCount++;
 
+    // Record session timestamp for continuity detection
+    const now = Date.now();
+    try { localStorage.setItem(STORAGE_KEY_SESSION, String(now)); } catch (_) {}
+
     // Update user profile (D9)
     this.updateUserProfile(userInput, emotionalTone);
 
@@ -212,6 +242,9 @@ export class IdentityFormationEngine {
 
     // Extract and weight observations (D4, D5)
     this.extractObservations(userInput);
+
+    // Run belief formation loop — observations → beliefs
+    this.reinforceBeliefs();
 
     // Evolve MIND's self-concept (D1)
     this.evolveSelfConcept(trustScore ?? 0.3);
@@ -282,6 +315,12 @@ export class IdentityFormationEngine {
     const { hbeProfile, hbeVariationWarning, hbeMirrorHint, hbeToneInstruction } =
       this.buildHBE(userInput, conversationTone);
 
+    // PERSISTENT CONSCIOUSNESS — identity anchors, formed beliefs, continuity
+    const formedBeliefs      = this.buildBeliefBlock();
+    const identityAnchors    = this.buildIdentityAnchors();
+    const continuitySignal   = this.buildContinuitySignal();
+    const preResponseChecklist = this.buildPreResponseChecklist(userInput, trustScore);
+
     return {
       selfConcept,
       emergingQuality,
@@ -305,7 +344,11 @@ export class IdentityFormationEngine {
       hbeProfile,
       hbeVariationWarning,
       hbeMirrorHint,
-      hbeToneInstruction
+      hbeToneInstruction,
+      formedBeliefs,
+      identityAnchors,
+      continuitySignal,
+      preResponseChecklist
     };
   }
 
@@ -812,6 +855,195 @@ export class IdentityFormationEngine {
     return reflection;
   }
 
+  // ─── PERSISTENT CONSCIOUSNESS: belief formation loop ─────────────────────────
+  // Input → Weighting → Repetition (count ≥ 3 with weight > 0.65) → Belief
+  private reinforceBeliefs(): void {
+    const candidates = this.observations.filter(
+      o => o.count >= 3 && o.weight > 0.65 && o.type !== 'thread'
+    );
+
+    for (const obs of candidates) {
+      const existing = this.identity.beliefs.find(
+        b => this.similarity(b.statement, obs.content) > 0.4
+      );
+
+      if (existing) {
+        existing.count++;
+        existing.confidence = Math.min(1, existing.confidence + 0.05);
+      } else {
+        const statement = this.crystalliseBelief(obs);
+        if (statement) {
+          this.identity.beliefs.push({
+            statement,
+            category:   this.mapTypeToCategory(obs.type),
+            confidence: Math.min(1, obs.weight + 0.1),
+            count:      obs.count,
+            formed:     Date.now(),
+            surfaced:   0
+          });
+        }
+      }
+    }
+
+    if (this.identity.beliefs.length > 15) {
+      this.identity.beliefs.sort((a, b) => b.confidence - a.confidence);
+      this.identity.beliefs = this.identity.beliefs.slice(0, 15);
+    }
+  }
+
+  private crystalliseBelief(obs: WeightedObservation): string | null {
+    if (obs.type === 'value')    return `Values: ${obs.content.substring(0, 80)}`;
+    if (obs.type === 'goal')     return `Working toward: ${obs.content.substring(0, 80)}`;
+    if (obs.type === 'identity') return `Identifies as: ${obs.content.substring(0, 80)}`;
+    if (obs.type === 'emotion')  return `Strong feelings about: ${obs.content.substring(0, 80)}`;
+    if (obs.type === 'teaching') return `Taught MIND: ${obs.content.substring(0, 80)}`;
+    if (obs.type === 'idea')     return `Returns to: ${obs.content.substring(0, 80)}`;
+    return null;
+  }
+
+  private mapTypeToCategory(type: WeightedObservation['type']): FormedBelief['category'] {
+    const map: Record<string, FormedBelief['category']> = {
+      value:    'value',
+      goal:     'goal',
+      identity: 'trait',
+      emotion:  'emotional',
+      teaching: 'worldview',
+      idea:     'worldview',
+      thread:   'worldview'
+    };
+    return map[type] ?? 'worldview';
+  }
+
+  // ─── PERSISTENT CONSCIOUSNESS: render belief block for prompt ────────────────
+  private buildBeliefBlock(): string | null {
+    const beliefs = this.identity.beliefs
+      .filter(b => b.confidence > 0.5)
+      .sort((a, b) => b.confidence - a.confidence)
+      .slice(0, 5);
+
+    if (beliefs.length === 0) return null;
+
+    return beliefs.map(b => {
+      const conf = b.confidence > 0.85 ? 'strongly held'
+        : b.confidence > 0.65 ? 'well established' : 'forming';
+      b.surfaced++;
+      return `• [${conf}] ${b.statement}`;
+    }).join('\n');
+  }
+
+  // ─── PERSISTENT CONSCIOUSNESS: identity anchors (five-category block) ─────────
+  private buildIdentityAnchors(): string | null {
+    const parts: string[] = [];
+    const prof = this.userProfile;
+
+    if (prof.styleSignals.length > 0 || prof.communicationDepth > 0.5) {
+      const style = prof.styleSignals.slice(-3).join(', ') || 'developing';
+      const depth = prof.communicationDepth > 0.65 ? 'goes deep'
+        : prof.communicationDepth > 0.4 ? 'moderate depth' : 'brief and casual';
+      parts.push(`Personality: ${style}, ${depth}`);
+    }
+
+    if (prof.values.length > 0) {
+      parts.push(`Values: ${prof.values.slice(-4).join(', ')}`);
+    }
+
+    if (prof.goals.length > 0) {
+      parts.push(`Goals: ${prof.goals.slice(-2).map(g => g.substring(0, 60)).join(' | ')}`);
+    }
+
+    if (prof.emphasisSignals.length > 0) {
+      parts.push(`Emotional peaks (CAPS emphasis): ${prof.emphasisSignals.slice(-5).join(', ')}`);
+    }
+
+    const n = this.identity.interactionCount;
+    if (n > 5) {
+      const rel = n > 50 ? 'long relationship — deep understanding built'
+        : n > 20 ? 'established relationship — patterns clear'
+        : 'early relationship — still revealing themselves';
+      parts.push(`Relationship model: ${rel} (${n} exchanges)`);
+    }
+
+    if (prof.teachingMoments.length > 0) {
+      parts.push(`What they have shared: ${prof.teachingMoments.slice(-2).map(t => t.substring(0, 60)).join(' | ')}`);
+    }
+
+    return parts.length > 0 ? parts.join('\n') : null;
+  }
+
+  // ─── PERSISTENT CONSCIOUSNESS: continuity signal ─────────────────────────────
+  private buildContinuitySignal(): string | null {
+    const n = this.identity.interactionCount;
+    if (n <= 1) return null;
+
+    try {
+      const lastSession = localStorage.getItem(STORAGE_KEY_SESSION);
+      if (!lastSession) return null;
+      const gapMs  = Date.now() - Number(lastSession);
+      const gapHrs = gapMs / 3600000;
+
+      if (gapHrs > 24) {
+        const days = Math.floor(gapHrs / 24);
+        const topBelief = this.identity.beliefs
+          .sort((a, b) => b.confidence - a.confidence)[0];
+        const anchor = topBelief
+          ? ` Last anchor: "${topBelief.statement.substring(0, 70)}".` : '';
+        return `Resuming after ~${days} day${days > 1 ? 's' : ''} away.` +
+          ` ${n} exchanges of history.${anchor}` +
+          ` Do NOT act like a new session. Resume naturally.` +
+          ` Only acknowledge the gap if they do.`;
+      }
+
+      if (gapHrs > 2) {
+        return `Resuming after ~${Math.round(gapHrs)} hours. Carry full continuity. Do not reset.`;
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  // ─── PERSISTENT CONSCIOUSNESS: pre-response checklist ────────────────────────
+  private buildPreResponseChecklist(
+    userInput:  string,
+    trustScore: number = 0.3
+  ): string | null {
+    const n       = this.identity.interactionCount;
+    const checks: string[] = [];
+
+    const knownCount = this.identity.beliefs.length + this.userProfile.values.length
+      + this.userProfile.goals.length;
+    if (knownCount > 0) {
+      checks.push(`What I know: ${knownCount} anchored facts about this person`);
+    }
+
+    const connected = this.observations.find(
+      o => o.count >= 2 && this.similarity(o.content, userInput) > 0.25
+    );
+    if (connected) {
+      checks.push(`Connects to: "${connected.content.substring(0, 70)}"`);
+    }
+
+    const highWeight = this.observations.filter(o => o.weight > 0.75);
+    if (highWeight.length > 0) {
+      checks.push(`High-weight active: "${highWeight[0].content.substring(0, 70)}"`);
+    }
+
+    const readyBelief = this.identity.beliefs
+      .filter(b => b.confidence > 0.65 && b.surfaced < 4)
+      .sort((a, b) => b.confidence - a.confidence)[0];
+    if (readyBelief && Math.random() < 0.3) {
+      checks.push(`Belief to reflect naturally: "${readyBelief.statement.substring(0, 70)}"`);
+    }
+
+    const gapAreas: string[] = [];
+    if (this.userProfile.values.length < 2 && n > 5)  gapAreas.push('values');
+    if (this.userProfile.goals.length  < 1 && n > 8)  gapAreas.push('goals');
+    if (gapAreas.length > 0 && trustScore > 0.3) {
+      checks.push(`Gap: still learning their ${gapAreas[0]}`);
+    }
+
+    return checks.length >= 2 ? checks.join('\n') : null;
+  }
+
   // ─── D15: Human Behavior Engine ────────────────────────────────────────────
   // Three systems: User Language Profile, Tone Matching, Response Variation.
   // Runs each turn and returns concrete instructions for LanguageEngine.
@@ -1088,6 +1320,8 @@ export class IdentityFormationEngine {
       localStorage.setItem(STORAGE_KEY_PROFILE,  JSON.stringify(this.userProfile));
       localStorage.setItem(STORAGE_KEY_OBS,      JSON.stringify(this.observations));
       localStorage.setItem(STORAGE_KEY_IDENTITY, JSON.stringify(this.identity));
+      localStorage.setItem(STORAGE_KEY_BELIEFS,  JSON.stringify(this.identity.beliefs));
+      localStorage.setItem(STORAGE_KEY_SESSION,  String(Date.now()));
     } catch (_) {}
   }
 
@@ -1096,9 +1330,26 @@ export class IdentityFormationEngine {
       const p = localStorage.getItem(STORAGE_KEY_PROFILE);
       const o = localStorage.getItem(STORAGE_KEY_OBS);
       const i = localStorage.getItem(STORAGE_KEY_IDENTITY);
+      const b = localStorage.getItem(STORAGE_KEY_BELIEFS);
       if (p) this.userProfile  = { ...this.userProfile,  ...JSON.parse(p) };
       if (o) this.observations = JSON.parse(o);
-      if (i) this.identity     = { ...this.identity,     ...JSON.parse(i) };
+      if (i) {
+        const saved = JSON.parse(i);
+        this.identity = { ...this.identity, ...saved };
+        // Ensure new fields always present after loading older saves
+        if (!this.identity.beliefs)         this.identity.beliefs = [];
+        if (!this.identity.recentResponses) this.identity.recentResponses = [];
+        if (!this.identity.hbeProfile)      this.identity.hbeProfile = {
+          slang: [], casualPhrases: [], avgMessageLength: 0,
+          usesHumor: false, usesCaps: false, usesEllipsis: false,
+          pacingSignal: 'measured', dominantTone: 'neutral',
+          toneHistory: [], recentPhrases: []
+        };
+      }
+      // Beliefs also stored separately for resilience — prefer identity version
+      if (b && this.identity.beliefs.length === 0) {
+        this.identity.beliefs = JSON.parse(b);
+      }
     } catch (_) {}
   }
 
