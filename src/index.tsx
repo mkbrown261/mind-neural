@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/cloudflare-workers'
 import { cors } from 'hono/cors'
+import growthHtml from '../public/growth.html?raw'
 
 const app = new Hono()
 
@@ -11,8 +12,10 @@ app.get('/api/health', (c) => {
   return c.json({ status: 'alive', mind: 'active' })
 })
 
+// Growth Interface — served from embedded raw HTML (Vite ?raw import)
+app.get('/growth', (c) => c.html(growthHtml))
+
 // Main app route — serves the SPA
-// Loading screen is embedded in HTML so it shows instantly before app.js parses
 app.get('*', (c) => {
   return c.html(`<!DOCTYPE html>
 <html lang="en">
@@ -23,7 +26,6 @@ app.get('*', (c) => {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/app.css">
-  <!-- Critical loading-screen styles inlined so they work before app.css loads -->
   <style>
     :root{--bg:#020408;--bg2:#050810;--text-dim:#4a5068;--text-bright:#e8ecff;--accent:#4466ff;--accent2:#aa44ff;--mind-font:'Space Mono',monospace;}
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -40,7 +42,6 @@ app.get('*', (c) => {
 </head>
 <body>
   <div id="app">
-    <!-- Static loading screen — visible immediately before JS runs -->
     <div id="loading">
       <div id="loading-logo">MIND</div>
       <div id="loading-sub">Neural Interface</div>
