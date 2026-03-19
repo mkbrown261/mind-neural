@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// MIND PERSISTENCE ENGINE  v2.0
+// MIND PERSISTENCE ENGINE  v3.0
 // ─────────────────────────────────────────────────────────────────────────
 // Extends MIND_DB (IndexedDB) from v3 → v4 with three new object stores:
 //
@@ -7,36 +7,30 @@
 //   timeline   — growth milestone events  (session opens, belief formations, media events)
 //   media      — media inputs analysed by MIND (image/file metadata + extracted traits)
 //
-// v2.0 additions:
-//   • Firebase Realtime Database sync via FirebaseSync module
-//   • Cross-device persistence — pushes identity/timeline/media to Firebase
-//   • Session resume from Firebase when IDB is empty (new device/browser)
-//   • Real-time reinforcement loop — pushes belief/pattern events to Firebase queue
+// v3.0 — effortless cross-device sync via MindSync (code-based, zero setup):
+//   • MIND auto-generates a 6-char SYNC CODE on first init
+//   • Pushes full state to /api/sync/:code after every save (debounced 2s)
+//   • On another device: enter the code → instant full state restore
+//   • No Firebase, no accounts, no URLs — just a short code
+//   • Falls back silently to IDB/localStorage if sync API unreachable
 //
 // Design rules:
 //   • Fully async — never blocks the main thread
 //   • Mirrors critical data to localStorage so Growth Interface can read synchronously
 //   • Provides a decay scheduler — runs once per session, ages low-weight observations
 //   • Session fingerprinting — detects gap duration since last session
-//   • Firebase sync is optional — silently skipped if not configured
 //   • Communicates via IntentLayer only (no Action Layer imports)
 // ═══════════════════════════════════════════════════════════════════════════
 
 import {
-  pushIdentity,
-  pushTimelineEvent,
-  pushMedia,
-  pushGrowthSnapshot,
-  pushHeartbeat,
-  pushReinforcementEvent,
-  applyFirebaseDecay,
-  syncLocalToFirebase,
-  loadIdentityFromFirebase,
-  loadTimelineFromFirebase,
-  isFirebaseEnabled,
-  configureFirebase,
-  getOrCreateUID,
-} from './FirebaseSync';
+  initSync,
+  pushState,
+  pullState,
+  enableSync,
+  isSyncEnabled,
+  getSyncCode,
+  getLastSyncTime,
+} from './MindSync';
 
 const DB_NAME    = 'MIND_DB';
 const DB_VERSION = 4;   // bump from 3 → 4
@@ -110,16 +104,11 @@ let _decayRanThisSession = false;
 let _sessionCount = 0;
 
 // ─── DB init ──────────────────────────────────────────────────────────────
-export async function initPersistence(): Promise<{ sessionCount: number; gapMs: number }> {
+export async function initPersistence(): Promise<{ sessionCount: number; gapMs: number; syncCode: string }> {
   await _openDB();
 
-  // ── Firebase: auto-configure with anonymous UID if not already done ──────
-  // Reads config from localStorage (set by user in settings or setup flow)
-  configureFirebase(); // loads from LS if available
-  // Generate/restore anonymous UID used for Firebase scoping
-  if (isFirebaseEnabled()) {
-    getOrCreateUID(); // ensures LS 'mind_anon_uid' exists
-  }
+  // ── MindSync: init code-based sync (auto-generates code if first run) ────
+  initSync();  // loads/creates code from localStorage — instant, sync
 
   // Load session count
   const stored = await getPersistenceMeta<number>('sessionCount');
@@ -132,29 +121,6 @@ export async function initPersistence(): Promise<{ sessionCount: number; gapMs: 
   const gapMs  = lastTs ? now - lastTs : 0;
   await setPersistenceMeta('lastSessionTs', now);
 
-  // ── Firebase: attempt cross-device resume if IDB identity is empty ──────
-  // (i.e. new browser / cleared storage)
-  const idbHasIdentity = await _get<IdentitySnapshot>(STORE_IDENTITY, 'current');
-  if (!idbHasIdentity && isFirebaseEnabled()) {
-    const fbSnap = await loadIdentityFromFirebase();
-    if (fbSnap) {
-      // Restore into IDB and localStorage
-      await _put(STORE_IDENTITY, fbSnap);
-      _lsSet(LS.profile,    (fbSnap as any).profile    ?? {});
-      _lsSet(LS.obs,        (fbSnap as any).observations ?? []);
-      _lsSet(LS.identity,   (fbSnap as any).identity   ?? {});
-      _lsSet(LS.beliefs,    (fbSnap as any).beliefs    ?? []);
-    }
-    // Also restore timeline
-    const fbTimeline = await loadTimelineFromFirebase();
-    for (const evt of fbTimeline.slice(-50)) {
-      await _put(STORE_TIMELINE, evt);
-    }
-    if (fbTimeline.length > 0) {
-      _lsSet(LS.timeline, fbTimeline.slice(-30));
-    }
-  }
-
   // Record timeline event
   await addTimelineEvent({
     id:     uid(),
@@ -164,19 +130,12 @@ export async function initPersistence(): Promise<{ sessionCount: number; gapMs: 
     detail: gapMs > 0
       ? `Resumed after ${formatGap(gapMs)}`
       : 'First session',
-    weight: gapMs > 86_400_000 ? 0.8   // >24 h gap — significant
-          : gapMs > 3_600_000  ? 0.5   // >1 h
+    weight: gapMs > 86_400_000 ? 0.8
+          : gapMs > 3_600_000  ? 0.5
           : 0.2,
   });
 
-  // ── Firebase: push heartbeat + sync local data ───────────────────────────
-  if (isFirebaseEnabled()) {
-    pushHeartbeat().catch(() => {});
-    // Sync any data that accumulated while Firebase was offline
-    syncLocalToFirebase().catch(() => {});
-  }
-
-  return { sessionCount: _sessionCount, gapMs };
+  return { sessionCount: _sessionCount, gapMs, syncCode: getSyncCode() };
 }
 
 // ─── Open / upgrade DB ────────────────────────────────────────────────────
@@ -253,9 +212,14 @@ export async function saveIdentitySnapshot(snap: {
   _lsSet(LS.beliefs,    snap.beliefs);
   _lsSet(LS.session,    Date.now());
 
-  // ── Firebase: push identity (fire-and-forget) ────────────────────────────
-  if (isFirebaseEnabled()) {
-    pushIdentity(record).catch(() => {});
+  // ── MindSync: push full state to /api/sync/:code (debounced, fire-and-forget) ──
+  if (isSyncEnabled()) {
+    const timeline = await getAllTimelineEvents();
+    pushState({
+      snapshot:  { savedAt: record.savedAt, sessionCount: _sessionCount },
+      identity:  { profile: snap.profile, beliefs: snap.beliefs, identity: snap.identity, observations: snap.observations },
+      timeline:  timeline.slice(-50) as object[],
+    });
   }
 }
 
@@ -275,11 +239,7 @@ export async function addTimelineEvent(evt: Omit<TimelineEvent,'id'> & { id?: st
   const all = await getAllTimelineEvents();
   _lsSet(LS.timeline, all.slice(-30));
 
-  // ── Firebase: push timeline event (fire-and-forget) ──────────────────────
-  // Only push significant events to reduce write volume
-  if (isFirebaseEnabled() && record.weight >= 0.4) {
-    pushTimelineEvent(record).catch(() => {});
-  }
+  // MindSync piggybacks on saveIdentitySnapshot's pushState — no extra call needed
 }
 
 export async function getAllTimelineEvents(): Promise<TimelineEvent[]> {
@@ -311,10 +271,7 @@ export async function saveMediaRecord(rec: Omit<MediaRecord,'id'|'ts'> & { id?: 
     weight: record.weight,
   });
 
-  // ── Firebase: push media record ───────────────────────────────────────────
-  if (isFirebaseEnabled()) {
-    pushMedia(record).catch(() => {});
-  }
+  // MindSync will include media in next identity snapshot push
 
   return record;
 }
@@ -390,10 +347,7 @@ export async function runDecayScheduler(): Promise<void> {
   const pruneM    = media.filter(m => (now - m.ts) > day60 && m.weight < 0.35);
   for (const m of pruneM) await _delete(STORE_MEDIA, m.id);
 
-  // ── Firebase: run cloud-side decay ────────────────────────────────────────
-  if (isFirebaseEnabled()) {
-    applyFirebaseDecay().catch(() => {});
-  }
+  // Decay is local-only; sync keeps 30-day server TTL via pushState
 }
 
 // ─── Session management meta ──────────────────────────────────────────────
@@ -418,35 +372,34 @@ export async function setPersistenceMeta<T>(key: string, value: T): Promise<void
   });
 }
 
-// ─── Firebase bridge helpers ──────────────────────────────────────────────
+// ─── MindSync bridge helpers ──────────────────────────────────────────────
 
 /**
- * Push the growth snapshot to Firebase so Growth Interface can subscribe
- * from any device. Called from app.ts after each interaction.
+ * Push growth snapshot via MindSync (called from app.ts after each exchange).
+ * Debounced internally — safe to call every interaction.
  */
-export async function pushGrowthSnapshotToFirebase(snapshot: object): Promise<void> {
-  if (!isFirebaseEnabled()) return;
-  return pushGrowthSnapshot(snapshot);
+export async function pushGrowthSnapshotToSync(snapshot: object): Promise<void> {
+  if (!isSyncEnabled()) return;
+  const timeline = await getAllTimelineEvents().catch(() => []);
+  pushState({
+    snapshot,
+    timeline: timeline.slice(-50) as object[],
+  });
 }
 
 /**
- * Push a reinforcement event to the Firebase queue.
- * The Growth Interface (or a future server) can subscribe and apply weights.
+ * Re-exports for app.ts and growth.html to use.
  */
-export async function pushReinforcementToFirebase(
-  type: 'belief_confirmed' | 'belief_contradicted' | 'pattern_seen',
-  content: string,
-  weight: number
-): Promise<void> {
-  if (!isFirebaseEnabled()) return;
-  return pushReinforcementEvent({ type, content, weight });
-}
-
-/**
- * Return whether Firebase sync is active.
- */
-export { isFirebaseEnabled, configureFirebase, getOrCreateUID, getFirebaseConfig } from './FirebaseSync';
-export { subscribeToUpdates as subscribeFirebase, unsubscribe as unsubscribeFirebase } from './FirebaseSync';
+export {
+  getSyncCode,
+  isSyncEnabled,
+  enableSync,
+  getLastSyncTime,
+  pullState   as pullSyncState,
+  startRemotePoll as startSyncPoll,
+  stopRemotePoll  as stopSyncPoll,
+  checkCodeExists as checkSyncCode,
+} from './MindSync';
 
 // ─── Media analysis helper ────────────────────────────────────────────────
 // Called from app.ts when user uploads/pastes an image or file.

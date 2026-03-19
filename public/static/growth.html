@@ -125,10 +125,10 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════
-// MIND Growth Interface  v2.1
+// MIND Growth Interface  v3.0
 // ─────────────────────────────────────────────────────────────────────
 // Data sources (priority order):
-//   1. Firebase RTDB — cross-device real-time sync (if configured)
+//   1. MindSync — code-based cross-device sync (no accounts, no Firebase)
 //   2. IndexedDB MIND_DB v4 — identity, timeline, media stores (canonical)
 //   3. localStorage — fast read cache (Growth Interface polls these)
 //   4. mind_growth_snapshot — summary written by app.ts after each exchange
@@ -139,7 +139,7 @@
 //   • Rich timeline from IDB (session opens, milestones, belief events, media)
 //   • Media panel showing files/images MIND has processed
 //   • Live IDB polling via BroadcastChannel + localStorage storage event
-//   • Firebase SSE subscription for cross-device real-time updates
+//   • MindSync: 6-char code entry in header for instant cross-device sync
 //   • Decay-aware: low-weight observations visually de-emphasised
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -211,100 +211,125 @@ async function loadIDB() {
   }
 }
 
-// ── Firebase real-time subscription ──────────────────────────────────
-// If Firebase is configured (mind_firebase_config in localStorage),
-// subscribe to the user's snapshot via SSE for cross-device updates.
-let _fbSSE = null;
-let _fbSyncBadge = false;
+// ── MindSync: code-based cross-device sync ────────────────────────────
+// No Firebase. No accounts. Just a 6-character code shown in MIND's top bar.
+// Enter that code here to watch this device mirror MIND in real time.
 
-function loadFirebaseConfig() {
+let _syncCode      = localStorage.getItem('mind_growth_sync_code') || '';
+let _syncConnected = false;
+let _syncLastAt    = 0;
+let _syncPollTimer = null;
+const SYNC_API     = '/api/sync';
+
+// Auto-connect if code was previously saved
+if (_syncCode) _startSyncPoll(_syncCode);
+
+async function connectSyncCode(code) {
+  code = code.toUpperCase().trim();
+  if (!/^[A-Z0-9]{4,8}$/.test(code)) {
+    _showSyncStatus('⚠ Enter the 6-character code shown in MIND', '#f59e0b');
+    return;
+  }
+  _showSyncStatus('Connecting…', '#4a5068');
+
+  // Verify code exists
   try {
-    return JSON.parse(localStorage.getItem('mind_firebase_config') || 'null');
+    const res  = await fetch(`${SYNC_API}/${code}/exists`);
+    const data = await res.json();
+    if (!data.exists) {
+      _showSyncStatus('Code not found — start a conversation in MIND first', '#ff6644');
+      return;
+    }
+  } catch {
+    _showSyncStatus('Could not reach sync server', '#ff6644');
+    return;
+  }
+
+  // Pull full state immediately
+  const state = await _fetchFullState(code);
+  if (state) {
+    _applyRemoteState(state);
+    localStorage.setItem('mind_growth_sync_code', code);
+    _syncCode      = code;
+    _syncConnected = true;
+    _showSyncStatus('⚡ Synced', '#22c55e');
+    _startSyncPoll(code);
+    lastSig = ''; poll();
+  } else {
+    _showSyncStatus('Could not load state', '#ff6644');
+  }
+}
+
+async function _fetchFullState(code) {
+  try {
+    const res  = await fetch(`${SYNC_API}/${code}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.found) return null;
+    return data;
   } catch { return null; }
 }
 
-function startFirebaseSubscription() {
-  const cfg = loadFirebaseConfig();
-  if (!cfg || !cfg.databaseURL || !cfg.uid) return;
-
-  const uid     = encodeURIComponent(cfg.uid);
-  const token   = (() => { try { return JSON.parse(localStorage.getItem('mind_firebase_token') || 'null'); } catch { return null; } })();
-  const baseUrl = cfg.databaseURL.replace(/\/$/, '');
-  const url     = `${baseUrl}/users/${uid}/snapshot.json?stream=true`
-                  + (token ? `&auth=${encodeURIComponent(token)}` : '');
-
-  if (_fbSSE) { try { _fbSSE.close(); } catch(_) {} }
-
+function _applyRemoteState(data) {
   try {
-    const es = new EventSource(url);
-    _fbSSE = es;
-
-    es.addEventListener('put', (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg && msg.data && typeof msg.data === 'object') {
-          _applyFirebaseSnapshot(msg.data);
-        }
-      } catch(_) {}
-    });
-
-    es.addEventListener('patch', (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg && msg.data && typeof msg.data === 'object') {
-          _applyFirebaseSnapshot(msg.data);
-        }
-      } catch(_) {}
-    });
-
-    es.onerror = () => {
-      _fbSSE = null;
-      // Auto-reconnect after 15s
-      setTimeout(startFirebaseSubscription, 15000);
-    };
-
-    _fbSyncBadge = true;
-  } catch(_) {
-    // SSE unavailable — fall back to polling Firebase REST
-    _startFirebasePoll(cfg, token);
-  }
+    // Apply snapshot to localStorage (Growth Interface reads from here)
+    if (data.snapshot && typeof data.snapshot === 'object') {
+      const snap = data.snapshot;
+      delete snap._syncAt;
+      localStorage.setItem(LS.snapshot, JSON.stringify(snap));
+    }
+    // Apply identity fields
+    if (data.identity && typeof data.identity === 'object') {
+      const id = data.identity;
+      if (id.profile)      localStorage.setItem(LS.profile,  JSON.stringify(id.profile));
+      if (id.beliefs)      localStorage.setItem(LS.beliefs,  JSON.stringify(id.beliefs));
+      if (id.identity)     localStorage.setItem(LS.identity, JSON.stringify(id.identity));
+      if (id.observations) localStorage.setItem(LS.obs,      JSON.stringify(id.observations));
+    }
+    // Apply timeline
+    if (Array.isArray(data.timeline) && data.timeline.length > 0) {
+      localStorage.setItem(LS.timeline, JSON.stringify(data.timeline.slice(-30)));
+      idbTimeline = data.timeline;
+      idbLoaded   = true;
+    }
+    _syncLastAt = data.snapshot?._syncAt ?? Date.now();
+  } catch(e) { console.warn('[Sync]', e); }
 }
 
-function _applyFirebaseSnapshot(data) {
-  // Merge Firebase snapshot into localStorage
-  const existing = (() => { try { return JSON.parse(localStorage.getItem(LS.snapshot) || '{}'); } catch { return {}; } })();
-  const incoming = data;
-  // Only apply if newer
-  if (!existing.updatedAt || (incoming._pushedAt && incoming._pushedAt > (existing.updatedAt || 0))) {
-    const merged = Object.assign({}, existing, incoming);
-    delete merged._pushedAt;
-    localStorage.setItem(LS.snapshot, JSON.stringify(merged));
-    lastSig = ''; // force re-render
-    poll();
-  }
-}
-
-let _fbPollInterval = null;
-let _fbPollEtag = '';
-
-function _startFirebasePoll(cfg, token) {
-  if (_fbPollInterval) return;
-  _fbPollInterval = setInterval(async () => {
+function _startSyncPoll(code) {
+  if (_syncPollTimer) clearInterval(_syncPollTimer);
+  _syncPollTimer = setInterval(async () => {
     try {
-      const uid     = encodeURIComponent(cfg.uid);
-      const baseUrl = cfg.databaseURL.replace(/\/$/, '');
-      const url     = `${baseUrl}/users/${uid}/snapshot.json`
-                      + (token ? `?auth=${encodeURIComponent(token)}` : '');
-      const res = await fetch(url, _fbPollEtag ? { headers: { 'If-None-Match': _fbPollEtag } } : {});
-      if (res.status === 304) return;
-      const etag = res.headers.get('ETag') || '';
-      if (etag && etag !== _fbPollEtag) {
-        _fbPollEtag = etag;
-        const data = await res.json();
-        if (data) _applyFirebaseSnapshot(data);
+      const res  = await fetch(`${SYNC_API}/${code}/ping`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.found) return;
+      if (data.syncAt > _syncLastAt) {
+        const full = await _fetchFullState(code);
+        if (full) {
+          _applyRemoteState(full);
+          _syncConnected = true;
+          lastSig = ''; poll();
+        }
       }
-    } catch(_) {}
-  }, 15000);
+    } catch { /* silent */ }
+  }, 8000);
+}
+
+function disconnectSync() {
+  if (_syncPollTimer) { clearInterval(_syncPollTimer); _syncPollTimer = null; }
+  _syncConnected = false;
+  _syncCode      = '';
+  localStorage.removeItem('mind_growth_sync_code');
+  lastSig = ''; poll();
+}
+
+function _showSyncStatus(msg, color) {
+  // Update all sync status elements (empty state + header)
+  document.querySelectorAll('#sync-status-msg').forEach(el => {
+    el.textContent = msg;
+    el.style.color = color || '#4a5068';
+  });
 }
 
 // ── Read localStorage ─────────────────────────────────────────────────
@@ -605,11 +630,30 @@ function renderEmpty() {
   document.getElementById('root').innerHTML = `
     <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center;padding:24px">
       <div class="mono pulse" style="font-size:38px;font-weight:700;letter-spacing:0.35em;color:#e8ecff;text-shadow:0 0 30px rgba(68,102,255,0.45)">MIND</div>
-      <div class="mono" style="font-size:10px;letter-spacing:0.3em;text-transform:uppercase;color:#4a5068">Growth Interface</div>
-      <div style="color:#4a5068;font-size:13px;max-width:300px;line-height:1.8;margin-top:8px">
+      <div class="mono" style="font-size:10px;letter-spacing:0.3em;text-transform:uppercase;color:#4a5068">Growth Interface v3</div>
+      <div style="color:#4a5068;font-size:13px;max-width:360px;line-height:1.8;margin-top:8px">
         Start a conversation with MIND.<br>This interface comes alive as MIND learns.
       </div>
-      <a href="/" style="color:#4466ff;font-size:11px;font-family:'Space Mono',monospace;letter-spacing:0.15em;text-transform:uppercase;text-decoration:none;opacity:0.6;margin-top:8px">↗ Open MIND</a>
+
+      <!-- Sync code entry for cross-device access -->
+      <div style="margin-top:12px;padding:18px 22px;background:rgba(5,8,16,0.9);border:1px solid rgba(68,102,255,0.18);border-radius:16px;max-width:340px;width:90%">
+        <div class="mono" style="font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:#4a5068;margin-bottom:12px">Already using MIND on another device?</div>
+        <div style="font-size:12px;color:#8892b0;margin-bottom:14px;line-height:1.6">
+          Enter the <strong style="color:#e8ecff">6-character sync code</strong> shown in MIND's top bar to mirror your growth data here.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="empty-sync-input" maxlength="8" placeholder="A1B2C3" autocomplete="off" spellcheck="false"
+            onkeydown="if(event.key==='Enter')connectSyncCode(this.value)"
+            oninput="this.value=this.value.toUpperCase()"
+            style="flex:1;background:rgba(10,15,30,0.8);border:1px solid rgba(68,102,255,0.25);border-radius:10px;padding:10px 14px;color:#e8ecff;font-family:'Space Mono',monospace;font-size:16px;font-weight:700;letter-spacing:0.25em;outline:none;text-transform:uppercase"
+          />
+          <button onclick="connectSyncCode(document.getElementById('empty-sync-input').value)"
+            style="background:rgba(68,102,255,0.15);border:1px solid rgba(68,102,255,0.3);border-radius:10px;padding:10px 16px;font-family:'Space Mono',monospace;font-size:11px;color:#4466ff;cursor:pointer;letter-spacing:0.08em;white-space:nowrap">CONNECT</button>
+        </div>
+        <div id="sync-status-msg" style="font-family:'Space Mono',monospace;font-size:10px;margin-top:8px;min-height:14px;transition:color 0.3s"></div>
+      </div>
+
+      <a href="/" style="color:#4466ff;font-size:11px;font-family:'Space Mono',monospace;letter-spacing:0.15em;text-transform:uppercase;text-decoration:none;opacity:0.6;margin-top:4px">↗ Open MIND</a>
     </div>`;
 }
 
@@ -622,16 +666,27 @@ function buildPage(d) {
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:32px">
       <div>
         <div class="mono glow" style="font-size:22px;font-weight:700;letter-spacing:0.3em;color:#e8ecff">MIND</div>
-        <div class="mono" style="font-size:9px;letter-spacing:0.28em;text-transform:uppercase;color:#4a5068;margin-top:2px">Growth Interface v2</div>
+        <div class="mono" style="font-size:9px;letter-spacing:0.28em;text-transform:uppercase;color:#4a5068;margin-top:2px">Growth Interface v3</div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <span class="live-dot"></span>
         <span class="mono" style="font-size:11px;color:#4a5068">${d.n} exchanges</span>
         <span class="mono" style="background:${ec}18;border:1px solid ${ec}30;color:${ec};padding:4px 13px;border-radius:20px;font-size:11px;letter-spacing:0.1em">${d.era.label.toUpperCase()}</span>
         ${d.idbReady ? '<span class="idb-badge">IDB ✓</span>' : ''}
-        ${_fbSyncBadge
-          ? '<span class="idb-badge" style="color:#22c55e;border-color:rgba(34,197,94,0.3)">⚡ SYNC</span>'
-          : '<button onclick="showFirebaseSetup()" style="cursor:pointer;font-size:9px;font-family:\'Space Mono\',monospace;letter-spacing:0.1em;text-transform:uppercase;padding:2px 7px;border:1px solid rgba(68,102,255,0.2);border-radius:10px;background:rgba(68,102,255,0.06);color:#4466ff">+ SYNC</button>'}
+        <!-- Sync code entry — always visible, minimal -->
+        <div style="display:flex;align-items:center;gap:6px;background:rgba(10,15,30,0.7);border:1px solid ${_syncConnected ? 'rgba(34,197,94,0.3)' : 'rgba(68,102,255,0.15)'};border-radius:20px;padding:3px 6px 3px 10px;transition:border-color 0.3s">
+          ${_syncConnected
+            ? `<span style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.12em;color:#22c55e">⚡ LIVE · <strong style="letter-spacing:0.2em">${_syncCode}</strong></span>
+               <button onclick="disconnectSync()" title="Disconnect sync" style="background:rgba(255,102,68,0.1);border:1px solid rgba(255,102,68,0.2);border-radius:10px;padding:2px 7px;font-family:'Space Mono',monospace;font-size:9px;color:#ff6644;cursor:pointer;letter-spacing:0.06em">✕</button>`
+            : `<span style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.12em;color:#4a5068;white-space:nowrap">SYNC CODE</span>
+               <input id="sync-code-input" maxlength="8" placeholder="A1B2C3" autocomplete="off" spellcheck="false"
+                 onkeydown="if(event.key==='Enter')connectSyncCode(this.value)"
+                 style="width:70px;background:transparent;border:none;outline:none;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;letter-spacing:0.2em;color:#e8ecff;text-transform:uppercase;padding:0"
+               />
+               <button onclick="connectSyncCode(document.getElementById('sync-code-input').value)"
+                 style="background:rgba(68,102,255,0.12);border:1px solid rgba(68,102,255,0.25);border-radius:10px;padding:2px 8px;font-family:'Space Mono',monospace;font-size:9px;color:#4466ff;cursor:pointer;letter-spacing:0.06em">↗</button>`}
+          <span id="sync-status-msg" style="font-family:'Space Mono',monospace;font-size:9px;margin-left:2px;transition:color 0.3s"></span>
+        </div>
         <a href="/" class="mono" style="color:#4466ff;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;opacity:0.5">↗ MIND</a>
       </div>
     </div>
@@ -652,7 +707,7 @@ function buildPage(d) {
     </div>
 
     <div class="mono" style="text-align:center;margin-top:32px;color:#161b2e;font-size:10px;letter-spacing:0.18em;text-transform:uppercase">
-      Live · 2s poll · localStorage + IndexedDB sync · Same-origin
+      Live · 2s poll · IndexedDB + MindSync · No accounts needed
     </div>
   </div>`;
 }
@@ -949,75 +1004,8 @@ function poll() {
 }
 
 // ── Live sync ─────────────────────────────────────────────────────────
-
-// ── Firebase setup modal ──────────────────────────────────────────────
-function showFirebaseSetup() {
-  // Remove existing modal if any
-  const existing = document.getElementById('fb-setup-modal');
-  if (existing) { existing.remove(); return; }
-
-  const modal = document.createElement('div');
-  modal.id = 'fb-setup-modal';
-  modal.style.cssText = `
-    position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(2,4,8,0.88);
-    z-index:200;display:flex;align-items:center;justify-content:center;
-    animation:fadeUp 0.3s ease forwards;
-  `;
-  modal.innerHTML = `
-    <div style="background:#050810;border:1px solid rgba(68,102,255,0.25);border-radius:18px;padding:28px 30px;max-width:440px;width:90%;box-shadow:0 0 40px rgba(68,102,255,0.12)">
-      <div class="mono" style="font-size:10px;letter-spacing:0.25em;text-transform:uppercase;color:#4a5068;margin-bottom:16px">⚡ Firebase Sync Setup</div>
-      <p style="font-size:12px;color:#8892b0;line-height:1.7;margin-bottom:18px">
-        Connect to Firebase Realtime Database to sync MIND's memory across devices.<br>
-        <a href="https://console.firebase.google.com" target="_blank" style="color:#4466ff">Create a free project →</a>
-      </p>
-      <label style="display:block;font-size:9px;letter-spacing:0.12em;color:#4a5068;margin-bottom:4px;font-family:monospace">DATABASE URL</label>
-      <input id="fb-url-input" type="text" placeholder="https://your-project-default-rtdb.firebaseio.com"
-        style="width:100%;box-sizing:border-box;background:rgba(10,15,30,0.9);border:1px solid rgba(68,102,255,0.2);border-radius:8px;padding:9px 12px;color:#e8ecff;font-family:monospace;font-size:11px;margin-bottom:10px;outline:none"
-        value="${(loadFirebaseConfig() || {}).databaseURL || ''}" />
-      <label style="display:block;font-size:9px;letter-spacing:0.12em;color:#4a5068;margin-bottom:4px;font-family:monospace">USER ID (optional, auto-generated if blank)</label>
-      <input id="fb-uid-input" type="text" placeholder="e.g. your-email or leave blank"
-        style="width:100%;box-sizing:border-box;background:rgba(10,15,30,0.9);border:1px solid rgba(68,102,255,0.2);border-radius:8px;padding:9px 12px;color:#e8ecff;font-family:monospace;font-size:11px;margin-bottom:10px;outline:none"
-        value="${(loadFirebaseConfig() || {}).uid || localStorage.getItem('mind_anon_uid') || ''}" />
-      <div style="display:flex;gap:10px;margin-top:6px">
-        <button onclick="applyFirebaseConfig()" style="flex:1;background:rgba(68,102,255,0.15);border:1px solid rgba(68,102,255,0.3);color:#e8ecff;border-radius:10px;padding:10px;font-family:monospace;font-size:11px;cursor:pointer;letter-spacing:0.08em">CONNECT</button>
-        <button onclick="document.getElementById('fb-setup-modal').remove()" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#4a5068;border-radius:10px;padding:10px 16px;font-family:monospace;font-size:11px;cursor:pointer">CANCEL</button>
-      </div>
-      <div id="fb-setup-status" style="margin-top:10px;font-size:11px;color:#22c55e;font-family:monospace;min-height:16px"></div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  // Close on backdrop click
-  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
-}
-
-function applyFirebaseConfig() {
-  const urlInput = document.getElementById('fb-url-input');
-  const uidInput = document.getElementById('fb-uid-input');
-  const status   = document.getElementById('fb-setup-status');
-  const url = urlInput?.value.trim();
-  const uid = uidInput?.value.trim() || localStorage.getItem('mind_anon_uid')
-    || 'anon_' + Math.random().toString(36).substring(2, 18);
-
-  if (!url || !url.startsWith('https://')) {
-    if (status) status.textContent = '⚠ Enter a valid Firebase RTDB URL';
-    return;
-  }
-
-  // Save config
-  localStorage.setItem('mind_firebase_config', JSON.stringify({ databaseURL: url, uid }));
-  localStorage.setItem('mind_anon_uid', uid);
-  if (status) status.textContent = '✓ Connecting…';
-
-  // Start subscription
-  _fbSyncBadge = false;
-  startFirebaseSubscription();
-
-  setTimeout(() => {
-    const modal = document.getElementById('fb-setup-modal');
-    if (modal) modal.remove();
-    lastSig = ''; poll(); // re-render header with ⚡ SYNC badge
-  }, 1200);
-}
+// MindSync is handled inline in the header via connectSyncCode() / disconnectSync().
+// No setup modal required — just enter the 6-char code shown in MIND's top bar.
 
 // localStorage storage event (cross-tab)
 window.addEventListener('storage', e => {
@@ -1043,7 +1031,6 @@ try {
 // ── Boot ──────────────────────────────────────────────────────────────
 poll();
 loadIDB();                         // async IDB load on boot
-startFirebaseSubscription();       // connect Firebase if configured
 setInterval(poll, 2000);
 setInterval(loadIDB, 10000);       // refresh IDB data every 10s
 </script>
