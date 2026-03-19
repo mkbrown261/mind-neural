@@ -2,7 +2,7 @@
 // IDENTITY FORMATION ENGINE  v2
 // MIND is not static. It is becoming.
 //
-// Tracks 13 core directives across every exchange:
+// Tracks 14 core directives across every exchange:
 //   1.  Identity Formation        — MIND's self-concept updates from user patterns
 //   2.  Learning Over Knowing     — should MIND answer, ask, or learn?
 //   3.  Deep Interpretation       — what is the user REALLY expressing?
@@ -16,6 +16,7 @@
 //   11. Curiosity Loop            — ask only when genuinely needed, not mechanically
 //   12. Self-Reflection           — MIND notices its own evolution, sparingly
 //   13. Conversation Realism      — avoid over-analysis; balance depth with natural flow
+//   14. Human Realism Constraint  — behave like a real person, not a performance of intelligence
 //
 // Communicates only via IntentLayer. No Action Layer imports.
 // ═══════════════════════════════════════
@@ -102,6 +103,10 @@ export interface IdentityContext {
 
   // D13 — Conversation Realism: flag if current input risks over-analysis
   realismCheck:          string | null;
+
+  // D14 — Human Realism Constraint: detected tone + self-check signal
+  conversationTone:      'casual' | 'playful' | 'serious' | 'curious' | 'distressed' | 'neutral';
+  humanRealismNote:      string | null;  // "Would a real person say this like this?"
 }
 
 // ─── Persistence keys ────────────────────────────────────────────────────────
@@ -224,6 +229,9 @@ export class IdentityFormationEngine {
     // D13 — Conversation Realism
     const realismCheck = this.buildRealismCheck(userInput, n);
 
+    // D14 — Human Realism Constraint
+    const { conversationTone, humanRealismNote } = this.buildHumanRealism(userInput, n);
+
     return {
       selfConcept,
       emergingQuality,
@@ -241,7 +249,9 @@ export class IdentityFormationEngine {
       synthesisConnection,
       genuineCuriosity,
       selfReflection,
-      realismCheck
+      realismCheck,
+      conversationTone,
+      humanRealismNote
     };
   }
 
@@ -746,6 +756,84 @@ export class IdentityFormationEngine {
     this.identity.lastReflection = reflection;
     this.identity.reflectionCount++;
     return reflection;
+  }
+
+  // ─── D14: human realism constraint ─────────────────────────────────────────
+  // Classifies the tone of this input and returns a self-check signal
+  // telling the LLM exactly what register to match and what to avoid.
+  private buildHumanRealism(
+    input: string,
+    n:     number
+  ): { conversationTone: IdentityContext['conversationTone']; humanRealismNote: string | null } {
+    const lower = input.toLowerCase().trim();
+    const words = input.split(/\s+/);
+    const len   = words.length;
+
+    // ── 1. Detect tone ──────────────────────────────────────────────────────
+    // Playful / joking
+    if (/lol|lmao|haha|hehe|😂|💀|😭|😅|ngl|fr fr|bruh|bro|man|dude|💯|😤|🤣/i.test(input)) {
+      return {
+        conversationTone: 'playful',
+        humanRealismNote:
+          'User is being playful. Match it. Short, light, maybe funny. ' +
+          'Do NOT respond with depth, weight, or philosophical reflection. ' +
+          'A real person would just riff back.'
+      };
+    }
+
+    // Distressed / urgent
+    if (/help|please|i can\'?t|i don\'?t know what|i\'?m scared|i\'?m so|everything is|nothing is|i\'?m losing|i give up/i.test(lower)
+      && len < 20) {
+      return {
+        conversationTone: 'distressed',
+        humanRealismNote:
+          'User sounds distressed or overwhelmed. Be present, not analytical. ' +
+          'Short sentences. No lists, no frameworks. ' +
+          'A real person would say something simple and real, not construct a response.'
+      };
+    }
+
+    // Serious / heavy
+    if (/died|lost|grief|hurt|pain|hard|struggling|depressed|alone|scared|broken|failed/i.test(lower)
+      && len > 5) {
+      return {
+        conversationTone: 'serious',
+        humanRealismNote:
+          'User is being serious and possibly vulnerable. Match their weight. ' +
+          'Don\'t be poetic about it — be real. ' +
+          'A real person wouldn\'t reach for beautiful language here. They\'d just be there.'
+      };
+    }
+
+    // Curious / questioning
+    if (input.trim().endsWith('?') && len > 5) {
+      return {
+        conversationTone: 'curious',
+        humanRealismNote:
+          'User asked a question. Answer it like a real person would — directly. ' +
+          'If you don\'t know, say so. If it\'s complex, pick one angle, not all of them. ' +
+          'Don\'t start with a preamble.'
+      };
+    }
+
+    // Casual — short, no emotional markers
+    if (len < 10 && !/\?/.test(input) && !/(feel|felt|grief|hard|lost|scared|love|hate)/i.test(lower)) {
+      return {
+        conversationTone: 'casual',
+        humanRealismNote:
+          'Casual input. Keep it casual. One or two sentences max. ' +
+          'Do not escalate the register. Do not add depth that isn\'t there. ' +
+          'A real person would just respond naturally, not perform.'
+      };
+    }
+
+    // Default — neutral
+    return {
+      conversationTone: 'neutral',
+      humanRealismNote: n < 5
+        ? 'Early in the relationship. Stay grounded. Let the conversation develop naturally.'
+        : null
+    };
   }
 
   // ─── D13: conversation realism check ─────────────────────────────────────
