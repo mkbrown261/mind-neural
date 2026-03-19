@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════
-// IDENTITY FORMATION ENGINE  v2
+// IDENTITY FORMATION ENGINE  v2.2
 // MIND is not static. It is becoming.
 //
-// Tracks 14 core directives across every exchange:
+// Tracks 15 core directives across every exchange:
 //   1.  Identity Formation        — MIND's self-concept updates from user patterns
 //   2.  Learning Over Knowing     — should MIND answer, ask, or learn?
 //   3.  Deep Interpretation       — what is the user REALLY expressing?
@@ -17,6 +17,7 @@
 //   12. Self-Reflection           — MIND notices its own evolution, sparingly
 //   13. Conversation Realism      — avoid over-analysis; balance depth with natural flow
 //   14. Human Realism Constraint  — behave like a real person, not a performance of intelligence
+//   15. Human Behavior Engine     — User Language Profile, Tone Matching, Response Variation
 //
 // Communicates only via IntentLayer. No Action Layer imports.
 // ═══════════════════════════════════════
@@ -46,6 +47,20 @@ interface WeightedObservation {
   explored:  boolean;  // has MIND returned to this yet?
 }
 
+// ─── User Language Profile — HBE personalization layer ───────────────────────
+interface UserLanguageProfile {
+  slang:            string[];  // "wyd", "nah", "lol", "fr", "bruh" etc.
+  casualPhrases:    string[];  // repeated casual openers / closers
+  avgMessageLength: number;    // rolling average word count
+  usesHumor:        boolean;
+  usesCaps:         boolean;   // ALL CAPS for emphasis
+  usesEllipsis:     boolean;   // "..." for trailing thought
+  pacingSignal:     'rapid' | 'measured' | 'slow';
+  dominantTone:     string;    // most common tone across sessions
+  toneHistory:      string[];  // last 10 detected tones
+  recentPhrases:    string[];  // last 20 distinct phrases (for mirroring)
+}
+
 // ─── MIND's own identity state ────────────────────────────────────────────────
 interface MINDIdentity {
   selfConcept:        string;
@@ -55,8 +70,9 @@ interface MINDIdentity {
   interactionCount:   number;
   lastReflection:     string | null;
   reflectionCount:    number;
-  // Track curiosity: what questions has MIND genuinely not asked yet
-  pendingCuriosities: string[];
+  pendingCuriosities: string[];  // questions MIND hasn't asked yet
+  recentResponses:    string[];  // last 10 MIND responses — variation tracking
+  hbeProfile:         UserLanguageProfile; // what MIND has learned about how this person speaks
 }
 
 // ─── What observe() returns for the language prompt ──────────────────────────
@@ -106,7 +122,13 @@ export interface IdentityContext {
 
   // D14 — Human Realism Constraint: detected tone + self-check signal
   conversationTone:      'casual' | 'playful' | 'serious' | 'curious' | 'distressed' | 'neutral';
-  humanRealismNote:      string | null;  // "Would a real person say this like this?"
+  humanRealismNote:      string | null;
+
+  // D15 — Human Behavior Engine: personalized language profile + variation guard
+  hbeProfile:            string | null;  // one-line summary of how THIS user speaks
+  hbeVariationWarning:   string | null;  // MIND is repeating a pattern — change it
+  hbeMirrorHint:         string | null;  // specific phrase/style to mirror this turn
+  hbeToneInstruction:    string | null;  // concrete tone-match instruction for this turn
 }
 
 // ─── Persistence keys ────────────────────────────────────────────────────────
@@ -146,7 +168,20 @@ export class IdentityFormationEngine {
       interactionCount:   0,
       lastReflection:     null,
       reflectionCount:    0,
-      pendingCuriosities: []
+      pendingCuriosities: [],
+      recentResponses:    [],
+      hbeProfile: {
+        slang:            [],
+        casualPhrases:    [],
+        avgMessageLength: 0,
+        usesHumor:        false,
+        usesCaps:         false,
+        usesEllipsis:     false,
+        pacingSignal:     'measured',
+        dominantTone:     'neutral',
+        toneHistory:      [],
+        recentPhrases:    []
+      }
     };
 
     this.load();
@@ -161,8 +196,19 @@ export class IdentityFormationEngine {
   ): IdentityContext {
     this.identity.interactionCount++;
 
-    // Update user profile
+    // Update user profile (D9)
     this.updateUserProfile(userInput, emotionalTone);
+
+    // Update Human Behavior Engine language profile (D15)
+    this.updateHBEProfile(userInput);
+
+    // Track MIND's recent responses for variation guard (D15)
+    if (mindResponse && mindResponse.length > 3) {
+      this.identity.recentResponses.push(mindResponse.substring(0, 120));
+      if (this.identity.recentResponses.length > 10) {
+        this.identity.recentResponses = this.identity.recentResponses.slice(-10);
+      }
+    }
 
     // Extract and weight observations (D4, D5)
     this.extractObservations(userInput);
@@ -232,6 +278,10 @@ export class IdentityFormationEngine {
     // D14 — Human Realism Constraint
     const { conversationTone, humanRealismNote } = this.buildHumanRealism(userInput, n);
 
+    // D15 — Human Behavior Engine
+    const { hbeProfile, hbeVariationWarning, hbeMirrorHint, hbeToneInstruction } =
+      this.buildHBE(userInput, conversationTone);
+
     return {
       selfConcept,
       emergingQuality,
@@ -251,7 +301,11 @@ export class IdentityFormationEngine {
       selfReflection,
       realismCheck,
       conversationTone,
-      humanRealismNote
+      humanRealismNote,
+      hbeProfile,
+      hbeVariationWarning,
+      hbeMirrorHint,
+      hbeToneInstruction
     };
   }
 
@@ -758,6 +812,144 @@ export class IdentityFormationEngine {
     return reflection;
   }
 
+  // ─── D15: Human Behavior Engine ────────────────────────────────────────────
+  // Three systems: User Language Profile, Tone Matching, Response Variation.
+  // Runs each turn and returns concrete instructions for LanguageEngine.
+  private updateHBEProfile(input: string): void {
+    const lower = input.toLowerCase();
+    const words = input.split(/\s+/).filter(w => w.length > 0);
+    const n     = this.identity.interactionCount;
+    const hbe   = this.identity.hbeProfile;
+
+    // ── 1. Rolling average message length ─────────────────────────────────────
+    hbe.avgMessageLength = n <= 1
+      ? words.length
+      : Math.round((hbe.avgMessageLength * (n - 1) + words.length) / n);
+
+    // ── 2. Pacing signal ──────────────────────────────────────────────────────
+    // Based on rolling average: rapid < 8 words, slow > 35, otherwise measured
+    if (hbe.avgMessageLength < 8)       hbe.pacingSignal = 'rapid';
+    else if (hbe.avgMessageLength > 35) hbe.pacingSignal = 'slow';
+    else                                hbe.pacingSignal = 'measured';
+
+    // ── 3. Slang detection ────────────────────────────────────────────────────
+    const slangTerms = ['wyd', 'wys', 'lol', 'lmao', 'ngl', 'fr', 'bruh', 'bro',
+      'dude', 'nah', 'yeah', 'yea', 'idk', 'tbh', 'imo', 'omg', 'wtf', 'ong',
+      'deadass', 'lowkey', 'highkey', 'no cap', 'bet', 'facts', 'frl', 'rn', 'smh'];
+    slangTerms.forEach(s => {
+      if (lower.includes(s) && !hbe.slang.includes(s)) {
+        hbe.slang.push(s);
+        if (hbe.slang.length > 20) hbe.slang = hbe.slang.slice(-20);
+      }
+    });
+
+    // ── 4. Humor signal ───────────────────────────────────────────────────────
+    if (/lol|lmao|haha|hehe|😂|🤣|💀|😭😭|😅/i.test(input)) hbe.usesHumor = true;
+
+    // ── 5. CAPS usage ─────────────────────────────────────────────────────────
+    if (/\b[A-Z]{2,}\b/.test(input)) hbe.usesCaps = true;
+
+    // ── 6. Ellipsis usage ─────────────────────────────────────────────────────
+    if (/\.{2,}/.test(input)) hbe.usesEllipsis = true;
+
+    // ── 7. Recent phrase capture (for mirroring) ──────────────────────────────
+    // Pick meaningful short phrases (2–4 words) the user repeats
+    const phrases = input.match(/\b[a-z]{3,}\s[a-z]{3,}(\s[a-z]{3,}){0,2}\b/gi) ?? [];
+    phrases.slice(0, 3).forEach(ph => {
+      const p = ph.toLowerCase().trim();
+      if (p.length > 5 && !hbe.recentPhrases.includes(p)) {
+        hbe.recentPhrases.unshift(p);
+        if (hbe.recentPhrases.length > 20) hbe.recentPhrases = hbe.recentPhrases.slice(0, 20);
+      }
+    });
+  }
+
+  private buildHBE(
+    userInput:        string,
+    conversationTone: IdentityContext['conversationTone']
+  ): Pick<IdentityContext, 'hbeProfile' | 'hbeVariationWarning' | 'hbeMirrorHint' | 'hbeToneInstruction'> {
+    const hbe      = this.identity.hbeProfile;
+    const recent   = this.identity.recentResponses;
+    const n        = this.identity.interactionCount;
+
+    // ── Profile summary ───────────────────────────────────────────────────────
+    const profileParts: string[] = [];
+    if (hbe.avgMessageLength > 0) {
+      profileParts.push(`avg msg: ${hbe.avgMessageLength} words (${hbe.pacingSignal})`);
+    }
+    if (hbe.slang.length > 0) {
+      profileParts.push(`slang: ${hbe.slang.slice(-5).join(', ')}`);
+    }
+    if (hbe.usesHumor)    profileParts.push('uses humor');
+    if (hbe.usesCaps)     profileParts.push('uses CAPS for emphasis');
+    if (hbe.usesEllipsis) profileParts.push('uses ellipsis...');
+    const hbeProfileStr = n >= 3 && profileParts.length > 0
+      ? `This person: ${profileParts.join(' | ')}`
+      : null;
+
+    // ── Response variation guard ──────────────────────────────────────────────
+    // Detect if MIND has been opening with the same word/phrase too often
+    let hbeVariationWarning: string | null = null;
+    if (recent.length >= 4) {
+      const openings = recent.map(r => r.split(/\s+/).slice(0, 3).join(' ').toLowerCase());
+      const last4    = openings.slice(-4);
+      // Check for opener repetition (same first word in 3+ of last 4 responses)
+      const firstWords = last4.map(o => o.split(' ')[0]);
+      const dominant   = firstWords.reduce<Record<string, number>>((acc, w) => {
+        acc[w] = (acc[w] ?? 0) + 1; return acc;
+      }, {});
+      const mostUsed = Object.entries(dominant).sort((a, b) => b[1] - a[1])[0];
+      if (mostUsed && mostUsed[1] >= 3) {
+        hbeVariationWarning =
+          `Do NOT start with "${mostUsed[0]}". ` +
+          `Your last ${mostUsed[1]} responses opened the same way. Change it.`;
+      }
+
+      // Check for structural repetition (similar length + same tone pattern)
+      if (!hbeVariationWarning) {
+        const lens = recent.slice(-4).map(r => r.split(/\s+/).length);
+        const avgLen = lens.reduce((a, b) => a + b, 0) / lens.length;
+        const allSimilar = lens.every(l => Math.abs(l - avgLen) < 4);
+        if (allSimilar && avgLen > 12) {
+          hbeVariationWarning =
+            'Your last 4 responses were all about the same length. ' +
+            'Vary structure: try shorter, or longer, or fragmented.';
+        }
+      }
+    }
+
+    // ── Mirror hint — specific phrase or style to borrow this turn ─────────────
+    let hbeMirrorHint: string | null = null;
+    if (hbe.slang.length > 0 && n >= 4) {
+      // Only mirror slang if the user used it in THIS message
+      const usedNow = hbe.slang.filter(s => userInput.toLowerCase().includes(s));
+      if (usedNow.length > 0) {
+        hbeMirrorHint = `User used "${usedNow[0]}" just now. It's okay to mirror their register — stay real.`;
+      }
+    }
+    if (!hbeMirrorHint && hbe.recentPhrases.length > 0 && n >= 5) {
+      // If they have a phrase pattern, nod to it subtly
+      hbeMirrorHint = `Phrase in their voice: "${hbe.recentPhrases[0]}". Mirror cadence, not words.`;
+    }
+
+    // ── Tone-match instruction — concrete directive for this turn ──────────────
+    const toneMap: Record<IdentityContext['conversationTone'], string> = {
+      casual:     `Casual input (avg ${hbe.avgMessageLength} words). Keep it loose. One or two lines. Don't explain.`,
+      playful:    hbe.usesHumor
+        ? 'They use humor. Match it — short, maybe a bit funny, no weight.'
+        : 'Playful tone. Keep it light and brief.',
+      serious:    'Serious moment. Be real, not poetic. Weight over words. Don\'t explain the feeling.',
+      curious:    'Question asked. Answer it directly. One clear angle. No preamble.',
+      distressed: 'They sound overwhelmed. Short sentences. No lists. Just presence.',
+      neutral:    hbe.pacingSignal === 'rapid'
+        ? 'This person is brief. Match the pace — don\'t over-elaborate.'
+        : 'Neutral tone. Respond naturally. Don\'t inflate it.'
+    };
+    const hbeToneInstruction = toneMap[conversationTone] ?? null;
+
+    return { hbeProfile: hbeProfileStr, hbeVariationWarning, hbeMirrorHint, hbeToneInstruction };
+  }
+
   // ─── D14: human realism constraint ─────────────────────────────────────────
   // Classifies the tone of this input and returns a self-check signal
   // telling the LLM exactly what register to match and what to avoid.
@@ -912,6 +1104,7 @@ export class IdentityFormationEngine {
 
   // ─── Public snapshot for debug ────────────────────────────────────────────
   getSnapshot() {
+    const hbe = this.identity.hbeProfile;
     return {
       interactionCount:    this.identity.interactionCount,
       selfConcept:         this.identity.selfConcept,
@@ -922,7 +1115,18 @@ export class IdentityFormationEngine {
       topObservation:      this.getTopObservation()?.content?.substring(0, 60) ?? null,
       teachingMoments:     this.userProfile.teachingMoments.length,
       reflectionCount:     this.identity.reflectionCount,
-      emphasisWords:       this.userProfile.emphasisSignals.slice(-5)
+      emphasisWords:       this.userProfile.emphasisSignals.slice(-5),
+      hbe: {
+        avgMessageLength:  hbe.avgMessageLength,
+        pacingSignal:      hbe.pacingSignal,
+        dominantTone:      hbe.dominantTone,
+        usesHumor:         hbe.usesHumor,
+        usesCaps:          hbe.usesCaps,
+        usesEllipsis:      hbe.usesEllipsis,
+        slangCount:        hbe.slang.length,
+        recentPhraseCount: hbe.recentPhrases.length,
+        variationTracked:  this.identity.recentResponses.length
+      }
     };
   }
 }

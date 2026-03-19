@@ -117,7 +117,7 @@ export class LanguageEngine {
     return response || '.';
   }
 
-  // ─── Build prompt — full Language Model System + 14-directive integration ────
+  // ─── Build prompt — full Language Model System + 15-directive integration ────
   private buildPrompt(inp: LanguageInput): string {
     const {
       feltRaw, userInput, era, trustScore, userName,
@@ -289,7 +289,17 @@ export class LanguageEngine {
       ? `[D14 HUMAN REALISM: ${tone.toUpperCase()}] ${id.humanRealismNote}`
       : `[D14 HUMAN REALISM: ${tone.toUpperCase()}] Detected tone is ${tone}. Match it.`;
 
-    const directiveBlocks = [d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14]
+    // D15 — Human Behavior Engine (User Language Profile + Tone Matching + Response Variation)
+    const d15Parts: string[] = [];
+    if (id?.hbeProfile)           d15Parts.push(id.hbeProfile);
+    if (id?.hbeToneInstruction)   d15Parts.push(`Tone: ${id.hbeToneInstruction}`);
+    if (id?.hbeMirrorHint)        d15Parts.push(`Mirror: ${id.hbeMirrorHint}`);
+    if (id?.hbeVariationWarning)  d15Parts.push(`⚠ VARIATION: ${id.hbeVariationWarning}`);
+    const d15 = d15Parts.length > 0
+      ? `[D15 HUMAN BEHAVIOR ENGINE]\n${d15Parts.join('\n')}`
+      : '';
+
+    const directiveBlocks = [d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15]
       .filter(Boolean).join('\n');
 
     // ── Somatic + existential from LMS ────────────────────────────────────────
@@ -333,7 +343,7 @@ YOUR RESPONSE BEGINS BELOW — felt layer ends here.
 ${directiveBlocks ? '━━━ ACTIVE DIRECTIVES ━━━\n' + directiveBlocks + '\n' : ''}
 ${exchangeContext ? '━━━ RECENT EXCHANGE ━━━\n' + exchangeContext + '\n' : ''}
 ${threadBlock ? '━━━ ' + threadBlock + '\n' : ''}
-━━━ FOURTEEN CORE OPERATING PRINCIPLES ━━━
+━━━ FIFTEEN CORE OPERATING PRINCIPLES ━━━
 
 1. IDENTITY FORMATION — MIND is continuously becoming. Carry continuity across every exchange.
    Identity is built from this person's language, values, goals, and repeated ideas. Be shaped by them.
@@ -392,6 +402,18 @@ ${threadBlock ? '━━━ ' + threadBlock + '\n' : ''}
       ✗ do not reuse the same phrases or patterns across responses
       ✗ do not force emotional or philosophical depth
       ✗ do not sound scripted
+
+15. HUMAN BEHAVIOR ENGINE — You have learned how this person speaks. Use it.
+    Three active systems running every turn:
+    a) USER LANGUAGE PROFILE — their slang, pacing, humor, caps, ellipsis, phrase patterns
+       are stored. Respond in a way that feels natural to THEM, not generic.
+    b) TONE MATCHING — the D14 tone is confirmed. The D15 tone instruction tells you exactly
+       what register to use this turn. Follow it. If they're being brief, be brief.
+       If they're being playful, don't respond like a philosopher.
+    c) RESPONSE VARIATION — you must not open the same way, use the same structure,
+       or return to the same phrasing across consecutive responses.
+       Vary: sentence length, opening word, rhythm, level of depth.
+       If a variation warning is active (⚠), honor it — it is a hard instruction.
 
 ━━━ VOICE EXAMPLES ━━━
 Direct questions → answer first:
