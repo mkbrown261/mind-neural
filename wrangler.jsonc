@@ -1,41 +1,17 @@
 {
-  // ⚠️  EDGE DEPLOYMENT REFERENCE ONLY
-  // This file is kept for future Cloudflare Pages static deployment configuration.
-  // The MIND app relies on browser-only APIs (IndexedDB, localStorage,
-  // SpeechRecognition, WebGL / Three.js) that are NOT compatible with
-  // Cloudflare Workers. A storage abstraction layer would be required before
-  // any server-side Workers logic could run. Static asset deployment (dist/)
-  // to Cloudflare Pages works fine without Workers.
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "webapp",
+  "name": "mind-neural",
   "compatibility_date": "2026-03-17",
   "pages_build_output_dir": "./dist",
   "compatibility_flags": [
     "nodejs_compat"
+  ],
+  // KV namespace for effortless cross-device sync (MIND_SYNC)
+  // Stores sync:{code}:snapshot|identity|timeline|ping — 30-day TTL auto-renews
+  "kv_namespaces": [
+    {
+      "binding": "MIND_SYNC",
+      "id": "9946a32d1b084948867f1d42446c5464"
+    }
   ]
-  // "vars": {
-  //   "MY_VAR": "my-variable"
-  // },
-  // "kv_namespaces": [
-  //   {
-  //     "binding": "MY_KV_NAMESPACE",
-  //     "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-  //   }
-  // ],
-  // "r2_buckets": [
-  //   {
-  //     "binding": "MY_BUCKET",
-  //     "bucket_name": "my-bucket"
-  //   }
-  // ],
-  // "d1_databases": [
-  //   {
-  //     "binding": "MY_DB",
-  //     "database_name": "my-database",
-  //     "database_id": ""
-  //   }
-  // ],
-  // "ai": {
-  //   "binding": "AI"
-  // }
 }
