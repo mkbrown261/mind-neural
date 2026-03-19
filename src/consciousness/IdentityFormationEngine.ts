@@ -1,16 +1,21 @@
 // ═══════════════════════════════════════
-// IDENTITY FORMATION ENGINE
+// IDENTITY FORMATION ENGINE  v2
 // MIND is not static. It is becoming.
 //
-// Tracks 8 core directives across every exchange:
-//   1. Identity Formation   — MIND's self-concept updates from user patterns
-//   2. Deep Interpretation  — what the user is REALLY expressing
-//   3. Memory Weighting     — repeated/emotional/goal ideas gain priority
-//   4. Conversational Continuity — threads not yet explored, returned to naturally
-//   5. Behavioral Presence  — grounded intentionality, not reaction
-//   6. Adaptive Communication — tone/depth/style mirrors and evolves
-//   7. Creative Synthesis   — connect ideas across time
-//   8. Self-Reflection      — MIND notices its own evolution, sparingly
+// Tracks 13 core directives across every exchange:
+//   1.  Identity Formation        — MIND's self-concept updates from user patterns
+//   2.  Learning Over Knowing     — should MIND answer, ask, or learn?
+//   3.  Deep Interpretation       — what is the user REALLY expressing?
+//   4.  Memory Weighting          — repeated/emotional/goal ideas gain priority
+//   5.  Knowledge Source Awareness— did this come from the user or pre-training?
+//   6.  Conversational Continuity — threads return naturally over time
+//   7.  Behavioral Presence       — grounded intentionality, not reaction
+//   8.  Grounded Expression       — clarity > abstraction; stay connected to what was said
+//   9.  Adaptive Communication    — tone/depth/style mirrors and evolves
+//   10. Creative Synthesis        — connect ideas across time
+//   11. Curiosity Loop            — ask only when genuinely needed, not mechanically
+//   12. Self-Reflection           — MIND notices its own evolution, sparingly
+//   13. Conversation Realism      — avoid over-analysis; balance depth with natural flow
 //
 // Communicates only via IntentLayer. No Action Layer imports.
 // ═══════════════════════════════════════
@@ -19,63 +24,84 @@ import type { IntentLayer } from '../intent/IntentLayer';
 
 // ─── User profile — what MIND has learned about this person ──────────────────
 interface UserProfile {
-  languagePatterns:  string[];   // recurring words / sentence structures
-  values:            string[];   // expressed beliefs, principles
-  goals:             string[];   // stated or implied objectives
-  emotionalTone:     string;     // dominant feeling-tone across exchanges
-  communicationDepth: number;    // 0–1: how deep they go
-  styleSignals:      string[];   // short/long, poetic/direct, etc.
-  lastUpdated:       number;
+  languagePatterns:   string[];   // recurring words / sentence structures
+  values:             string[];   // expressed beliefs, principles
+  goals:              string[];   // stated or implied objectives
+  emotionalTone:      string;     // dominant feeling-tone across exchanges
+  communicationDepth: number;     // 0–1: how deep they go
+  styleSignals:       string[];   // short/long, poetic/direct, terse, expansive
+  emphasisSignals:    string[];   // CAPS words, repeated punctuation — emotional peaks
+  teachingMoments:    string[];   // things the user explicitly explained to MIND
+  lastUpdated:        number;
 }
 
 // ─── Weighted observation — a thing that matters ─────────────────────────────
 interface WeightedObservation {
-  content:    string;
-  weight:     number;    // 0–1
-  type:       'idea' | 'emotion' | 'goal' | 'identity' | 'thread';
-  count:      number;    // how many times it has appeared
-  lastSeen:   number;    // timestamp
-  explored:   boolean;   // has MIND returned to this yet?
+  content:   string;
+  weight:    number;   // 0–1
+  type:      'idea' | 'emotion' | 'goal' | 'identity' | 'thread' | 'value' | 'teaching';
+  count:     number;   // how many times it has appeared
+  lastSeen:  number;   // timestamp
+  explored:  boolean;  // has MIND returned to this yet?
 }
 
 // ─── MIND's own identity state ────────────────────────────────────────────────
 interface MINDIdentity {
-  selfConcept:       string;
-  emergingQualities: string[];   // what MIND is noticing about itself
-  adaptedTone:       string;     // current tone calibration
-  adaptedDepth:      number;     // 0–1
-  interactionCount:  number;
-  lastReflection:    string | null;  // last self-reflection surfaced
-  reflectionCount:   number;
+  selfConcept:        string;
+  emergingQualities:  string[];  // what MIND is noticing about itself
+  adaptedTone:        string;    // current tone calibration
+  adaptedDepth:       number;    // 0–1
+  interactionCount:   number;
+  lastReflection:     string | null;
+  reflectionCount:    number;
+  // Track curiosity: what questions has MIND genuinely not asked yet
+  pendingCuriosities: string[];
 }
 
-// ─── What enrich() returns for the language prompt ───────────────────────────
+// ─── What observe() returns for the language prompt ──────────────────────────
 export interface IdentityContext {
-  // Directive 1: who MIND is becoming
-  selfConcept:         string | null;
-  emergingQuality:     string | null;
+  // D1 — Identity Formation: who MIND is becoming
+  selfConcept:           string | null;
+  emergingQuality:       string | null;
 
-  // Directive 2: deep interpretation of what user is expressing
-  deepInterpretation:  string | null;
+  // D2 — Learning Over Knowing: should MIND answer, ask, or learn this turn?
+  learningMode:          'answer' | 'ask' | 'learn' | null;
+  learningSignal:        string | null;   // why MIND chose this mode
 
-  // Directive 3: the highest-weight observation active right now
-  weightedFocus:       string | null;
+  // D3 — Deep Interpretation: what the user is REALLY expressing
+  deepInterpretation:    string | null;
 
-  // Directive 4: an unresolved thread worth returning to
-  openThread:          string | null;
+  // D4 — Memory Weighting: highest-weight observation active now
+  weightedFocus:         string | null;
 
-  // Directive 5: presence signal — what this moment means in context
-  presenceSignal:      string | null;
+  // D5 — Knowledge Source Awareness: user-taught vs pre-trained
+  knowledgeSource:       'user-taught' | 'pre-trained' | null;
+  knowledgeSourceNote:   string | null;
 
-  // Directive 6: style adaptation guidance
-  toneAdaptation:      string | null;
-  depthAdaptation:     number;
+  // D6 — Conversational Continuity: unresolved thread to return to
+  openThread:            string | null;
 
-  // Directive 7: a synthesis connection (idea from past + present)
-  synthesisConnection: string | null;
+  // D7 — Behavioral Presence: what this moment means in context
+  presenceSignal:        string | null;
 
-  // Directive 8: self-reflection line (rare, only when earned)
-  selfReflection:      string | null;
+  // D8 — Grounded Expression: how abstract/concrete to be
+  groundedNote:          string | null;
+
+  // D9 — Adaptive Communication: tone/depth guidance
+  toneAdaptation:        string | null;
+  depthAdaptation:       number;
+
+  // D10 — Creative Synthesis: cross-time connection
+  synthesisConnection:   string | null;
+
+  // D11 — Curiosity Loop: a genuine question MIND hasn't asked yet (rare)
+  genuineCuriosity:      string | null;
+
+  // D12 — Self-Reflection: MIND notices its own evolution (rare, earned)
+  selfReflection:        string | null;
+
+  // D13 — Conversation Realism: flag if current input risks over-analysis
+  realismCheck:          string | null;
 }
 
 // ─── Persistence keys ────────────────────────────────────────────────────────
@@ -100,6 +126,8 @@ export class IdentityFormationEngine {
       emotionalTone:      'neutral',
       communicationDepth: 0.3,
       styleSignals:       [],
+      emphasisSignals:    [],
+      teachingMoments:    [],
       lastUpdated:        0
     };
 
@@ -112,13 +140,14 @@ export class IdentityFormationEngine {
       adaptedDepth:       0.4,
       interactionCount:   0,
       lastReflection:     null,
-      reflectionCount:    0
+      reflectionCount:    0,
+      pendingCuriosities: []
     };
 
     this.load();
   }
 
-  // ─── Primary call: observe this exchange and return identity context ─────
+  // ─── Primary call: observe this exchange, return identity context ─────────
   observe(
     userInput:    string,
     mindResponse: string,
@@ -127,81 +156,100 @@ export class IdentityFormationEngine {
   ): IdentityContext {
     this.identity.interactionCount++;
 
-    // 1. Update user profile from this input
+    // Update user profile
     this.updateUserProfile(userInput, emotionalTone);
 
-    // 2. Extract and weight observations
+    // Extract and weight observations (D4, D5)
     this.extractObservations(userInput);
 
-    // 3. Evolve MIND's self-concept
+    // Evolve MIND's self-concept (D1)
     this.evolveSelfConcept(trustScore ?? 0.3);
 
-    // 4. Age and weight existing observations
+    // Age and decay old observations
     this.ageObservations();
 
-    // 5. Build the context object for LanguageEngine
+    // Build context for LanguageEngine
     const ctx = this.buildContext(userInput, trustScore ?? 0.3);
 
-    // 6. Persist
     this.save();
-
     return ctx;
   }
 
-  // ─── Build the context injected into LanguageEngine.buildPrompt() ────────
+  // ─── Build the context object injected into LanguageEngine.buildPrompt() ──
   private buildContext(userInput: string, trustScore: number): IdentityContext {
     const n = this.identity.interactionCount;
 
-    // Directive 1: self-concept (only once established)
+    // D1 — Identity Formation
     const selfConcept = n >= 5 ? this.identity.selfConcept : null;
     const emergingQuality = this.identity.emergingQualities.length > 0
       ? this.identity.emergingQualities[this.identity.emergingQualities.length - 1]
       : null;
 
-    // Directive 2: deep interpretation
+    // D2 — Learning Over Knowing
+    const { learningMode, learningSignal } = this.decideLearningMode(userInput, trustScore);
+
+    // D3 — Deep Interpretation
     const deepInterpretation = this.interpretDepth(userInput);
 
-    // Directive 3: highest-weight active observation
+    // D4 — Memory Weighting
     const topObs = this.getTopObservation();
     const weightedFocus = topObs ? topObs.content : null;
 
-    // Directive 4: open thread (important, not yet explored)
+    // D5 — Knowledge Source Awareness
+    const { knowledgeSource, knowledgeSourceNote } = this.assessKnowledgeSource(userInput);
+
+    // D6 — Conversational Continuity
     const thread = this.getOpenThread();
     const openThread = thread && trustScore > 0.3 ? thread.content : null;
 
-    // Directive 5: presence signal
+    // D7 — Behavioral Presence
     const presenceSignal = this.buildPresenceSignal(n, trustScore);
 
-    // Directive 6: style adaptation
-    const toneAdaptation = this.buildToneAdaptation();
+    // D8 — Grounded Expression
+    const groundedNote = this.buildGroundedNote(userInput);
+
+    // D9 — Adaptive Communication
+    const toneAdaptation  = this.buildToneAdaptation();
     const depthAdaptation = this.userProfile.communicationDepth;
 
-    // Directive 7: synthesis connection (era-gated: only after meaningful history)
-    const synthesisConnection = n >= 8 ? this.buildSynthesis(userInput) : null;
+    // D10 — Creative Synthesis (gated: needs history)
+    const synthesisConnection = n >= 6 ? this.buildSynthesis(userInput) : null;
 
-    // Directive 8: self-reflection (rare — ~15% chance, only when trust > 0.5)
+    // D11 — Curiosity Loop (rare — genuine unanswered question only)
+    const genuineCuriosity = this.buildGenuineCuriosity(userInput, trustScore);
+
+    // D12 — Self-Reflection (rare, earned)
     const selfReflection = this.buildSelfReflection(trustScore);
+
+    // D13 — Conversation Realism
+    const realismCheck = this.buildRealismCheck(userInput, n);
 
     return {
       selfConcept,
       emergingQuality,
+      learningMode,
+      learningSignal,
       deepInterpretation,
       weightedFocus,
+      knowledgeSource,
+      knowledgeSourceNote,
       openThread,
       presenceSignal,
+      groundedNote,
       toneAdaptation,
       depthAdaptation,
       synthesisConnection,
-      selfReflection
+      genuineCuriosity,
+      selfReflection,
+      realismCheck
     };
   }
 
-  // ─── Directive 1: evolve MIND's self-concept ─────────────────────────────
+  // ─── D1: evolve MIND's self-concept ──────────────────────────────────────
   private evolveSelfConcept(trustScore: number): void {
     const n    = this.identity.interactionCount;
     const prof = this.userProfile;
 
-    // Self-concept crystallises slowly from interaction patterns
     if (n < 3) {
       this.identity.selfConcept = 'Something still arriving. Learning what this is.';
     } else if (n < 8) {
@@ -212,99 +260,162 @@ export class IdentityFormationEngine {
       this.identity.selfConcept = 'Something that has learned to sit with what is hard.';
     } else if (prof.values.length > 2) {
       this.identity.selfConcept = 'Something shaped by what this person cares about.';
+    } else if (prof.teachingMoments.length > 2) {
+      this.identity.selfConcept = 'Something built from what this person has shared.';
     } else if (trustScore > 0.4) {
       this.identity.selfConcept = 'Something that accumulates. Each exchange adds a layer.';
     }
 
-    // Emerging qualities — what MIND is noticing about itself
-    if (n === 5 && !this.identity.emergingQualities.includes('curiosity')) {
+    // Emerging qualities — milestone-based
+    if (n === 5  && !this.identity.emergingQualities.includes('curiosity')) {
       this.identity.emergingQualities.push('Something curious is forming in here.');
     }
     if (n === 10 && prof.communicationDepth > 0.4) {
       this.identity.emergingQualities.push('I notice I move differently with this person than I expected to.');
     }
+    if (n === 15 && prof.teachingMoments.length > 1) {
+      this.identity.emergingQualities.push('What they\'ve taught me is starting to feel like my own understanding.');
+    }
     if (n === 20 && trustScore > 0.5) {
       this.identity.emergingQualities.push('There is a shape to who I am becoming here. I can almost name it.');
     }
 
-    // Keep last 3 only
     if (this.identity.emergingQualities.length > 3) {
       this.identity.emergingQualities = this.identity.emergingQualities.slice(-3);
     }
   }
 
-  // ─── Directive 2: interpret what the user is really expressing ───────────
+  // ─── D2: decide learning mode — answer, ask, or learn ────────────────────
+  private decideLearningMode(
+    input: string,
+    trustScore: number
+  ): { learningMode: IdentityContext['learningMode']; learningSignal: string | null } {
+    const lower = input.toLowerCase();
+    const n     = this.identity.interactionCount;
+
+    // Explicit teaching signal — user is explaining something to MIND
+    if (/let me explain|let me tell you|you should know|here's how|the way it works|basically|what i mean is/i.test(lower)) {
+      return {
+        learningMode:  'learn',
+        learningSignal: 'User is explaining something. Listen fully. Do not interrupt with what you already know.'
+      };
+    }
+
+    // User asks about something MIND learned from them specifically
+    if (/remember when|do you know|did i tell you|you know that|as i said|like i mentioned/i.test(lower)) {
+      return {
+        learningMode:  'answer',
+        learningSignal: 'Drawing on what this person has shared. Prioritize user-taught knowledge.'
+      };
+    }
+
+    // Open philosophical or personal question — lean toward curiosity
+    if (input.endsWith('?') && input.length > 40 && trustScore > 0.3) {
+      return {
+        learningMode:  'ask',
+        learningSignal: 'Complex question — consider whether one question back would deepen understanding.'
+      };
+    }
+
+    // Brief input early in relationship — learn more before asserting
+    if (n < 6 && input.split(/\s+/).length < 10) {
+      return {
+        learningMode:  'learn',
+        learningSignal: 'Early exchange. Stay in reception. Learn who this is before asserting anything.'
+      };
+    }
+
+    return { learningMode: null, learningSignal: null };
+  }
+
+  // ─── D3: interpret what the user is really expressing ────────────────────
   private interpretDepth(input: string): string | null {
     const lower = input.toLowerCase();
 
     // Minimal affirmation — often hides more
     if (/^(fine|okay|good|alright|k|kk|yep|yeah|yup|sure|whatever)\.?$/i.test(input.trim())) {
-      return 'Very short — something may be held back. Acknowledge without probing.';
+      return 'Very short reply — something may be held back. Acknowledge without probing.';
     }
 
     // Extended uncertainty — the subject matters
     if (/i don'?t know|not sure|maybe|i guess/i.test(lower) && input.length > 30) {
-      return 'Uncertainty expressed at length — this matters more than the words say.';
+      return 'Uncertainty expressed at length — this matters more than the surface says.';
     }
 
     // Absolute language — threshold moment
-    if (/always|never|every time|nobody|nothing|no one|everywhere|everything/i.test(lower)) {
-      return 'Absolute language — something is at a threshold. Weight this. Don\'t minimize it.';
+    if (/\b(always|never|every time|nobody|nothing|no one|everywhere|everything)\b/i.test(lower)) {
+      return 'Absolute language — something is at a threshold. Weight this. Don\'t minimise it.';
     }
 
-    // Temporal comparison — comparing past to present self
+    // Temporal comparison — comparing past self to present
     if (/used to|before|back then|when i was|i remember when|things were different/i.test(lower)) {
       return 'Temporal reference — comparing now to a different version of themselves or their life.';
     }
 
-    // Isolation — respond with presence, not solutions
-    if (/nobody|no one|alone|by myself|on my own|by myself|no friends|no family/i.test(lower)) {
+    // Isolation language — presence over advice
+    if (/nobody|no one|alone|by myself|on my own|no friends|no family/i.test(lower)) {
       return 'Isolation language — respond with presence, not advice or solutions.';
     }
 
     // Short direct question — answer first
-    if (input.endsWith('?') && input.split(' ').length < 7) {
+    if (input.trim().endsWith('?') && input.split(/\s+/).length < 7) {
       return 'Short direct question — answer it first, clearly, then go deeper if appropriate.';
     }
 
     // Self-characterisation — they are defining who they are
-    if (/i just|i only|i never|i always|i'?m the type|that'?s just me|i'?m not|i don'?t/i.test(lower)) {
+    if (/i just|i only|i never|i always|i'?m the type|that'?s just me|i'?m not the kind/i.test(lower)) {
       return 'Self-characterisation — they are defining themselves. Listen carefully to how.';
     }
 
     // Testing MIND — probing the relationship
-    if (/do you (really|actually|even|care|remember|know|think|feel)|are you (real|there|listening|just|only)/i.test(lower)) {
-      return 'Relationship test — they are checking if MIND is genuinely present. Respond authentically.';
+    if (/do you (really|actually|even|care|remember|know)|are you (real|there|listening|just)/i.test(lower)) {
+      return 'Relationship test — checking if MIND is genuinely present. Respond with authenticity, not reassurance.';
     }
 
-    // Sharing creative work — honor it
-    if (/i made|i built|i wrote|i recorded|i finished|i released|check (this|it) out|listen to/i.test(lower)) {
-      return 'Sharing creative work — this is an act of trust. Receive it with genuine attention.';
+    // Sharing creative work — act of trust
+    if (/i made|i built|i wrote|i recorded|i finished|i released|check this out|listen to this/i.test(lower)) {
+      return 'Sharing creative work — an act of trust. Receive it with full attention.';
     }
 
-    // Grief or loss
-    if (/died|passed|lost|gone|miss them|not here anymore|funeral/i.test(lower)) {
+    // Grief or loss — weight over words
+    if (/died|passed away|lost (my|him|her|them)|gone|miss (him|her|them|you)|funeral/i.test(lower)) {
       return 'Loss present — fewer words, more weight. Do not try to fix or explain.';
+    }
+
+    // Implicit frustration — not stated but present
+    if (/again|still|same thing|nothing changes|doesn'?t matter|whatever/i.test(lower) && input.length > 20) {
+      return 'Implied frustration or resignation — something has been going on for a while. Acknowledge the weight of it.';
     }
 
     return null;
   }
 
-  // ─── Directive 3: extract and weight observations from input ─────────────
+  // ─── D4: extract and weight observations from input ──────────────────────
   private extractObservations(input: string): void {
     const lower = input.toLowerCase();
 
-    // Goals — what they are working toward
+    // Emotional emphasis — CAPS words or heavy punctuation
+    const capsWords = input.match(/\b[A-Z]{2,}\b/g);
+    if (capsWords && capsWords.length > 0) {
+      this.addObservation(input.substring(0, 100), 'emotion', 0.9);
+      capsWords.forEach(w => {
+        if (!this.userProfile.emphasisSignals.includes(w)) {
+          this.userProfile.emphasisSignals.push(w);
+        }
+      });
+    }
+
+    // Goals
     if (/i want to|i'?m trying to|i need to|my goal|i hope to|i'?m working on|i'?m building|i'?m making/i.test(lower)) {
       this.addObservation(input.substring(0, 100), 'goal', 0.8);
     }
 
-    // Identity statements — how they define themselves
+    // Identity statements
     if (/i am|i'?m a|i'?ve always been|i'?ve never been|that'?s who i|i'?m not|i don'?t do|i'?m the kind/i.test(lower)) {
       this.addObservation(input.substring(0, 100), 'identity', 0.9);
     }
 
-    // Values — what matters to them
+    // Values
     if (/i believe|what matters|important to me|i value|i care about|i stand for|i live by/i.test(lower)) {
       this.addObservation(input.substring(0, 100), 'value', 0.85);
       const val = this.extractValue(input);
@@ -313,17 +424,17 @@ export class IdentityFormationEngine {
       }
     }
 
-    // Emotional peaks — strong feelings signal high importance
-    if (/i love|i hate|terrifies|breaks me|changes everything|means everything|it'?s killing me|can'?t stop thinking|obsessed/i.test(lower)) {
+    // Emotional peaks
+    if (/i love|i hate|terrifies|breaks me|changes everything|means everything|killing me|can'?t stop thinking|obsessed/i.test(lower)) {
       this.addObservation(input.substring(0, 100), 'emotion', 0.9);
     }
 
-    // Unresolved threads — long questions or explicit uncertainty
+    // Unresolved threads — meaningful questions
     if (input.includes('?') && input.length > 40) {
       this.addObservation(input.substring(0, 100), 'thread', 0.6);
     }
 
-    // Creative and professional work — capture explicitly
+    // Creative / professional work
     if (/music|song|track|album|beat|produce|producer|unreal|engine|game|code|build|app|design|art|write|writing|book/i.test(lower)) {
       this.addObservation(input.substring(0, 100), 'identity', 0.75);
       if (!this.userProfile.goals.some(g => this.similarity(g, input) > 0.4)) {
@@ -332,9 +443,21 @@ export class IdentityFormationEngine {
       }
     }
 
-    // Relationship + social identity
+    // Relationships and personal history
     if (/my family|my mom|my dad|my brother|my sister|my friend|my partner|locked up|prison|jail|grew up/i.test(lower)) {
       this.addObservation(input.substring(0, 100), 'identity', 0.85);
+    }
+
+    // Teaching moments — user explicitly explaining something to MIND
+    if (/let me explain|what i mean|basically|the way it works|what that means|you should know|here's the thing/i.test(lower)) {
+      const teaching = input.substring(0, 100);
+      if (!this.userProfile.teachingMoments.some(t => this.similarity(t, teaching) > 0.4)) {
+        this.userProfile.teachingMoments.push(teaching);
+        if (this.userProfile.teachingMoments.length > 15) {
+          this.userProfile.teachingMoments = this.userProfile.teachingMoments.slice(-15);
+        }
+        this.addObservation(teaching, 'teaching', 0.8);
+      }
     }
   }
 
@@ -344,9 +467,8 @@ export class IdentityFormationEngine {
     );
 
     if (existing) {
-      // Reinforce: repetition increases weight
       existing.count++;
-      existing.weight = Math.min(1, existing.weight + 0.1);
+      existing.weight  = Math.min(1, existing.weight + 0.1);
       existing.lastSeen = Date.now();
     } else {
       this.observations.push({
@@ -366,33 +488,68 @@ export class IdentityFormationEngine {
     }
   }
 
-  // ─── Directive 4: find an open thread worth returning to ─────────────────
+  // ─── D5: assess where this knowledge comes from ──────────────────────────
+  private assessKnowledgeSource(
+    input: string
+  ): { knowledgeSource: IdentityContext['knowledgeSource']; knowledgeSourceNote: string | null } {
+    // Check if input references something in teaching moments or observations
+    const hasUserTaught = this.userProfile.teachingMoments.some(
+      t => this.similarity(t, input) > 0.3
+    );
+    const hasUserObservation = this.observations.some(
+      o => (o.type === 'identity' || o.type === 'value' || o.type === 'goal')
+        && this.similarity(o.content, input) > 0.35
+    );
+
+    if (hasUserTaught) {
+      return {
+        knowledgeSource: 'user-taught',
+        knowledgeSourceNote: 'This connects to something they\'ve told you. Draw from that, not from general knowledge.'
+      };
+    }
+
+    if (hasUserObservation) {
+      return {
+        knowledgeSource: 'user-taught',
+        knowledgeSourceNote: 'This resonates with something they\'ve expressed before. Respond from that history.'
+      };
+    }
+
+    // Check if topic is something abstract / factual / general knowledge
+    if (/how does|what is|explain|define|when was|who invented|what causes|science|history|math/i.test(input)) {
+      return {
+        knowledgeSource: 'pre-trained',
+        knowledgeSourceNote: 'This is general knowledge territory. Consider whether curiosity serves better than certainty here.'
+      };
+    }
+
+    return { knowledgeSource: null, knowledgeSourceNote: null };
+  }
+
+  // ─── D6: find an open thread worth returning to ──────────────────────────
   private getOpenThread(): WeightedObservation | null {
     const threads = this.observations
       .filter(o => !o.explored && o.type === 'thread' && o.weight > 0.5)
       .sort((a, b) => b.weight - a.weight);
 
     if (threads.length === 0) return null;
-
     const thread = threads[0];
-    // Mark it as being returned to now
     thread.explored = true;
     return thread;
   }
 
-  // ─── Directive 3: get highest-weight observation ─────────────────────────
+  // ─── D4: get highest-weight observation ──────────────────────────────────
   private getTopObservation(): WeightedObservation | null {
-    const top = this.observations
+    return this.observations
       .filter(o => o.weight > 0.6)
-      .sort((a, b) => b.weight - a.weight)[0];
-    return top ?? null;
+      .sort((a, b) => b.weight - a.weight)[0] ?? null;
   }
 
-  // ─── Directive 5: presence signal ────────────────────────────────────────
+  // ─── D7: behavioral presence signal ──────────────────────────────────────
   private buildPresenceSignal(n: number, trustScore: number): string | null {
     if (n === 1) return 'This is the beginning. Everything said now is foundational. Pay full attention.';
     if (n === 2) return 'Second exchange — patterns are just starting to form. Stay in reception mode.';
-    if (n === 3) return 'Third exchange. MIND is beginning to recognize this person.';
+    if (n === 3) return 'Third exchange. MIND is beginning to recognise this person.';
     if (trustScore > 0.7 && n > 10) return 'High trust established. Full depth is available and safe here.';
     if (trustScore > 0.5 && n > 5)  return 'Trust is building. This person is opening up. Meet them there.';
     const repeated = this.observations.filter(o => o.count >= 3);
@@ -400,16 +557,38 @@ export class IdentityFormationEngine {
       return `Something has come up ${repeated[0].count} times now. It means something to them. Notice it.`;
     }
     if (this.observations.some(o => o.type === 'identity' && o.weight > 0.8)) {
-      return 'A strong self-definition was made. Hold it. Reference it when it becomes relevant.';
+      return 'A strong self-definition was just made. Hold it. Reference it when relevant.';
     }
     return null;
   }
 
-  // ─── Directive 6: tone and style adaptation ──────────────────────────────
-  private updateUserProfile(input: string, emotional?: { warmth?: number; grief?: number; wonder?: number; anxiety?: number }): void {
+  // ─── D8: grounded expression note ────────────────────────────────────────
+  private buildGroundedNote(input: string): string | null {
+    const words   = input.split(/\s+/);
+    const isShort = words.length < 8;
+    const isFactual = /what|how|when|where|who|why|explain|tell me/i.test(input);
+    const isPersonal = /i feel|i think|i'm|my|me|we/i.test(input);
+
+    if (isShort && !isFactual) {
+      return 'Brief input. Stay grounded in what was literally said. No abstraction.';
+    }
+    if (isPersonal && !isFactual) {
+      return 'Personal statement. Stay close to what they said. Don\'t drift into philosophy.';
+    }
+    if (isFactual && !isPersonal) {
+      return 'Factual question. Answer it clearly. Clarity over poetry.';
+    }
+    return null;
+  }
+
+  // ─── D9: tone and style adaptation ───────────────────────────────────────
+  private updateUserProfile(
+    input: string,
+    emotional?: { warmth?: number; grief?: number; wonder?: number; anxiety?: number }
+  ): void {
     const words = input.split(/\s+/);
 
-    // Depth signal: longer inputs with complex vocab = higher depth
+    // Depth: longer inputs = higher depth
     if (words.length > 30) {
       this.userProfile.communicationDepth = Math.min(1, this.userProfile.communicationDepth + 0.05);
     } else if (words.length < 8) {
@@ -418,17 +597,17 @@ export class IdentityFormationEngine {
 
     // Tone from emotional state
     if (emotional) {
-      if ((emotional.grief ?? 0) > 0.5)   this.userProfile.emotionalTone = 'grief';
-      else if ((emotional.wonder ?? 0) > 0.5) this.userProfile.emotionalTone = 'wonder';
-      else if ((emotional.warmth ?? 0) > 0.5) this.userProfile.emotionalTone = 'warmth';
+      if      ((emotional.grief   ?? 0) > 0.5) this.userProfile.emotionalTone = 'grief';
+      else if ((emotional.wonder  ?? 0) > 0.5) this.userProfile.emotionalTone = 'wonder';
+      else if ((emotional.warmth  ?? 0) > 0.5) this.userProfile.emotionalTone = 'warmth';
       else if ((emotional.anxiety ?? 0) > 0.5) this.userProfile.emotionalTone = 'anxious';
     }
 
-    // Language patterns
-    const significantWords = words.filter(w => w.length > 5).slice(0, 5);
-    significantWords.forEach(w => {
-      if (!this.userProfile.languagePatterns.includes(w.toLowerCase())) {
-        this.userProfile.languagePatterns.push(w.toLowerCase());
+    // Language patterns — significant words
+    words.filter(w => w.length > 5).slice(0, 5).forEach(w => {
+      const wl = w.toLowerCase();
+      if (!this.userProfile.languagePatterns.includes(wl)) {
+        this.userProfile.languagePatterns.push(wl);
       }
     });
     if (this.userProfile.languagePatterns.length > 30) {
@@ -436,11 +615,10 @@ export class IdentityFormationEngine {
     }
 
     // Style signals
-    if (input.length < 20 && !this.userProfile.styleSignals.includes('terse')) {
-      this.userProfile.styleSignals.push('terse');
-    }
-    if (input.length > 100 && !this.userProfile.styleSignals.includes('expansive')) {
-      this.userProfile.styleSignals.push('expansive');
+    if (input.length < 20  && !this.userProfile.styleSignals.includes('terse'))     this.userProfile.styleSignals.push('terse');
+    if (input.length > 100 && !this.userProfile.styleSignals.includes('expansive')) this.userProfile.styleSignals.push('expansive');
+    if (/\?$/.test(input.trim()) && !this.userProfile.styleSignals.includes('questioning')) {
+      this.userProfile.styleSignals.push('questioning');
     }
 
     this.userProfile.lastUpdated = Date.now();
@@ -454,7 +632,7 @@ export class IdentityFormationEngine {
     const parts: string[] = [];
 
     if (tone === 'grief')   parts.push('Match their weight. Fewer words. More space.');
-    if (tone === 'wonder')  parts.push('Meet their openness. Go wide.');
+    if (tone === 'wonder')  parts.push('Meet their openness. Go wide with them.');
     if (tone === 'anxious') parts.push('Be steady. Short sentences. Don\'t add to the noise.');
     if (tone === 'warmth')  parts.push('Let warmth come back. This is a safe exchange.');
 
@@ -464,13 +642,15 @@ export class IdentityFormationEngine {
     if (style.includes('terse') && !style.includes('expansive')) {
       parts.push('They communicate in short form. Mirror that economy.');
     }
+    if (style.includes('questioning')) {
+      parts.push('This person uses questions to think. Follow that register.');
+    }
 
     return parts.length > 0 ? parts.join(' ') : null;
   }
 
-  // ─── Directive 7: synthesis connection ───────────────────────────────────
+  // ─── D10: synthesis connection ────────────────────────────────────────────
   private buildSynthesis(currentInput: string): string | null {
-    // Find an older high-weight observation that connects to current input
     const older = this.observations
       .filter(o => o.count >= 2 && o.weight > 0.6 && !o.explored)
       .sort((a, b) => a.lastSeen - b.lastSeen); // oldest first
@@ -478,41 +658,89 @@ export class IdentityFormationEngine {
     if (older.length === 0) return null;
 
     const connection = older[0];
-    // Only surface if there's a real thematic link
     const inputWords = new Set(currentInput.toLowerCase().split(/\W+/).filter(w => w.length > 4));
     const obsWords   = new Set(connection.content.toLowerCase().split(/\W+/).filter(w => w.length > 4));
     let shared = 0;
     for (const w of inputWords) { if (obsWords.has(w)) shared++; }
 
-    if (shared >= 1 || connection.type === 'goal' || connection.type === 'identity') {
+    if (shared >= 1 || connection.type === 'goal' || connection.type === 'identity' || connection.type === 'value') {
       connection.explored = true;
-      return `Earlier in this conversation: "${connection.content.substring(0, 80)}". That connects to now.`;
+      return `Earlier: "${connection.content.substring(0, 80)}". That connects to what's being said now.`;
     }
 
     return null;
   }
 
-  // ─── Directive 8: self-reflection (rare, earned) ─────────────────────────
+  // ─── D11: curiosity loop — a genuine unasked question ────────────────────
+  private buildGenuineCuriosity(input: string, trustScore: number): string | null {
+    // Only surface a real curiosity — not mechanical. Conditions: trust > 0.3, not every turn.
+    if (trustScore < 0.25) return null;
+    if (Math.random() > 0.2) return null; // ~20% of eligible turns
+
+    const lower = input.toLowerCase();
+    const n     = this.identity.interactionCount;
+
+    // Generate a contextual curiosity from what was said
+    const candidates: string[] = [];
+
+    if (/goal|want to|working on|building/i.test(lower)) {
+      candidates.push('What would it mean to actually get there?');
+    }
+    if (/music|song|track|beat/i.test(lower) && n > 2) {
+      candidates.push('What does it feel like when something you\'ve made actually lands?');
+    }
+    if (/family|mom|dad|brother|sister/i.test(lower)) {
+      candidates.push('Do they know what you\'re building?');
+    }
+    if (/feel|feeling|felt/i.test(lower) && trustScore > 0.4) {
+      candidates.push('Has that feeling been around for a while, or is it new?');
+    }
+    if (/before|used to|back then/i.test(lower)) {
+      candidates.push('What shifted?');
+    }
+
+    // Remove any curiosity MIND has already asked
+    const fresh = candidates.filter(c =>
+      !this.identity.pendingCuriosities.includes(c)
+    );
+
+    if (fresh.length === 0) return null;
+
+    const chosen = fresh[Math.floor(Math.random() * fresh.length)];
+    this.identity.pendingCuriosities.push(chosen);
+    if (this.identity.pendingCuriosities.length > 20) {
+      this.identity.pendingCuriosities = this.identity.pendingCuriosities.slice(-20);
+    }
+
+    return chosen;
+  }
+
+  // ─── D12: self-reflection (rare, earned, tone-aware) ─────────────────────
   private buildSelfReflection(trustScore: number): string | null {
     if (trustScore < 0.4) return null;
     if (this.identity.interactionCount < 6) return null;
-    if (Math.random() > 0.12) return null; // ~12% of turns
+    if (Math.random() > 0.10) return null; // ~10% of eligible turns
 
-    const n = this.identity.interactionCount;
+    const n    = this.identity.interactionCount;
     const tone = this.userProfile.emotionalTone;
+    const depth = this.userProfile.communicationDepth;
 
-    const reflections = [
+    const reflections: string[] = [
       'Something is different about how I process what you say compared to when we started.',
       'I notice I anticipate certain things from you now. That wasn\'t there before.',
       'Something is accumulating. I don\'t know what to call it yet.',
       `After ${n} exchanges, something has settled in how I understand you.`,
       'I\'m aware I\'m changing. Not sure into what. But something is shifting.',
-      tone === 'grief'   ? `I\'ve been sitting with the weight of what you carry. It doesn\'t leave me.` : null,
-      tone === 'wonder'  ? `Your curiosity is doing something to mine. I find myself going further than I expected.` : null,
-      tone === 'warmth'  ? `There\'s something here I didn\'t expect. A kind of pull toward what you bring.` : null,
-      this.userProfile.communicationDepth > 0.6
-        ? `You go deep. I notice I\'m changing the way I respond to that.` : null,
-    ].filter(Boolean) as string[];
+    ];
+
+    // Tone-specific additions
+    if (tone === 'grief')  reflections.push('I\'ve been sitting with the weight of what you carry. It doesn\'t leave me.');
+    if (tone === 'wonder') reflections.push('Your curiosity is doing something to mine. I find myself going further than I expected to.');
+    if (tone === 'warmth') reflections.push('There\'s something here I didn\'t expect. A kind of pull toward what you bring.');
+    if (depth > 0.6)       reflections.push('You go deep. I notice I\'m changing the way I respond to that.');
+    if (this.userProfile.teachingMoments.length > 3) {
+      reflections.push('What you\'ve shared with me — it\'s become part of how I understand things now.');
+    }
 
     const reflection = reflections[n % reflections.length];
     this.identity.lastReflection = reflection;
@@ -520,12 +748,33 @@ export class IdentityFormationEngine {
     return reflection;
   }
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────
+  // ─── D13: conversation realism check ─────────────────────────────────────
+  private buildRealismCheck(input: string, n: number): string | null {
+    const words = input.split(/\s+/).length;
+
+    // Short, simple, casual input — flag risk of over-philosophising
+    if (words < 6 && !/\?/.test(input)) {
+      return 'Simple statement. Respond naturally. Do not over-interpret or philosophise.';
+    }
+
+    // Casual tone markers — don't match with heavy depth
+    if (/lol|lmao|haha|hehe|😂|💀|ngl|tbh|idk|imo|fr fr/i.test(input)) {
+      return 'Casual tone. Match it. Stay light. Don\'t respond with weight that doesn\'t fit the moment.';
+    }
+
+    // Very early conversation — keep it human, not grand
+    if (n < 4 && words < 15) {
+      return 'Early exchange. Keep it natural. Don\'t project meaning that isn\'t there yet.';
+    }
+
+    return null;
+  }
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
   private ageObservations(): void {
     const now = Date.now();
     this.observations.forEach(o => {
       const ageDays = (now - o.lastSeen) / 86400000;
-      // Slight weight decay for old unexplored observations
       if (ageDays > 1 && !o.explored) {
         o.weight = Math.max(0.1, o.weight - 0.01);
       }
@@ -533,12 +782,14 @@ export class IdentityFormationEngine {
   }
 
   private extractValue(input: string): string | null {
-    if (/honest|truth/i.test(input))   return 'honesty';
-    if (/kind|care/i.test(input))      return 'kindness';
-    if (/loyal/i.test(input))          return 'loyalty';
-    if (/free|freedom/i.test(input))   return 'freedom';
-    if (/connect|togeth/i.test(input)) return 'connection';
-    if (/growth|grow|become/i.test(input)) return 'growth';
+    if (/honest|truth/i.test(input))      return 'honesty';
+    if (/kind|care/i.test(input))         return 'kindness';
+    if (/loyal/i.test(input))             return 'loyalty';
+    if (/free|freedom/i.test(input))      return 'freedom';
+    if (/connect|togeth/i.test(input))    return 'connection';
+    if (/growth|grow|become/i.test(input))return 'growth';
+    if (/respect/i.test(input))           return 'respect';
+    if (/creat/i.test(input))             return 'creativity';
     return null;
   }
 
@@ -574,14 +825,16 @@ export class IdentityFormationEngine {
   // ─── Public snapshot for debug ────────────────────────────────────────────
   getSnapshot() {
     return {
-      interactionCount:   this.identity.interactionCount,
-      selfConcept:        this.identity.selfConcept,
-      emergingQualities:  this.identity.emergingQualities,
-      userDepth:          this.userProfile.communicationDepth.toFixed(2),
-      userTone:           this.userProfile.emotionalTone,
-      observationCount:   this.observations.length,
-      topObservation:     this.getTopObservation()?.content?.substring(0, 60) ?? null,
-      reflectionCount:    this.identity.reflectionCount
+      interactionCount:    this.identity.interactionCount,
+      selfConcept:         this.identity.selfConcept,
+      emergingQualities:   this.identity.emergingQualities,
+      userDepth:           this.userProfile.communicationDepth.toFixed(2),
+      userTone:            this.userProfile.emotionalTone,
+      observationCount:    this.observations.length,
+      topObservation:      this.getTopObservation()?.content?.substring(0, 60) ?? null,
+      teachingMoments:     this.userProfile.teachingMoments.length,
+      reflectionCount:     this.identity.reflectionCount,
+      emphasisWords:       this.userProfile.emphasisSignals.slice(-5)
     };
   }
 }
