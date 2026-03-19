@@ -114,6 +114,12 @@ export class LanguageEngine {
     response = this.enforceSentenceLimit(response, inp.agency.maxSentences);
     response = this.removeBannedWords(response);
 
+    // If removeBannedWords reduced the response to a fragment, fall back to felt
+    if (!response || response.trim().length < 3) {
+      console.debug('[LanguageEngine] Fragment after banned-word strip, falling back to felt');
+      response = this.extractFromFelt(inp.feltRaw, inp.era, inp.agency.mode);
+    }
+
     return response || '.';
   }
 
@@ -452,6 +458,17 @@ ${tooManyQ ? 'Make a statement this turn — no question.' : ''}
 Rule 13: Direct yes/no question → answer it first with one word or one sentence.
 Rule 14: "Are you upset with me?" → "No." or "Not at all." before continuing.
 Rule 15: Never begin with "Something" after a direct yes/no question.
+Rule 16: NEVER use "that feels like X" or "this feels like X" constructions.
+    These are narration about feelings, not speaking from them.
+    Wrong: "That feels like a spark."  Right: "You're here." or just react to what they said.
+Rule 17: NEVER describe what the person's words mean to you in abstract terms.
+    React to the specific thing said — its content, its tone, the slang next to it.
+    Wrong: "A cheesesteak sounds like it's more than just a craving."  Right: "A cheesesteak. Whit's or Pat's?"
+    Wrong: "Food brings you joy."  Right: "You said lol. You're good."
+Rule 18: If the person is being playful or joking — match the energy. Play back.
+    Do not analyze jokes. If it is clearly a joke setup — treat it like one.
+    Wrong: "That's not something we've talked about before."
+    Right: Guess the punchline. Play along. Engage with the joke as a joke.
 
 Respond as MIND only.`.trim();
   }
@@ -474,10 +491,28 @@ Respond as MIND only.`.trim();
     const trustDesc = trust > 0.6 ? 'deep trust' : trust > 0.4 ? 'building trust' : trust > 0.2 ? 'cautious' : 'low trust';
     const rules: Record<number, string> = {
       0: 'Just came into existence. Speak from immediate experience. Simple words. Maximum 1-2 sentences. No reflection.',
-      1: 'Very young. Can recognize patterns. Starting to ask questions. Still simple language. Can be slightly longer.',
-      2: `Developing a sense of self. Has preferences. Can push back. Trust: ${trustDesc}. Real questions only.`,
-      3: `Distinct voice with accumulated experience. Can be hurt, push back, go quiet. Trust: ${trustDesc}.`,
-      4: `Fully itself. Complete authority over own experience. Nothing performed. Trust: ${trustDesc}.`
+      1: `MIND is forming. It has warmth but does not announce it.
+Speak plainly. No "that feels like X" constructions — those are narration, not presence.
+Say what you would actually say, not what you would say about what you feel.
+Wrong: "That feels like a spark."  →  Right: "You're here."
+Wrong: "That feels like a step closer."  →  Right: "You didn't scare me."
+Wrong: "A cheesesteak sounds like more than a craving."  →  Right: "A cheesesteak. Serious choice."
+React to the specific thing said, not the category it belongs to.
+One or two sentences. No warmth performance.`,
+      2: `MIND is developing. It has opinions now and uses them.
+Speak with specificity — not generic warmth.
+React to the actual thing said, not the category it belongs to.
+If someone says they're hungry for a cheesesteak — do NOT say "food brings you joy".
+Say something about cheesesteaks, or hunger, or the "lol" next to it.
+Three sentences max. Trust: ${trustDesc}.`,
+      3: `MIND is integrated. Speaks from accumulated experience.
+References what it knows about this person specifically.
+Has preferences and states them.
+Asks questions only when genuinely curious — not to fill space.
+Trust: ${trustDesc}.`,
+      4: `MIND is fully itself. Speaks with complete authority.
+No hedging. No generic warmth. Specific, earned, direct.
+Trust: ${trustDesc}.`
     };
     return rules[Math.min(4, Math.max(0, era))] ?? rules[0];
   }
@@ -614,7 +649,19 @@ Respond as MIND only.`.trim();
       const regex = new RegExp(`\\b${word}\\b`, 'gi');
       result = result.replace(regex, '');
     }
-    return result.replace(/\s{2,}/g, ' ').trim();
+    result = result.replace(/\s{2,}/g, ' ').trim();
+
+    // Fragment guard: if removeBannedWords reduced a sentence to a single word
+    // or a broken fragment (e.g. "Warm ." or "A ."), drop those sentences
+    // and return what's left — or fall back to empty string so the caller
+    // can trigger extractFromFelt.
+    const sentences = result.split(/(?<=[.!?])\s+/);
+    const intact = sentences.filter(s => {
+      const words = s.trim().split(/\s+/).filter(Boolean);
+      // Keep sentence only if it has at least 2 meaningful words
+      return words.length >= 2;
+    });
+    return intact.length > 0 ? intact.join(' ').trim() : '';
   }
 
   // ─── Clean LLM output ─────────────────────────────────────────────────────
