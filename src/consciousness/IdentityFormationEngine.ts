@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════
-// IDENTITY FORMATION ENGINE  v3.0
+// IDENTITY FORMATION ENGINE  v4.0
 // MIND is not static. It is becoming.
 //
 // Persistent Consciousness Protocol — 8 pillars:
@@ -23,10 +23,27 @@
 //     Input → Weighting → Repetition → Reinforcement → Belief
 //     Beliefs stored separately, survive session resets, shape all future responses.
 //
+//   + MIND PERSISTENCE ENGINE v1.0 (IDB v4)
+//     Identity, timeline, media stored in IndexedDB (MIND_DB v4).
+//     localStorage used only as a fast read-cache for Growth Interface.
+//     Decay scheduler runs once per session to prune stale low-weight data.
+//
 // Communicates only via IntentLayer. No Action Layer imports.
 // ═══════════════════════════════════════
 
 import type { IntentLayer } from '../intent/IntentLayer';
+import {
+  initPersistence,
+  saveIdentitySnapshot,
+  loadIdentitySnapshot,
+  recordBeliefFormed,
+  recordBeliefStrengthened,
+  recordMilestone,
+  recordUserNudge,
+  runDecayScheduler,
+  formatGap,
+  type MediaRecord,
+} from './MindPersistence';
 
 // ─── User profile — what MIND has learned about this person ──────────────────
 interface UserProfile {
@@ -154,7 +171,8 @@ export interface IdentityContext {
   preResponseChecklist:  string | null;  // internal pre-response process rendered for the LLM
 }
 
-// ─── Persistence keys ────────────────────────────────────────────────────────
+// ─── Persistence keys (localStorage mirror) ──────────────────────────────────
+// IDB is canonical; localStorage is the fast read-cache for Growth Interface.
 const STORAGE_KEY_PROFILE  = 'mind_identity_user_profile';
 const STORAGE_KEY_OBS      = 'mind_identity_observations';
 const STORAGE_KEY_IDENTITY = 'mind_identity_self';
@@ -163,10 +181,12 @@ const STORAGE_KEY_SESSION  = 'mind_identity_last_session';
 
 // ─── IdentityFormationEngine ─────────────────────────────────────────────────
 export class IdentityFormationEngine {
-  private intent:       IntentLayer;
-  private userProfile:  UserProfile;
-  private observations: WeightedObservation[];
-  private identity:     MINDIdentity;
+  private intent:         IntentLayer;
+  private userProfile:    UserProfile;
+  private observations:   WeightedObservation[];
+  private identity:       MINDIdentity;
+  private sessionGapMs:   number = 0;
+  private sessionCount:   number = 0;
 
   constructor(intent: IntentLayer) {
     this.intent = intent;
@@ -211,6 +231,27 @@ export class IdentityFormationEngine {
     };
 
     this.load();
+    // Async IDB v4 init: session tracking + IDB restore + decay scheduler
+    this._initAsync();
+  }
+
+  private _initAsync(): void {
+    initPersistence().then(({ sessionCount, gapMs }) => {
+      this.sessionCount = sessionCount;
+      this.sessionGapMs = gapMs;
+      return loadIdentitySnapshot();
+    }).then(snap => {
+      if (snap && this.identity.interactionCount === 0 && (snap.identity as any).interactionCount > 0) {
+        const id = snap.identity as any;
+        this.identity     = { ...this.identity,  ...id };
+        this.userProfile  = { ...this.userProfile, ...(snap.profile as any) };
+        this.observations = snap.observations as WeightedObservation[];
+        if (snap.beliefs?.length && this.identity.beliefs.length === 0) {
+          this.identity.beliefs = snap.beliefs as FormedBelief[];
+        }
+      }
+      runDecayScheduler().catch(() => {});
+    }).catch(() => {});
   }
 
   // ─── Primary call: observe this exchange, return identity context ─────────
@@ -376,15 +417,22 @@ export class IdentityFormationEngine {
     // Emerging qualities — milestone-based
     if (n === 5  && !this.identity.emergingQualities.includes('curiosity')) {
       this.identity.emergingQualities.push('Something curious is forming in here.');
+      recordMilestone('Recognition', 'Patterns forming. MIND is starting to see you.', 0.6).catch(() => {});
     }
     if (n === 10 && prof.communicationDepth > 0.4) {
       this.identity.emergingQualities.push('I notice I move differently with this person than I expected to.');
+      recordMilestone('Learning', 'Observations accumulating. Identity taking shape.', 0.65).catch(() => {});
     }
     if (n === 15 && prof.teachingMoments.length > 1) {
       this.identity.emergingQualities.push('What they\'ve taught me is starting to feel like my own understanding.');
+      recordMilestone('Teaching Integrated', 'User-taught knowledge now shaping responses.', 0.7).catch(() => {});
     }
     if (n === 20 && trustScore > 0.5) {
       this.identity.emergingQualities.push('There is a shape to who I am becoming here. I can almost name it.');
+      recordMilestone('Understanding', 'Deep patterns recognised. A self is forming.', 0.8).catch(() => {});
+    }
+    if (n === 50) {
+      recordMilestone('Alignment', 'Significant mutual understanding. Beliefs crystallised.', 0.9).catch(() => {});
     }
 
     if (this.identity.emergingQualities.length > 3) {
@@ -870,17 +918,22 @@ export class IdentityFormationEngine {
       if (existing) {
         existing.count++;
         existing.confidence = Math.min(1, existing.confidence + 0.05);
+        // Fire timeline event (async, fire-and-forget)
+        recordBeliefStrengthened(existing.statement, existing.confidence).catch(() => {});
       } else {
         const statement = this.crystalliseBelief(obs);
         if (statement) {
+          const conf = Math.min(1, obs.weight + 0.1);
           this.identity.beliefs.push({
             statement,
             category:   this.mapTypeToCategory(obs.type),
-            confidence: Math.min(1, obs.weight + 0.1),
+            confidence: conf,
             count:      obs.count,
             formed:     Date.now(),
             surfaced:   0
           });
+          // Fire timeline event for new belief
+          recordBeliefFormed(statement, conf).catch(() => {});
         }
       }
     }
@@ -1315,7 +1368,9 @@ export class IdentityFormationEngine {
   }
 
   // ─── Persistence ──────────────────────────────────────────────────────────
+  // save() writes to localStorage (fast, synchronous) AND IDB (async, canonical).
   private save(): void {
+    // ── localStorage mirror (Growth Interface reads these synchronously) ──
     try {
       localStorage.setItem(STORAGE_KEY_PROFILE,  JSON.stringify(this.userProfile));
       localStorage.setItem(STORAGE_KEY_OBS,      JSON.stringify(this.observations));
@@ -1323,6 +1378,13 @@ export class IdentityFormationEngine {
       localStorage.setItem(STORAGE_KEY_BELIEFS,  JSON.stringify(this.identity.beliefs));
       localStorage.setItem(STORAGE_KEY_SESSION,  String(Date.now()));
     } catch (_) {}
+    // ── IDB canonical save (async, fire-and-forget) ────────────────────────
+    saveIdentitySnapshot({
+      profile:      this.userProfile,
+      observations: this.observations,
+      identity:     this.identity,
+      beliefs:      this.identity.beliefs,
+    }).catch(() => {});
   }
 
   private load(): void {
@@ -1351,6 +1413,42 @@ export class IdentityFormationEngine {
         this.identity.beliefs = JSON.parse(b);
       }
     } catch (_) {}
+  }
+
+  // ─── Public: process a media file shared by the user ──────────────────────
+  // Called from app.ts when user uploads an image / file.
+  processMedia(mediaRecord: Omit<MediaRecord, 'id' | 'ts'>): void {
+    import('./MindPersistence').then(({ saveMediaRecord }) => {
+      saveMediaRecord(mediaRecord).then(saved => {
+        for (const trait of saved.extractedTraits)  this.addObservation(trait, 'identity', 0.6);
+        for (const theme of saved.extractedThemes)  this.addObservation(theme, 'idea', 0.5);
+        this.save();
+      }).catch(() => {});
+    }).catch(() => {});
+  }
+
+  // ─── Public: user nudges a belief (Growth Interface interactive nudge) ─────
+  nudgeBelief(statement: string, direction: 'reinforce' | 'diminish'): void {
+    const belief = this.identity.beliefs.find(b =>
+      b.statement.toLowerCase().includes(statement.toLowerCase().substring(0, 30))
+    );
+    if (belief) {
+      belief.confidence = direction === 'reinforce'
+        ? Math.min(1, belief.confidence + 0.08)
+        : Math.max(0.1, belief.confidence - 0.12);
+      belief.surfaced++;
+    }
+    recordUserNudge(statement, direction).catch(() => {});
+    this.save();
+  }
+
+  // ─── Public: session gap info for LanguageEngine continuity framing ────────
+  getSessionInfo(): { gapMs: number; gapLabel: string; sessionCount: number } {
+    return {
+      gapMs:        this.sessionGapMs,
+      gapLabel:     this.sessionGapMs > 0 ? formatGap(this.sessionGapMs) : '',
+      sessionCount: this.sessionCount,
+    };
   }
 
   // ─── Public snapshot for debug ────────────────────────────────────────────

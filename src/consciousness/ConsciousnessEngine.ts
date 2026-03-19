@@ -145,6 +145,14 @@ export class ConsciousnessEngine {
       }
     });
 
+    // ── Listen for Growth Interface belief nudge ──────────────────────────────
+    this.intent.register('identity.nudge', (payload) => {
+      const p = payload as { statement?: string; direction?: 'reinforce' | 'diminish' };
+      if (p.statement) {
+        this.identityEngine.nudgeBelief(p.statement, p.direction ?? 'reinforce');
+      }
+    });
+
 
     // ── Register: 'speech.request' — primary consciousness entry point ────────
     // MindSpeechSystem fires this instead of consciousness.process
@@ -592,4 +600,18 @@ export class ConsciousnessEngine {
   isEnabled(): boolean { return this.enabled; }
 
   incrementInteraction(): void { this.interactionCount++; }
+
+  // ─── MindPersistence pass-throughs ────────────────────────────────────
+  // Called from app.ts for media uploads and Growth Interface nudges.
+  processMedia(mediaRecord: object): void {
+    try { this.identityEngine.processMedia(mediaRecord as any); } catch (_) {}
+  }
+
+  nudgeBelief(statement: string, direction: 'reinforce' | 'diminish'): void {
+    try { this.identityEngine.nudgeBelief(statement, direction); } catch (_) {}
+  }
+
+  getSessionInfo(): { gapMs: number; gapLabel: string; sessionCount: number } {
+    try { return this.identityEngine.getSessionInfo(); } catch (_) { return { gapMs: 0, gapLabel: '', sessionCount: 0 }; }
+  }
 }

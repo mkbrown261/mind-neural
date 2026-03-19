@@ -204,6 +204,7 @@ function buildDOM() {
         <button class="top-btn" id="btn-sound">SOUND ON</button>
         <button class="top-btn" id="btn-journey">JOURNEYS</button>
         <button class="top-btn" id="btn-mode" data-mode="explore">EXPLORE</button>
+        <a class="top-btn" href="/growth" target="_blank" style="text-decoration:none;cursor:pointer" title="Open MIND Growth Interface">GROWTH ↗</a>
         <button class="top-btn" id="btn-clear">RESET MIND</button>
       </div>
     </div>
@@ -578,6 +579,26 @@ async function handleGateInit() {
 
     // Step 8: Start MIND_TICK and onboarding/welcome
     await _afterApiReady();
+
+    // ── Growth Interface BroadcastChannel — nudge listener ──────────────────
+    // The /growth page sends 'nudge' messages; MIND tab applies them and
+    // broadcasts a 'mind_growth_update' signal back to refresh the Growth UI.
+    try {
+      const nudgeChannel  = new BroadcastChannel('mind_nudge');
+      const updateChannel = new BroadcastChannel('mind_growth_update');
+      const confirmChannel= new BroadcastChannel('mind_nudge_confirm');
+      nudgeChannel.onmessage = (e: MessageEvent) => {
+        if (e.data?.type === 'nudge' && e.data.statement) {
+          mindSpeech.intent.emit('identity.nudge', {
+            statement: e.data.statement,
+            direction: e.data.direction ?? 'reinforce',
+          });
+          confirmChannel.postMessage({ type: 'nudge_done' });
+          // Push updated snapshot after nudge
+          setTimeout(() => updateChannel.postMessage({ type: 'updated' }), 400);
+        }
+      };
+    } catch (_) {}
 
   } catch (err: any) {
     // Fail-safe: stay on gate, show error, allow retry
@@ -1538,6 +1559,33 @@ async function handleSend() {
 
       // Show voice source in feed
       addFeedItem(`Voice: ${speakResult.source} — ${speakResult.voiceLabel}`);
+
+      // ── Broadcast growth snapshot to /growth tab ────────────────────────────
+      // Writes enriched data that the Growth Interface reads every 2s.
+      // Safe: try/catch, no blocking, no imports needed.
+      try {
+        const gState   = getMINDState();
+        const gTrust   = compositeTrustScore(gState.trust);
+        const gStage   = getDevelopmentStageLabel();
+        const snapshot = {
+          interactionCount: gState.trust?.totalInteractions ?? 0,
+          stage:            gStage,
+          trust:            gTrust,
+          era:              gState.era?.era ?? 0,
+          emotionalTone:    gState.emotionalState?.valence > 0.2 ? 'warm'
+                          : gState.emotionalState?.grief   > 0.4 ? 'heavy'
+                          : gState.emotionalState?.wonder  > 0.4 ? 'curious'
+                          : gState.emotionalState?.anxiety > 0.4 ? 'anxious'
+                          : 'neutral',
+          communicationTone: `${gStage} · ${gTrust > 0.6 ? 'Deep trust' : gTrust > 0.3 ? 'Building' : 'Cautious'}`,
+          lastInput:   text.substring(0, 80),
+          lastResponse:finalResponseText.substring(0, 120),
+          memoryCount: getMemoryCount(),
+          updatedAt:   Date.now(),
+        };
+        localStorage.setItem('mind_growth_snapshot', JSON.stringify(snapshot));
+      } catch (_) {}
+      // ────────────────────────────────────────────────────────────────────────
 
       // Fade activations back to emotional resting state (4s)
       setTimeout(() => {

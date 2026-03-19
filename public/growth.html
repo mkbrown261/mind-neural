@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MIND — Growth Interface</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:      #020408;
+      --bg2:     #050810;
+      --accent:  #4466ff;
+      --accent2: #aa44ff;
+      --green:   #22c55e;
+      --amber:   #f59e0b;
+      --cyan:    #06b6d4;
+      --red:     #ff6644;
+      --dim:     #4a5068;
+      --mid:     #8892b0;
+      --bright:  #e8ecff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: var(--bg); color: var(--bright); font-family: 'Space Grotesk', sans-serif; min-height: 100vh; }
+    .mono { font-family: 'Space Mono', monospace; }
+    .glow  { text-shadow: 0 0 20px rgba(68,102,255,0.6); }
+    .panel {
+      background: var(--bg2);
+      border-radius: 16px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(68,102,255,0.1);
+      box-shadow: 0 0 1px rgba(68,102,255,0.15), inset 0 1px 0 rgba(255,255,255,0.02);
+      transition: border-color 0.4s ease, box-shadow 0.4s ease;
+    }
+    .panel:hover { border-color: rgba(68,102,255,0.22); }
+    .panel-corner {
+      position: absolute; top: 0; right: 0;
+      width: 110px; height: 110px;
+      background: radial-gradient(circle at 100% 0%, var(--corner-color, rgba(68,102,255,0.05)), transparent);
+      pointer-events: none;
+    }
+    .panel-title {
+      font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;
+      font-family: 'Space Mono', monospace; opacity: 0.8; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .bar  { background: #0a0f1e; border-radius: 3px; height: 3px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 3px; transition: width 1.6s cubic-bezier(0.4,0,0.2,1); }
+    .tag { display: inline-block; border-radius: 20px; padding: 3px 11px; font-size: 11px; margin: 3px 2px; }
+    .tag-identity { background: rgba(68,102,255,0.1); border: 1px solid rgba(68,102,255,0.25); color: #c8d0f0; }
+    .tag-slang    { background: rgba(6,182,212,0.1);  border: 1px solid rgba(6,182,212,0.3);  color: #06b6d4; font-family:'Space Mono',monospace; }
+    .tag-phrase   { background: rgba(170,68,255,0.08); border: 1px solid rgba(170,68,255,0.2); color: #c4a0ff; }
+    .tag-media    { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); color: #f59e0b; }
+
+    /* Belief rows — confidence-gated glow */
+    .belief-row { padding: 10px 0; border-bottom: 1px solid #0d1120; display: flex; align-items: flex-start; gap: 12px; transition: background 0.3s; }
+    .belief-row:last-child { border-bottom: none; }
+    .belief-row:hover { background: rgba(68,102,255,0.03); border-radius: 8px; padding-left: 6px; }
+    .belief-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; transition: box-shadow 0.6s; }
+
+    /* Nudge buttons */
+    .nudge-btn {
+      opacity: 0; transition: opacity 0.2s;
+      border: none; cursor: pointer; border-radius: 10px;
+      font-size: 10px; padding: 2px 7px; font-family: 'Space Mono', monospace;
+      letter-spacing: 0.05em; margin-left: 4px;
+    }
+    .belief-row:hover .nudge-btn { opacity: 1; }
+    .nudge-reinforce { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .nudge-diminish  { background: rgba(255,102,68,0.12); color: #ff6644; }
+
+    /* Timeline */
+    .tl-dot  { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; border: 2px solid #1a2040; transition: all 0.4s; }
+    .tl-dot.active  { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 10px rgba(68,102,255,0.55); }
+    .tl-dot.belief  { background: var(--green);  border-color: var(--green);  box-shadow: 0 0 8px rgba(34,197,94,0.5); }
+    .tl-dot.media   { background: var(--amber);  border-color: var(--amber);  box-shadow: 0 0 8px rgba(245,158,11,0.5); }
+    .tl-dot.nudge   { background: var(--cyan);   border-color: var(--cyan);   box-shadow: 0 0 8px rgba(6,182,212,0.5); }
+    .tl-dot.session { background: #6677ff;  border-color: #6677ff; }
+    .tl-line { flex: 1; width: 1px; background: #1a2040; margin: 3px 0; }
+
+    /* Understanding rings */
+    .u-ring { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); border-radius: 50%; border: 1px solid; transition: all 1.4s ease; }
+    .pulse { animation: glowPulse 3.5s ease-in-out infinite; }
+    @keyframes glowPulse { 0%,100%{opacity:0.55}50%{opacity:1} }
+
+    /* Panel entry animation */
+    .fade-in { animation: fadeUp 0.65s ease forwards; opacity: 0; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)} }
+    .s1{animation-delay:0.04s} .s2{animation-delay:0.09s} .s3{animation-delay:0.14s}
+    .s4{animation-delay:0.19s} .s5{animation-delay:0.24s} .s6{animation-delay:0.29s}
+    .s7{animation-delay:0.34s}
+
+    /* Scrollbar */
+    ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#1a2040;border-radius:2px}
+
+    .empty { color: #2a3050; font-size: 12px; font-style: italic; }
+
+    /* Live dot */
+    .live-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--green); box-shadow: 0 0 5px var(--green); animation: glowPulse 2s ease-in-out infinite; margin-right: 5px; }
+
+    /* IDB badge */
+    .idb-badge { font-size: 9px; font-family:'Space Mono',monospace; letter-spacing:0.1em; text-transform:uppercase; color:#2a3050; padding:2px 7px; border:1px solid #1a2040; border-radius:10px; }
+
+    /* Nudge toast */
+    #nudge-toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: #0d1525; border: 1px solid rgba(68,102,255,0.25); border-radius: 12px;
+      padding: 10px 20px; font-size: 12px; font-family:'Space Mono',monospace;
+      letter-spacing: 0.1em; color: var(--bright); opacity: 0; transition: all 0.35s ease;
+      pointer-events: none; z-index: 100;
+    }
+    #nudge-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* Media panel */
+    .media-item { padding: 9px 0; border-bottom: 1px solid #0d1120; }
+    .media-item:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<div id="nudge-toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// MIND Growth Interface  v2.0
+// ─────────────────────────────────────────────────────────────────────
+// Data sources (priority order):
+//   1. IndexedDB MIND_DB v4 — identity, timeline, media stores (canonical)
+//   2. localStorage — fast read cache (Growth Interface polls these)
+//   3. mind_growth_snapshot — summary written by app.ts after each exchange
+//
+// Features:
+//   • Weighted belief glow (confidence → glow intensity)
+//   • Interactive belief nudge (reinforce/diminish → postMessage to MIND tab)
+//   • Rich timeline from IDB (session opens, milestones, belief events, media)
+//   • Media panel showing files/images MIND has processed
+//   • Live IDB polling via BroadcastChannel + localStorage storage event
+//   • Decay-aware: low-weight observations visually de-emphasised
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── localStorage keys ─────────────────────────────────────────────────
+const LS = {
+  profile:  'mind_identity_user_profile',
+  obs:      'mind_identity_observations',
+  identity: 'mind_identity_self',
+  beliefs:  'mind_identity_beliefs',
+  session:  'mind_identity_last_session',
+  snapshot: 'mind_growth_snapshot',
+  timeline: 'mind_growth_timeline',
+  media:    'mind_growth_media',
+};
+
+// ── IDB config ────────────────────────────────────────────────────────
+const DB_NAME    = 'MIND_DB';
+const DB_VERSION = 4;
+
+let _idb = null;
+let _idbReady = false;
+
+async function openIDB() {
+  if (_idb) return _idb;
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onsuccess = e => { _idb = e.target.result; _idbReady = true; resolve(_idb); };
+    req.onerror   = ()  => reject(req.error);
+    req.onupgradeneeded = () => {}; // Growth Interface never upgrades the DB
+  });
+}
+
+async function idbGetAll(store, indexName) {
+  try {
+    const db  = await openIDB();
+    return new Promise((resolve) => {
+      const tx  = db.transaction(store, 'readonly');
+      if (!db.objectStoreNames.contains(store)) { resolve([]); return; }
+      const src = indexName && tx.objectStore(store).indexNames.contains(indexName)
+        ? tx.objectStore(store).index(indexName)
+        : tx.objectStore(store);
+      const req = src.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror   = () => resolve([]);
+    });
+  } catch { return []; }
+}
+
+// ── State ─────────────────────────────────────────────────────────────
+let lastSig   = '';
+let idbTimeline = [];
+let idbMedia    = [];
+let idbLoaded   = false;
+
+// ── Load IDB data (async, non-blocking) ───────────────────────────────
+async function loadIDB() {
+  try {
+    const [tl, media] = await Promise.all([
+      idbGetAll('timeline', 'ts'),
+      idbGetAll('media',    'ts'),
+    ]);
+    idbTimeline = tl;
+    idbMedia    = media;
+    idbLoaded   = true;
+    lastSig = ''; // force re-render
+    poll();
+  } catch (e) {
+    console.warn('[Growth IDB]', e);
+  }
+}
+
+// ── Read localStorage ─────────────────────────────────────────────────
+function ls(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key) || 'null') || fallback; }
+  catch { return fallback; }
+}
+
+// ── Build state ───────────────────────────────────────────────────────
+function buildState() {
+  try {
+    const profile  = ls(LS.profile,  {});
+    const obs      = ls(LS.obs,      []);
+    const identity = ls(LS.identity, {});
+    const beliefs  = ls(LS.beliefs,  []);
+    const snap     = ls(LS.snapshot, {});
+
+    const n     = identity.interactionCount || snap.interactionCount || 0;
+    const hbe   = identity.hbeProfile || {};
+    const depth = profile.communicationDepth || 0;
+    const tone  = profile.emotionalTone || 'neutral';
+
+    return {
+      n,
+      era:           computeEra(n),
+      traits:        buildTraits(profile, obs, snap),
+      beliefs:       buildBeliefs(beliefs, snap),
+      patterns:      buildPatterns(obs),
+      comms:         buildComms(hbe, tone, depth, snap),
+      timeline:      buildTimeline(n, identity, obs, idbTimeline),
+      media:         buildMedia(idbMedia),
+      understanding: computeUnderstanding(n, depth, beliefs.length, obs.length),
+      selfConcept:   identity.selfConcept || null,
+      emerging:      (identity.emergingQualities || []).slice(-1)[0] || null,
+      teachingCount: (profile.teachingMoments || []).length,
+      reflections:   identity.reflectionCount || 0,
+      memCount:      snap.memoryCount || 0,
+      idbReady:      _idbReady,
+    };
+  } catch(e) {
+    console.warn('[Growth]', e);
+    return null;
+  }
+}
+
+// ── Data builders ─────────────────────────────────────────────────────
+
+function buildTraits(profile, obs, snap) {
+  const set = new Set();
+  (profile.values || []).forEach(v => { const t = labelValue(v); if (t) set.add(t); });
+  obs.filter(o => (o.type === 'identity' || o.type === 'value') && o.weight > 0.5)
+     .sort((a,b)=>(b.weight||0)-(a.weight||0))
+     .forEach(o => { const t = labelContent(o.content); if (t) set.add(t); });
+  (snap.traits || []).forEach(t => set.add(t));
+  return [...set].slice(0, 12);
+}
+
+function buildBeliefs(beliefs, snap) {
+  const src = beliefs.length > 0 ? beliefs : (snap.beliefs || []);
+  return src
+    .filter(b => b.confidence > 0.35)
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 8)
+    .map(b => ({
+      text:  cleanBelief(b.statement || b.text || ''),
+      conf:  b.confidence || 0.5,
+      count: b.count || 1,
+      cat:   b.category || 'worldview',
+      label: b.confidence > 0.88 ? 'strongly held'
+           : b.confidence > 0.68 ? 'established'
+           : b.confidence > 0.50 ? 'forming'
+           : 'emerging'
+    }));
+}
+
+function buildPatterns(obs) {
+  const filtered = obs.filter(o => (o.count || 1) >= 2 && (o.weight || 0) > 0.4);
+  const max = Math.max(...filtered.map(o => o.count || 1), 1);
+  return filtered
+    .sort((a, b) => (b.count||1) - (a.count||1))
+    .slice(0, 9)
+    .map(o => ({
+      label:  labelContent(o.content) || o.content.substring(0,30),
+      count:  o.count || 1,
+      pct:    Math.round(((o.count || 1) / max) * 100),
+      color:  typeColor(o.type),
+      weight: o.weight || 0.5,
+    }));
+}
+
+function buildComms(hbe, tone, depth, snap) {
+  return {
+    tone:     snap.communicationTone || descTone(hbe, tone, depth),
+    slang:    (hbe.slang || []).slice(0, 12),
+    pacing:   hbe.pacingSignal || 'measured',
+    avgLen:   hbe.avgMessageLength || 0,
+    caps:     !!hbe.usesCaps,
+    humor:    !!hbe.usesHumor,
+    ellipsis: !!hbe.usesEllipsis,
+    phrases:  (hbe.recentPhrases || []).slice(0, 6),
+    dominant: hbe.dominantTone || tone,
+  };
+}
+
+function buildTimeline(n, identity, obs, idbTL) {
+  // Merge IDB events with milestone-based events
+  const events = [];
+
+  // Static milestone stages
+  if (n >= 1)  events.push({ type:'session', stage:'First Contact',  desc:'MIND came into existence. Learning who you are.',     ts:0, weight:0.7 });
+  if (n >= 5)  events.push({ type:'active',  stage:'Recognition',    desc:'Patterns are forming. MIND is starting to see you.', ts:0, weight:0.6 });
+  if (n >= 10) events.push({ type:'active',  stage:'Learning',       desc:'Observations accumulating. Identity taking shape.',   ts:0, weight:0.65 });
+  if (n >= 20) {
+    const obs_arr = ls(LS.obs, []);
+    const top = [...obs_arr].sort((a,b)=>(b.weight||0)-(a.weight||0))[0];
+    events.push({ type:'active', stage:'Understanding', desc: top ? '"'+top.content.substring(0,55)+'..."' : 'Deep patterns recognised.', ts:0, weight:0.8 });
+  }
+  if (n >= 50) events.push({ type:'milestone', stage:'Alignment', desc:'Significant mutual understanding. Beliefs crystallised.', ts:0, weight:0.9 });
+
+  // IDB timeline events — belief formations, media, nudges, session opens
+  if (idbTL && idbTL.length > 0) {
+    const rich = idbTL
+      .filter(e => e.type !== 'session_open' || e.weight >= 0.5) // only high-gap session opens
+      .slice(-12)
+      .map(e => ({
+        type:   e.type === 'belief_formed'     ? 'belief'
+              : e.type === 'belief_strengthened'? 'belief'
+              : e.type === 'media_processed'    ? 'media'
+              : e.type === 'user_nudge'         ? 'nudge'
+              : e.type === 'milestone'          ? 'milestone'
+              : 'session',
+        stage:  e.label,
+        desc:   e.detail,
+        ts:     e.ts,
+        weight: e.weight || 0.5,
+      }));
+    events.push(...rich);
+  }
+
+  // Emerging quality (always last)
+  const emerging = (identity.emergingQualities || []).slice(-1)[0];
+  if (emerging) events.push({ type:'active', stage:'Now', desc: emerging, ts: Date.now(), weight: 1 });
+  else if (events.length > 0) events[events.length-1].active = true;
+
+  // Sort by ts (0-ts static entries come first)
+  return events.sort((a,b) => (a.ts||0) - (b.ts||0)).slice(-15);
+}
+
+function buildMedia(idbMediaArr) {
+  if (!idbMediaArr || idbMediaArr.length === 0) return [];
+  return idbMediaArr.slice(-8).reverse().map(m => ({
+    name:    m.name || 'unknown',
+    type:    m.type || 'file',
+    traits:  (m.extractedTraits || []).slice(0,3),
+    themes:  (m.extractedThemes || []).slice(0,3),
+    summary: m.summary || '',
+    weight:  m.weight || 0.4,
+    ts:      m.ts,
+  }));
+}
+
+// ── Computed values ───────────────────────────────────────────────────
+
+function computeEra(n) {
+  if (n < 10)  return { label:'Newborn',     level:0, color:'#4466ff' };
+  if (n < 25)  return { label:'Forming',     level:1, color:'#6655ff' };
+  if (n < 60)  return { label:'Developing',  level:2, color:'#aa44ff' };
+  if (n < 120) return { label:'Integrated',  level:3, color:'#22c55e' };
+  return             { label:'Transcendent', level:4, color:'#f59e0b' };
+}
+
+function computeUnderstanding(n, depth, beliefCount, obsCount) {
+  const score = Math.min(1, (n/150)*0.4 + depth*0.3 + (beliefCount/15)*0.2 + (obsCount/20)*0.1);
+  const pct   = Math.round(score * 100);
+  if (pct < 12) return { label:'Just Awakened',     pct, color:'#4466ff' };
+  if (pct < 28) return { label:'Surface Level',     pct, color:'#6677ff' };
+  if (pct < 48) return { label:'Developing',        pct, color:'#aa44ff' };
+  if (pct < 68) return { label:'Meaningful Grasp',  pct, color:'#22c55e' };
+  if (pct < 84) return { label:'Deeply Aligned',    pct, color:'#f59e0b' };
+  return             { label:'Complete Resonance',  pct, color:'#ff6644' };
+}
+
+// ── Label helpers ─────────────────────────────────────────────────────
+
+function labelContent(c) {
+  if (!c) return null;
+  const l = c.toLowerCase();
+  if (/music|song|beat|produce|track|album/.test(l)) return 'Music Creator';
+  if (/game|unreal|engine|gaming/.test(l))           return 'Game Builder';
+  if (/code|software|engineer|app|build/.test(l))    return 'Engineer';
+  if (/write|writing|book|story|poem/.test(l))       return 'Writer';
+  if (/art|design|visual|graphic/.test(l))           return 'Creative';
+  if (/honest|truth|integrity/.test(l))              return 'Values Honesty';
+  if (/loyal|loyalty/.test(l))                       return 'Loyal';
+  if (/family|mom|dad|brother|sister/.test(l))       return 'Family Oriented';
+  if (/free|freedom/.test(l))                        return 'Values Freedom';
+  if (/grow|growth|become|evolve/.test(l))           return 'Growth Seeker';
+  if (/creat/.test(l))                               return 'Creator';
+  if (/reflect|think|philos|deep/.test(l))           return 'Reflective Thinker';
+  if (/help|care|support/.test(l))                   return 'Caring';
+  return c.split(/\s+/).slice(0,3).join(' ').substring(0,22) || null;
+}
+
+function labelValue(v) {
+  if (!v) return null;
+  const m = { honesty:'Values Honesty', kindness:'Kindness', loyalty:'Loyal',
+    freedom:'Values Freedom', connection:'Values Connection',
+    growth:'Growth Seeker', respect:'Respectful', creativity:'Creative' };
+  return m[v.toLowerCase()] || (v.length > 2 ? v.charAt(0).toUpperCase()+v.slice(1) : null);
+}
+
+function cleanBelief(s) {
+  return (s||'').replace(/^(Values:|Working toward:|Identifies as:|Strong feelings about:|Taught MIND:|Returns to:)\s*/i,'').substring(0,90);
+}
+
+function typeColor(type) {
+  const m = { identity:'#4466ff', value:'#22c55e', goal:'#f59e0b',
+    emotion:'#ff6644', teaching:'#06b6d4', idea:'#aa44ff', thread:'#8892b0' };
+  return m[type] || '#4a5068';
+}
+
+function descTone(hbe, emotTone, depth) {
+  const p = [];
+  if (hbe.slang && hbe.slang.length > 2) p.push('Casual');
+  else if (depth > 0.6) p.push('Deep');
+  else p.push('Natural');
+  if (hbe.usesHumor)          p.push('Humorous');
+  if (emotTone === 'wonder')  p.push('Curious');
+  if (emotTone === 'grief')   p.push('Heavy');
+  if (emotTone === 'warmth')  p.push('Warm');
+  if (depth > 0.65)           p.push('Reflective');
+  else if (hbe.pacingSignal === 'rapid') p.push('Fast-paced');
+  return p.join(' · ') || 'Developing';
+}
+
+function timeAgo(ts) {
+  if (!ts) return '';
+  const d = Date.now() - ts;
+  if (d < 60000)        return 'just now';
+  if (d < 3600000)      return `${Math.round(d/60000)}m ago`;
+  if (d < 86400000)     return `${Math.round(d/3600000)}h ago`;
+  if (d < 7*86400000)   return `${Math.round(d/86400000)}d ago`;
+  return `${Math.round(d/(7*86400000))}w ago`;
+}
+
+// ── Nudge via postMessage ─────────────────────────────────────────────
+
+function nudgeBelief(statement, direction) {
+  // Try to reach any open MIND tab on the same origin
+  try {
+    const bc = new BroadcastChannel('mind_nudge');
+    bc.postMessage({ type: 'nudge', statement, direction });
+    bc.close();
+  } catch(_) {}
+  showToast(direction === 'reinforce' ? '✓ Belief reinforced' : '↓ Belief diminished');
+}
+
+function showToast(msg) {
+  const el = document.getElementById('nudge-toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ── Render ────────────────────────────────────────────────────────────
+
+function render(d) {
+  if (!d || d.n === 0) { renderEmpty(); return; }
+  const root = document.getElementById('root');
+  root.innerHTML = buildPage(d);
+  // Panel entrance stagger
+  root.querySelectorAll('.panel').forEach((el, i) => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(12px)';
+    setTimeout(() => {
+      el.style.transition = 'opacity 0.55s ease, transform 0.55s ease';
+      el.style.opacity    = '1';
+      el.style.transform  = 'translateY(0)';
+    }, i * 70);
+  });
+}
+
+function renderEmpty() {
+  document.getElementById('root').innerHTML = `
+    <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center;padding:24px">
+      <div class="mono pulse" style="font-size:38px;font-weight:700;letter-spacing:0.35em;color:#e8ecff;text-shadow:0 0 30px rgba(68,102,255,0.45)">MIND</div>
+      <div class="mono" style="font-size:10px;letter-spacing:0.3em;text-transform:uppercase;color:#4a5068">Growth Interface</div>
+      <div style="color:#4a5068;font-size:13px;max-width:300px;line-height:1.8;margin-top:8px">
+        Start a conversation with MIND.<br>This interface comes alive as MIND learns.
+      </div>
+      <a href="/" style="color:#4466ff;font-size:11px;font-family:'Space Mono',monospace;letter-spacing:0.15em;text-transform:uppercase;text-decoration:none;opacity:0.6;margin-top:8px">↗ Open MIND</a>
+    </div>`;
+}
+
+function buildPage(d) {
+  const ec = d.era.color;
+  return `
+  <div style="max-width:1420px;margin:0 auto;padding:28px 18px 60px">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:32px">
+      <div>
+        <div class="mono glow" style="font-size:22px;font-weight:700;letter-spacing:0.3em;color:#e8ecff">MIND</div>
+        <div class="mono" style="font-size:9px;letter-spacing:0.28em;text-transform:uppercase;color:#4a5068;margin-top:2px">Growth Interface v2</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="live-dot"></span>
+        <span class="mono" style="font-size:11px;color:#4a5068">${d.n} exchanges</span>
+        <span class="mono" style="background:${ec}18;border:1px solid ${ec}30;color:${ec};padding:4px 13px;border-radius:20px;font-size:11px;letter-spacing:0.1em">${d.era.label.toUpperCase()}</span>
+        ${d.idbReady ? '<span class="idb-badge">IDB ✓</span>' : ''}
+        <a href="/" class="mono" style="color:#4466ff;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;opacity:0.5">↗ MIND</a>
+      </div>
+    </div>
+
+    <!-- Understanding — full width -->
+    ${buildUnderstandingPanel(d)}
+
+    <!-- 2-column grid then auto-fill -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:16px">
+      ${buildIdentityPanel(d)}
+      ${buildBeliefPanel(d)}
+      ${buildPatternPanel(d)}
+      ${buildCommsPanel(d)}
+      ${buildTimelinePanel(d)}
+      ${d.media.length > 0 ? buildMediaPanel(d) : ''}
+      ${buildSelfPanel(d)}
+    </div>
+
+    <div class="mono" style="text-align:center;margin-top:32px;color:#161b2e;font-size:10px;letter-spacing:0.18em;text-transform:uppercase">
+      Live · 2s poll · localStorage + IndexedDB sync · Same-origin
+    </div>
+  </div>`;
+}
+
+// ── Panel builders ────────────────────────────────────────────────────
+
+function buildUnderstandingPanel(d) {
+  const u  = d.understanding;
+  const ec = d.era.color;
+  const rings = [28,52,76,100,124].map((r,i) => {
+    const active = u.pct >= (i+1)*20;
+    return `<div class="u-ring" style="width:${r}px;height:${r}px;border-color:${active?u.color+'44':'#1a204022'};${active?'box-shadow:0 0 5px '+u.color+'1a':''}"></div>`;
+  }).join('');
+  return `
+  <div class="panel" style="text-align:center;border-color:${u.color}20;--corner-color:${u.color}06">
+    <div class="panel-corner"></div>
+    <div class="panel-title mono" style="color:${u.color};justify-content:center">Understanding State</div>
+    <div style="position:relative;width:140px;height:140px;margin:0 auto 16px">
+      ${rings}
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)">
+        <div class="mono" style="font-size:11px;font-weight:700;color:${u.color};letter-spacing:0.08em">${u.label}</div>
+      </div>
+    </div>
+    <div class="bar" style="width:200px;margin:0 auto">
+      <div class="bar-fill" style="width:${u.pct}%;background:linear-gradient(90deg,${u.color},${u.color}80);box-shadow:0 0 5px ${u.color}44"></div>
+    </div>
+    <div class="mono" style="font-size:10px;color:#4a5068;margin-top:8px">${d.n} exchanges · ${d.era.label} · ${d.memCount>0?d.memCount+' memories':'building memory'}</div>
+  </div>`;
+}
+
+function buildIdentityPanel(d) {
+  const tags = d.traits.length > 0
+    ? d.traits.map(t => `<span class="tag tag-identity">${t}</span>`).join('')
+    : `<span class="empty">Learning who you are...</span>`;
+  return `
+  <div class="panel s2">
+    <div class="panel-corner" style="--corner-color:rgba(68,102,255,0.06)"></div>
+    <div class="panel-title mono" style="color:#4466ff">🧬 Identity</div>
+    <div style="display:flex;flex-wrap:wrap;gap:0">${tags}</div>
+  </div>`;
+}
+
+function buildBeliefPanel(d) {
+  const rows = d.beliefs.length > 0
+    ? d.beliefs.map(b => {
+        const c     = b.conf;
+        const glow  = c > 0.88 ? `0 0 10px ${beliefColor(c)}88, 0 0 20px ${beliefColor(c)}33`
+                    : c > 0.68 ? `0 0 7px ${beliefColor(c)}55`
+                    : c > 0.50 ? `0 0 4px ${beliefColor(c)}33`
+                    : 'none';
+        const ring  = c > 0.88 ? `box-shadow:${glow};` : '';
+        return `
+        <div class="belief-row" data-statement="${encodeURIComponent(b.text)}">
+          <div class="belief-dot" style="background:${beliefColor(c)};box-shadow:${glow};margin-top:6px"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;color:#c8d0f0;line-height:1.55">${b.text}</div>
+            <div style="display:flex;align-items:center;gap:4px;margin-top:3px">
+              <span class="mono" style="font-size:9px;color:#4a5068;letter-spacing:0.1em;text-transform:uppercase">${b.label}</span>
+              <span style="color:#1a2040;margin:0 2px">·</span>
+              <span class="mono" style="font-size:9px;color:#4a5068">${b.count}×</span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">
+            <button class="nudge-btn nudge-reinforce" onclick="nudgeBelief(decodeURIComponent(this.closest('[data-statement]').dataset.statement),'reinforce')">↑</button>
+            <button class="nudge-btn nudge-diminish"  onclick="nudgeBelief(decodeURIComponent(this.closest('[data-statement]').dataset.statement),'diminish')">↓</button>
+          </div>
+        </div>`;
+      }).join('')
+    : `<div class="empty" style="padding:6px 0">Beliefs form through repetition and weight...</div>`;
+  return `
+  <div class="panel" style="border-color:rgba(34,197,94,0.08);--corner-color:rgba(34,197,94,0.04)">
+    <div class="panel-corner"></div>
+    <div class="panel-title mono" style="color:#22c55e">⚖️ Belief System <span style="font-size:9px;color:#4a5068;letter-spacing:0.08em;margin-left:6px">hover to nudge</span></div>
+    <div style="border-radius:8px;overflow:hidden;border:1px solid rgba(34,197,94,0.07)">${rows}</div>
+  </div>`;
+}
+
+function beliefColor(c) {
+  if (c > 0.88) return '#22c55e';
+  if (c > 0.68) return '#84cc16';
+  if (c > 0.50) return '#4ade80';
+  return '#86efac';
+}
+
+function buildPatternPanel(d) {
+  const rows = d.patterns.length > 0
+    ? d.patterns.map(p => `
+      <div style="margin-bottom:11px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:12px;color:#a0a8c0">${p.label}</span>
+          <span class="mono" style="font-size:10px;color:#4a5068">${p.count}×</span>
+        </div>
+        <div class="bar">
+          <div class="bar-fill" style="width:${p.pct}%;background:${p.color};box-shadow:0 0 4px ${p.color}44;opacity:${0.5+p.weight*0.5}"></div>
+        </div>
+      </div>`).join('')
+    : `<div class="empty">Patterns emerge through repetition...</div>`;
+  return `
+  <div class="panel" style="border-color:rgba(245,158,11,0.08);--corner-color:rgba(245,158,11,0.04)">
+    <div class="panel-corner"></div>
+    <div class="panel-title mono" style="color:#f59e0b">🔁 Pattern Tracker</div>
+    ${rows}
+  </div>`;
+}
+
+function buildCommsPanel(d) {
+  const c = d.comms;
+  const signals = [
+    c.caps     ? '⬆ CAPS for emphasis'  : null,
+    c.humor    ? '😄 Uses humor'          : null,
+    c.ellipsis ? '... Trailing thoughts'  : null,
+    c.avgLen   ? `~${c.avgLen} words/msg` : null,
+  ].filter(Boolean).map(s => `<span style="font-size:11px;color:#4a5068">${s}</span>`)
+   .join('<span style="color:#1a2040;margin:0 5px">·</span>');
+  const slangTags  = c.slang.map(s => `<span class="tag tag-slang">${s}</span>`).join('');
+  const phraseTags = c.phrases.map(p => `<span class="tag tag-phrase">${p}</span>`).join('');
+  return `
+  <div class="panel" style="border-color:rgba(6,182,212,0.08);--corner-color:rgba(6,182,212,0.04)">
+    <div class="panel-corner"></div>
+    <div class="panel-title mono" style="color:#06b6d4">💬 Communication Profile</div>
+    <div style="font-size:14px;color:#e8ecff;margin-bottom:10px">${c.tone||'Still developing...'}</div>
+    <div class="mono" style="font-size:10px;color:#4a5068;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:6px">Pacing: ${c.pacing} · Tone: ${c.dominant}</div>
+    ${signals ? `<div style="margin-bottom:11px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">${signals}</div>` : ''}
+    ${slangTags  ? `<div class="mono" style="font-size:9px;color:#4a5068;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:5px">Slang</div><div style="margin-bottom:9px">${slangTags}</div>` : ''}
+    ${phraseTags ? `<div class="mono" style="font-size:9px;color:#4a5068;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:5px">Phrases</div><div>${phraseTags}</div>` : ''}
+  </div>`;
+}
+
+function buildTimelinePanel(d) {
+  const dotClass = e =>
+      e.type === 'belief'   ? 'belief'
+    : e.type === 'media'    ? 'media'
+    : e.type === 'nudge'    ? 'nudge'
+    : e.type === 'active' || e.active ? 'active'
+    : 'session';
+
+  const items = d.timeline.length > 0
+    ? d.timeline.map((t, i) => {
+        const last  = i === d.timeline.length - 1;
+        const dc    = dotClass(t);
+        const isActive = dc === 'active' || t.active;
+        const tsStr = t.ts ? `<span style="font-size:9px;color:#2a3050;margin-left:4px">${timeAgo(t.ts)}</span>` : '';
+        return `
+        <div style="display:flex;gap:14px">
+          <div style="display:flex;flex-direction:column;align-items:center">
+            <div class="tl-dot ${dc}"></div>
+            ${!last ? `<div class="tl-line"></div>` : ''}
+          </div>
+          <div style="padding-bottom:${!last?'15px':'0'}">
+            <div class="mono" style="font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:${isActive?'#4466ff':'#4a5068'};margin-bottom:3px">${t.stage}${tsStr}</div>
+            <div style="font-size:12px;color:${isActive?'#c8d0f0':'#8892b0'};line-height:1.55">${t.desc}</div>
+          </div>
+        </div>`;
+      }).join('')
+    : `<div class="empty">Timeline begins with first exchange...</div>`;
+
+  const legend = `
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+      ${[['belief','#22c55e','Belief'],['media','#f59e0b','Media'],['nudge','#06b6d4','Nudge'],['session','#6677ff','Session']].map(([t,c,l])=>`
+        <div style="display:flex;align-items:center;gap:5px">
+          <div style="width:7px;height:7px;border-radius:50%;background:${c};box-shadow:0 0 5px ${c}55"></div>
+          <span style="font-size:10px;color:#4a5068">${l}</span>
+        </div>`).join('')}
+    </div>`;
+
+  return `
+  <div class="panel" style="border-color:rgba(68,102,255,0.08);--corner-color:rgba(68,102,255,0.05)">
+    <div class="panel-corner"></div>
+    <div class="panel-title mono" style="color:#4466ff">📈 Growth Timeline</div>
+    ${d.timeline.length > 3 ? legend : ''}
+    ${items}
+  </div>`;
+}
+
+function buildMediaPanel(d) {
+  const rows = d.media.map(m => {
+    const tags = [...m.traits, ...m.themes].slice(0,4)
+      .map(t => `<span class="tag tag-media">${t}</span>`).join('');
+    return `
+    <div class="media-item">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+        <span style="font-size:14px">${m.type==='image'?'🖼':'📁'}</span>
+        <span style="font-size:12px;color:#e8ecff">${m.name.substring(0,35)}</span>
+        <span style="font-size:9px;color:#2a3050;margin-left:auto">${timeAgo(m.ts)}</span>
+      </div>
+      <div style="font-size:11px;color:#4a5068;margin-bottom:5px">${m.summary}</div>
+      ${tags}
+    </div>`;
+  }).join('');
+  return `
+  <div class="panel" style="border-color:rgba(245,158,11,0.1);--corner-color:rgba(245,158,11,0.05)">
+    <div class="panel-corner"></div>
+    <div class="panel-title mono" style="color:#f59e0b">🖼 Media & Inputs</div>
+    ${rows}
+  </div>`;
+}
+
+function buildSelfPanel(d) {
+  const stats = [
+    d.teachingCount > 0 ? row('Things taught to MIND', d.teachingCount) : '',
+    d.reflections   > 0 ? row('Self-reflections surfaced', d.reflections) : '',
+  ].filter(Boolean).join('');
+  const emerging = d.emerging
+    ? `<div style="margin-top:12px;padding:12px;background:rgba(170,68,255,0.05);border:1px solid rgba(170,68,255,0.16);border-radius:10px;font-size:12px;color:#c4a0ff;font-style:italic;line-height:1.65">${d.emerging}</div>`
+    : '';
+  return `
+  <div class="panel" style="border-color:rgba(170,68,255,0.08);--corner-color:rgba(170,68,255,0.05)">
+    <div class="panel-corner"></div>
+    <div class="panel-title mono" style="color:#aa44ff">🌱 Self-Concept</div>
+    ${d.selfConcept
+      ? `<div style="font-size:13px;color:#c8d0f0;line-height:1.7;font-style:italic;padding:11px;background:rgba(10,15,30,0.7);border-radius:10px;border:1px solid rgba(170,68,255,0.1);margin-bottom:11px">${d.selfConcept}</div>`
+      : `<div class="empty" style="margin-bottom:11px">MIND's self-concept is still forming...</div>`}
+    ${stats}
+    ${emerging}
+  </div>`;
+}
+
+function row(label, val) {
+  return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #0d1120">
+    <span style="font-size:12px;color:#8892b0">${label}</span>
+    <span class="mono" style="font-size:13px;color:#e8ecff">${val}</span>
+  </div>`;
+}
+
+// ── Poll loop ─────────────────────────────────────────────────────────
+
+function poll() {
+  const d   = buildState();
+  const sig = d ? JSON.stringify({
+    n:  d.n,
+    bc: d.beliefs.length,
+    tc: d.traits.length,
+    pc: d.patterns.length,
+    mc: d.media.length,
+    tl: d.timeline.length,
+  }) : 'null';
+  if (sig !== lastSig) {
+    lastSig = sig;
+    render(d);
+  }
+}
+
+// ── Live sync ─────────────────────────────────────────────────────────
+
+// localStorage storage event (cross-tab)
+window.addEventListener('storage', e => {
+  if (Object.values(LS).includes(e.key)) { lastSig = ''; poll(); }
+});
+
+// BroadcastChannel for nudge confirmations from MIND tab
+try {
+  const bc = new BroadcastChannel('mind_growth_update');
+  bc.onmessage = () => { lastSig = ''; poll(); loadIDB(); };
+} catch(_) {}
+
+// Listen for nudge confirmations back from MIND tab
+try {
+  const nudgeCh = new BroadcastChannel('mind_nudge_confirm');
+  nudgeCh.onmessage = e => {
+    if (e.data && e.data.type === 'nudge_done') {
+      lastSig = ''; poll();
+    }
+  };
+} catch(_) {}
+
+// ── Boot ──────────────────────────────────────────────────────────────
+poll();
+loadIDB();         // async IDB load on boot
+setInterval(poll, 2000);
+setInterval(loadIDB, 10000);   // refresh IDB data every 10s
+</script>
+</body>
+</html>
