@@ -238,6 +238,7 @@ function buildState() {
       comms:         buildComms(hbe, tone, depth, snap),
       timeline:      buildTimeline(n, identity, obs, idbTimeline),
       media:         buildMedia(idbMedia),
+      behavioral:    buildBehavioral(snap),
       understanding: computeUnderstanding(n, depth, beliefs.length, obs.length),
       selfConcept:   identity.selfConcept || null,
       emerging:      (identity.emergingQualities || []).slice(-1)[0] || null,
@@ -366,6 +367,19 @@ function buildMedia(idbMediaArr) {
     weight:  m.weight || 0.4,
     ts:      m.ts,
   }));
+}
+
+// ── Behavioral data builder ───────────────────────────────────────────
+
+function buildBehavioral(snap) {
+  const b = snap.behavioral || {};
+  return {
+    attentionScore:   b.attentionScore   || 0,
+    pacingLabel:      b.pacingLabel      || null,
+    avgPauseMs:       b.avgPauseMs       || 0,
+    avgMsgIntervalMs: b.avgMsgIntervalMs || 0,
+    lastMedia:        snap.lastMedia     || null,
+  };
 }
 
 // ── Computed values ───────────────────────────────────────────────────
@@ -532,6 +546,7 @@ function buildPage(d) {
       ${buildCommsPanel(d)}
       ${buildTimelinePanel(d)}
       ${d.media.length > 0 ? buildMediaPanel(d) : ''}
+      ${d.behavioral.pacingLabel || d.behavioral.attentionScore > 0 ? buildBehavioralPanel(d) : ''}
       ${buildSelfPanel(d)}
     </div>
 
@@ -734,6 +749,58 @@ function buildMediaPanel(d) {
   </div>`;
 }
 
+function buildBehavioralPanel(d) {
+  const b     = d.behavioral;
+  const pct   = b.attentionScore;
+  const color = pct >= 70 ? '#22c55e' : pct >= 40 ? '#f59e0b' : '#4466ff';
+  const label = pct >= 70 ? 'Highly Engaged'
+              : pct >= 40 ? 'Present'
+              : pct >= 15 ? 'Casual'
+              : 'Exploring';
+  const pacing = b.pacingLabel
+    ? `<div class="mono" style="font-size:10px;color:#4a5068;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px">
+        Pacing: <span style="color:${color}">${b.pacingLabel}</span>
+       </div>`
+    : '';
+  const avgInterval = b.avgMsgIntervalMs > 0
+    ? `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #0d1120">
+        <span style="font-size:12px;color:#8892b0">Avg. time between messages</span>
+        <span class="mono" style="font-size:12px;color:#e8ecff">${b.avgMsgIntervalMs < 60000 ? Math.round(b.avgMsgIntervalMs/1000)+'s' : Math.round(b.avgMsgIntervalMs/60000)+'m'}</span>
+       </div>`
+    : '';
+  const pauseRow = b.avgPauseMs > 0
+    ? `<div style="display:flex;justify-content:space-between;padding:7px 0">
+        <span style="font-size:12px;color:#8892b0">Avg. thinking pause</span>
+        <span class="mono" style="font-size:12px;color:#e8ecff">${Math.round(b.avgPauseMs/100)/10}s</span>
+       </div>`
+    : '';
+  const lastMedia = b.lastMedia
+    ? `<div style="margin-top:10px;padding:8px;background:rgba(245,158,11,0.05);border:1px solid rgba(245,158,11,0.15);border-radius:8px">
+        <div style="font-size:11px;color:#4a5068;margin-bottom:3px">Last media shared</div>
+        <div style="font-size:12px;color:#f59e0b">${b.lastMedia.name || ''}</div>
+        ${(b.lastMedia.traits||[]).length > 0 ? `<div style="font-size:11px;color:#4a5068;margin-top:3px">${b.lastMedia.traits.join(', ')}</div>` : ''}
+       </div>`
+    : '';
+  return `
+  <div class="panel" style="border-color:rgba(6,182,212,0.07);--corner-color:rgba(6,182,212,0.04)">
+    <div class="panel-corner"></div>
+    <div class="panel-title mono" style="color:#06b6d4">⚡ Behavioral Signals</div>
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:12px;color:#8892b0">Attention</span>
+        <span class="mono" style="font-size:12px;color:${color}">${label}</span>
+      </div>
+      <div class="bar">
+        <div class="bar-fill" style="width:${pct}%;background:${color};box-shadow:0 0 4px ${color}44"></div>
+      </div>
+    </div>
+    ${pacing}
+    ${avgInterval}
+    ${pauseRow}
+    ${lastMedia}
+  </div>`;
+}
+
 function buildSelfPanel(d) {
   const stats = [
     d.teachingCount > 0 ? row('Things taught to MIND', d.teachingCount) : '',
@@ -772,6 +839,7 @@ function poll() {
     pc: d.patterns.length,
     mc: d.media.length,
     tl: d.timeline.length,
+    at: d.behavioral.attentionScore,
   }) : 'null';
   if (sig !== lastSig) {
     lastSig = sig;

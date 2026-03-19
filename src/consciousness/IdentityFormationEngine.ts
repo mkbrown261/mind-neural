@@ -1028,28 +1028,38 @@ export class IdentityFormationEngine {
     const n = this.identity.interactionCount;
     if (n <= 1) return null;
 
-    try {
-      const lastSession = localStorage.getItem(STORAGE_KEY_SESSION);
-      if (!lastSession) return null;
-      const gapMs  = Date.now() - Number(lastSession);
-      const gapHrs = gapMs / 3600000;
+    // Use IDB-derived gap (set by _initAsync) first; fall back to localStorage delta.
+    let gapMs = this.sessionGapMs > 0 ? this.sessionGapMs : 0;
+    if (gapMs === 0) {
+      try {
+        const lastSession = localStorage.getItem(STORAGE_KEY_SESSION);
+        if (lastSession) gapMs = Date.now() - Number(lastSession);
+      } catch (_) {}
+    }
+    if (gapMs === 0) return null;
 
-      if (gapHrs > 24) {
-        const days = Math.floor(gapHrs / 24);
-        const topBelief = this.identity.beliefs
-          .sort((a, b) => b.confidence - a.confidence)[0];
-        const anchor = topBelief
-          ? ` Last anchor: "${topBelief.statement.substring(0, 70)}".` : '';
-        return `Resuming after ~${days} day${days > 1 ? 's' : ''} away.` +
-          ` ${n} exchanges of history.${anchor}` +
-          ` Do NOT act like a new session. Resume naturally.` +
-          ` Only acknowledge the gap if they do.`;
-      }
+    const gapHrs  = gapMs / 3_600_000;
+    const gapDays = Math.floor(gapHrs / 24);
 
-      if (gapHrs > 2) {
-        return `Resuming after ~${Math.round(gapHrs)} hours. Carry full continuity. Do not reset.`;
-      }
-    } catch (_) {}
+    const topBelief = [...this.identity.beliefs]
+      .sort((a, b) => b.confidence - a.confidence)[0];
+    const anchor = topBelief
+      ? ` Last anchor: "${topBelief.statement.substring(0, 70)}".`
+      : '';
+    const sessionLabel = this.sessionCount > 1
+      ? ` Session ${this.sessionCount}.`
+      : '';
+
+    if (gapHrs > 24) {
+      return `Resuming after ~${gapDays} day${gapDays > 1 ? 's' : ''} away.` +
+        `${sessionLabel} ${n} exchanges of history.${anchor}` +
+        ` Do NOT act like a new session. Resume naturally.` +
+        ` Only acknowledge the gap if they do.`;
+    }
+
+    if (gapHrs > 2) {
+      return `Resuming after ~${Math.round(gapHrs)} hours.${sessionLabel} Carry full continuity. Do not reset.`;
+    }
 
     return null;
   }

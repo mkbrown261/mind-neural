@@ -57,6 +57,51 @@ let obIsProcessing = false;
 let tickIntervalId: number | null = null;
 const TICK_INTERVAL_MS = 2000; // 2s idle tick
 
+// ─── Behavioral Input Tracker ────────────────────
+// Captures typing rhythm, pause duration, message frequency.
+// Signals feed into IdentityFormationEngine for depth assessment.
+const _beh = {
+  lastKeyAt:      0,       // timestamp of last keystroke
+  lastSendAt:     0,       // timestamp of last message sent
+  pauseDurations: [] as number[],  // rolling pause gaps between keystrokes (ms)
+  msgIntervals:   [] as number[],  // rolling gaps between messages (ms)
+  sessionStartAt: Date.now(),
+};
+
+function _behOnKey(): void {
+  const now = Date.now();
+  if (_beh.lastKeyAt > 0) {
+    const gap = now - _beh.lastKeyAt;
+    if (gap > 800 && gap < 30_000) {           // pause ≥ 0.8 s, ignore idle
+      _beh.pauseDurations.push(gap);
+      if (_beh.pauseDurations.length > 30) _beh.pauseDurations.shift();
+    }
+  }
+  _beh.lastKeyAt = now;
+}
+
+function _behOnSend(): { avgPauseMs: number; avgMsgIntervalMs: number; attentionScore: number } {
+  const now = Date.now();
+  if (_beh.lastSendAt > 0) {
+    const interval = now - _beh.lastSendAt;
+    _beh.msgIntervals.push(interval);
+    if (_beh.msgIntervals.length > 20) _beh.msgIntervals.shift();
+  }
+  _beh.lastSendAt = now;
+
+  const avgPause     = _beh.pauseDurations.length > 0
+    ? _beh.pauseDurations.reduce((a,b) => a+b, 0) / _beh.pauseDurations.length
+    : 0;
+  const avgInterval  = _beh.msgIntervals.length > 0
+    ? _beh.msgIntervals.reduce((a,b) => a+b, 0) / _beh.msgIntervals.length
+    : 0;
+  // attention: lower interval = more engaged; longer pauses mid-typing = thinking deeply
+  const engagementScore = avgInterval > 0 ? Math.min(1, 30_000 / avgInterval) : 0.5;
+  const thinkingScore   = avgPause    > 0 ? Math.min(1, avgPause / 4000)       : 0;
+  const attentionScore  = (engagementScore * 0.6 + thinkingScore * 0.4);
+  return { avgPauseMs: Math.round(avgPause), avgMsgIntervalMs: Math.round(avgInterval), attentionScore };
+}
+
 // ─── DOM References ───────────────────────────────
 const $ = (id: string) => document.getElementById(id);
 const create = (tag: string, cls?: string) => {
@@ -247,6 +292,15 @@ function buildDOM() {
 
       <div id="input-area">
         <textarea id="text-input" placeholder="Initialize MIND first — use the panel above." rows="1" autocomplete="off" spellcheck="false" disabled></textarea>
+        <!-- Hidden file input for media uploads -->
+        <input type="file" id="media-input" accept="image/*,audio/*,video/*,.pdf,.txt,.md" style="display:none" multiple>
+        <button id="media-btn" title="Share media with MIND" disabled style="opacity:0.4">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </button>
         <button id="voice-btn" title="Voice input">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
@@ -728,11 +782,16 @@ function stopMINDTick() {
 // ─── Input Lock — enforced by StartupController ──
 // Disables the chat input and send button when the system is not ready.
 function setInputLock(locked: boolean, hint?: string): void {
-  const input  = document.getElementById('text-input') as HTMLTextAreaElement | null;
-  const sendBtn = document.getElementById('send-btn') as HTMLButtonElement | null;
+  const input    = document.getElementById('text-input')  as HTMLTextAreaElement | null;
+  const sendBtn  = document.getElementById('send-btn')    as HTMLButtonElement   | null;
+  const mediaBtn = document.getElementById('media-btn')   as HTMLButtonElement   | null;
   if (!input || !sendBtn) return;
-  input.disabled  = locked;
+  input.disabled   = locked;
   sendBtn.disabled = locked;
+  if (mediaBtn) {
+    mediaBtn.disabled = locked;
+    mediaBtn.style.opacity = locked ? '0.25' : '0.55';
+  }
   if (locked) {
     input.placeholder = hint ?? 'Initialize MIND first — use the panel above.';
   } else {
@@ -1248,6 +1307,8 @@ function setupMainEventListeners() {
   const textInput = document.getElementById('text-input') as HTMLTextAreaElement;
   textInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); return; }
+    // Behavioral tracker — capture keystroke timing for attention/depth signals
+    _behOnKey();
     // TextSignalAnalyzer + ConsciousnessEngine PerceptionEngine: track every key
     if (startupController.isReady) {
       mindSpeech.textAnalyzer.onKeypress(e, textInput.value);
@@ -1277,6 +1338,12 @@ function setupMainEventListeners() {
   });
 
   document.getElementById('voice-btn')?.addEventListener('click', handleVoiceInput);
+
+  // ── Media upload button ─────────────────────────────────────────────────────
+  document.getElementById('media-btn')?.addEventListener('click', () => {
+    document.getElementById('media-input')?.click();
+  });
+  document.getElementById('media-input')?.addEventListener('change', handleMediaUpload);
 
   document.getElementById('btn-labels')?.addEventListener('click', () => {
     labelsOn = !labelsOn;
@@ -1387,6 +1454,23 @@ async function handleSend() {
 
   // ── TextSignalAnalyzer: analyze typing dynamics before clearing ─────────────
   mindSpeech.textAnalyzer.analyze(text).catch(() => {});
+
+  // ── Behavioral tracker: capture send timing + compute attention signal ────────
+  const behSignal = _behOnSend();
+  // Feed attention/depth signal into the snapshot for Growth Interface
+  try {
+    const snap = JSON.parse(localStorage.getItem('mind_growth_snapshot') || '{}');
+    snap.behavioral = {
+      avgPauseMs:       behSignal.avgPauseMs,
+      avgMsgIntervalMs: behSignal.avgMsgIntervalMs,
+      attentionScore:   Math.round(behSignal.attentionScore * 100),
+      pacingLabel:      behSignal.avgMsgIntervalMs < 8_000  ? 'rapid'
+                      : behSignal.avgMsgIntervalMs < 30_000 ? 'engaged'
+                      : behSignal.avgMsgIntervalMs < 90_000 ? 'measured'
+                      : 'slow',
+    };
+    localStorage.setItem('mind_growth_snapshot', JSON.stringify(snap));
+  } catch (_) {}
 
   // ── Sync MIND state into resonance + agency engines ─────────────────────────
   const preSendState = getMINDState();
@@ -1638,6 +1722,51 @@ async function handleSend() {
   }
 
   isProcessing = false;
+}
+
+// ─── Media Upload Handler ──────────────────────────
+// Reads files the user shares, extracts traits/themes using analyseMediaMetadata,
+// passes results to IdentityFormationEngine.processMedia() via ConsciousnessEngine,
+// and adds a visible chat message acknowledging the upload.
+async function handleMediaUpload(e: Event): Promise<void> {
+  if (!startupController.isReady) return;
+  const input = e.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []);
+  if (files.length === 0) return;
+  input.value = ''; // reset so same file can be re-selected
+
+  const { analyseMediaMetadata } = await import('./consciousness/MindPersistence');
+
+  for (const file of files.slice(0, 5)) {  // max 5 files at once
+    const mediaRecord = analyseMediaMetadata(file);
+
+    // Pass to IdentityFormationEngine via ConsciousnessEngine
+    try {
+      (mindSpeech as any).consciousness?.processMedia(mediaRecord);
+    } catch (_) {}
+
+    // Show in chat as a user message
+    const typeLabel = file.type.startsWith('image/') ? '🖼 Image'
+      : file.type.startsWith('audio/')  ? '🎵 Audio'
+      : file.type.startsWith('video/')  ? '🎬 Video'
+      : '📄 File';
+    addUserMessage(`[${typeLabel}: ${file.name}]`);
+
+    // Show MIND acknowledgement
+    const traits = mediaRecord.extractedTraits.slice(0,2).join(', ');
+    const themes = mediaRecord.extractedThemes.slice(0,2).join(', ');
+    const ack = traits
+      ? `Noted — ${file.name}. ${traits ? 'That tracks with ' + traits + '.' : ''}`
+      : `Got it — ${file.name}. I'll keep that.`;
+    addMindMessage(ack);
+
+    // Write growth snapshot so Growth Interface updates
+    try {
+      const snap = JSON.parse(localStorage.getItem('mind_growth_snapshot') || '{}');
+      snap.lastMedia = { name: file.name, traits: mediaRecord.extractedTraits, ts: Date.now() };
+      localStorage.setItem('mind_growth_snapshot', JSON.stringify(snap));
+    } catch (_) {}
+  }
 }
 
 // ─── Voice Input ──────────────────────────────────
