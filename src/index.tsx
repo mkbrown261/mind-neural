@@ -9,7 +9,74 @@ app.use('/api/*', cors())
 app.use('/static/*', serveStatic({ root: './' }))
 
 app.get('/api/health', (c) => {
-  return c.json({ status: 'alive', mind: 'active' })
+  return c.json({ status: 'alive', mind: 'active', version: '9.17' })
+})
+
+// ── Firebase proxy: forward reinforcement events to Firebase RTDB ─────────
+// Called by app.ts when Firebase config is set but CORS blocks direct writes.
+// Expects: { databaseURL, uid, path, body } in POST JSON
+app.post('/api/firebase/write', async (c) => {
+  try {
+    const { databaseURL, uid, path: subpath, body, token } = await c.req.json<{
+      databaseURL: string;
+      uid: string;
+      path: string;
+      body: unknown;
+      token?: string;
+    }>();
+
+    if (!databaseURL || !uid || !subpath) {
+      return c.json({ error: 'Missing required fields' }, 400);
+    }
+
+    // Sanitize inputs
+    const safeUID  = encodeURIComponent(uid);
+    const safePath = subpath.replace(/[.#$[\]]/g, '_');
+    const url = `${databaseURL.replace(/\/$/, '')}/users/${safeUID}/${safePath}.json`
+      + (token ? `?auth=${encodeURIComponent(token)}` : '');
+
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return c.json({ error: `Firebase error: ${res.status}`, detail: text }, 502);
+    }
+
+    return c.json({ ok: true });
+  } catch (err: any) {
+    return c.json({ error: err?.message ?? 'Unknown error' }, 500);
+  }
+})
+
+// ── Firebase proxy: read from Firebase RTDB ───────────────────────────────
+app.get('/api/firebase/read', async (c) => {
+  try {
+    const databaseURL = c.req.query('db');
+    const uid         = c.req.query('uid');
+    const subpath     = c.req.query('path');
+    const token       = c.req.query('token');
+
+    if (!databaseURL || !uid || !subpath) {
+      return c.json({ error: 'Missing required query params: db, uid, path' }, 400);
+    }
+
+    const safeUID  = encodeURIComponent(uid);
+    const safePath = subpath.replace(/[.#$[\]]/g, '_');
+    const url = `${databaseURL.replace(/\/$/, '')}/users/${safeUID}/${safePath}.json`
+      + (token ? `?auth=${encodeURIComponent(token)}` : '');
+
+    const res = await fetch(url);
+    if (!res.ok) return c.json({ error: `Firebase error: ${res.status}` }, 502);
+
+    const data = await res.json();
+    return c.json({ ok: true, data });
+  } catch (err: any) {
+    return c.json({ error: err?.message ?? 'Unknown error' }, 500);
+  }
 })
 
 // Growth Interface — served from embedded raw HTML (Vite ?raw import)
@@ -53,3 +120,6 @@ app.get('*', (c) => {
 })
 
 export default app
+
+
+

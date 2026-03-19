@@ -222,6 +222,36 @@ function buildDOM() {
         <!-- Initialize Button -->
         <button id="gate-init-btn" class="gate-init-btn">INITIALIZE MIND</button>
 
+        <!-- Firebase Sync Config — optional, collapsible -->
+        <details id="gate-step-firebase" style="margin-top:14px;border:1px solid rgba(68,102,255,0.18);border-radius:10px;padding:10px 14px;background:rgba(10,15,30,0.6)">
+          <summary style="cursor:pointer;font-size:10px;letter-spacing:0.12em;color:#4a5068;font-family:monospace;user-select:none">⚡ FIREBASE SYNC (optional — cross-device memory)</summary>
+          <div style="margin-top:10px">
+            <label style="display:block;font-size:9px;letter-spacing:0.12em;color:#4a5068;margin-bottom:4px;font-family:monospace">DATABASE URL</label>
+            <input
+              type="text"
+              id="gate-firebase-url"
+              placeholder="https://your-project-default-rtdb.firebaseio.com"
+              style="width:100%;box-sizing:border-box;background:rgba(10,15,30,0.8);border:1px solid rgba(68,102,255,0.2);border-radius:7px;padding:8px 10px;color:#e8ecff;font-family:monospace;font-size:11px;margin-bottom:7px;outline:none"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <label style="display:block;font-size:9px;letter-spacing:0.12em;color:#4a5068;margin-bottom:4px;font-family:monospace">FIREBASE API KEY</label>
+            <input
+              type="password"
+              id="gate-firebase-apikey"
+              placeholder="Your Firebase web API key (optional)"
+              style="width:100%;box-sizing:border-box;background:rgba(10,15,30,0.8);border:1px solid rgba(68,102,255,0.2);border-radius:7px;padding:8px 10px;color:#e8ecff;font-family:monospace;font-size:11px;margin-bottom:7px;outline:none"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <div style="font-size:10px;color:#4a5068;line-height:1.6">
+              Memory and identity sync to your Firebase RTDB for multi-device continuity.
+              Keys stored in localStorage only. Leave blank to use device-only (IDB) storage.
+              <a href="https://console.firebase.google.com" target="_blank" style="color:#4466ff;text-decoration:none"> Firebase setup →</a>
+            </div>
+          </div>
+        </details>
+
         <div class="gate-footer">
           This system requires initialization before any function activates.
           No API calls are made until validation completes.
@@ -443,6 +473,12 @@ async function handleGateInit() {
   const modelSel  = document.getElementById('gate-model-select') as HTMLSelectElement;
   const keyInput  = document.getElementById('gate-key-input') as HTMLInputElement;
 
+  // ── Firebase config (optional) ────────────────────────────────────────────
+  const fbUrlInput    = document.getElementById('gate-firebase-url')    as HTMLInputElement | null;
+  const fbApiKeyInput = document.getElementById('gate-firebase-apikey') as HTMLInputElement | null;
+  const fbUrl    = fbUrlInput?.value.trim()    ?? '';
+  const fbApiKey = fbApiKeyInput?.value.trim() ?? '';
+
   const [provider, model] = modelSel.value.split('|') as [string, string];
   const apiKey = keyInput?.value.trim() ?? '';
 
@@ -483,6 +519,20 @@ async function handleGateInit() {
   initBtn.textContent = 'INITIALIZING…';
 
   try {
+    // ── Firebase: configure if user provided credentials ──────────────────────
+    if (fbUrl) {
+      try {
+        const uid = localStorage.getItem('mind_anon_uid') ||
+          'anon_' + Math.random().toString(36).substring(2, 18);
+        const { configureFirebase } = await import('./consciousness/MindPersistence');
+        const ok = configureFirebase({ databaseURL: fbUrl, apiKey: fbApiKey, uid });
+        if (ok) {
+          setGateStatus('Firebase sync enabled — cross-device memory active…');
+          localStorage.setItem('mind_anon_uid', uid);
+        }
+      } catch (_) {}
+    }
+
     // Step 1: Memory (EME, AMN) + State (ESE, SSM) + Personality + Trust
     await initMIND();
 
@@ -652,6 +702,34 @@ async function handleGateInit() {
           setTimeout(() => updateChannel.postMessage({ type: 'updated' }), 400);
         }
       };
+    } catch (_) {}
+
+    // ── Firebase: subscribe to real-time updates ──────────────────────────────
+    // When another device pushes a growth snapshot, sync it to localStorage
+    // so Growth Interface (same tab or /growth) updates in real time.
+    try {
+      const { subscribeFirebase, isFirebaseEnabled } = await import('./consciousness/MindPersistence');
+      if (isFirebaseEnabled()) {
+        subscribeFirebase((path: string, data: unknown) => {
+          try {
+            if (path === '/snapshot' || path.endsWith('/snapshot')) {
+              // Cross-device snapshot arrived — mirror to localStorage
+              if (data && typeof data === 'object') {
+                const existing = JSON.parse(localStorage.getItem('mind_growth_snapshot') || '{}');
+                const incoming  = data as Record<string, unknown>;
+                // Only apply if newer
+                if (!existing.updatedAt || (incoming.updatedAt as number) > existing.updatedAt) {
+                  localStorage.setItem('mind_growth_snapshot', JSON.stringify(incoming));
+                  // Notify Growth Interface if open in same browser
+                  try {
+                    new BroadcastChannel('mind_growth_update').postMessage({ type: 'updated' });
+                  } catch (_) {}
+                }
+              }
+            }
+          } catch (_) {}
+        });
+      }
     } catch (_) {}
 
   } catch (err: any) {
@@ -1668,6 +1746,21 @@ async function handleSend() {
           updatedAt:   Date.now(),
         };
         localStorage.setItem('mind_growth_snapshot', JSON.stringify(snapshot));
+
+        // ── Firebase: push growth snapshot for cross-device Growth Interface ──
+        try {
+          const { pushGrowthSnapshotToFirebase } = await import('./consciousness/MindPersistence');
+          pushGrowthSnapshotToFirebase(snapshot).catch(() => {});
+        } catch (_) {}
+
+        // ── Firebase: push reinforcement event for belief confirmed ───────────
+        try {
+          const identitySnap = (mindSpeech as any).consciousness?.identityEngine?.getSnapshot?.();
+          if (identitySnap?.hbe?.dominantTone) {
+            const { pushReinforcementToFirebase } = await import('./consciousness/MindPersistence');
+            pushReinforcementToFirebase('pattern_seen', identitySnap.hbe.dominantTone, 0.5).catch(() => {});
+          }
+        } catch (_) {}
       } catch (_) {}
       // ────────────────────────────────────────────────────────────────────────
 
