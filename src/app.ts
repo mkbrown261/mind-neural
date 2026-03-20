@@ -1772,9 +1772,9 @@ async function handleSend() {
 }
 
 // ─── Media Upload Handler ──────────────────────────
-// Reads files the user shares, extracts traits/themes using analyseMediaMetadata,
-// passes results to IdentityFormationEngine.processMedia() via ConsciousnessEngine,
-// and adds a visible chat message acknowledging the upload.
+// Extracts actual text from PDFs, txt, md files and sends it through
+// the full MIND speak() pipeline so MIND can read and respond to the content.
+// Images/audio/video: metadata + trait extraction as before.
 async function handleMediaUpload(e: Event): Promise<void> {
   if (!startupController.isReady) return;
   const input = e.target as HTMLInputElement;
@@ -1784,7 +1784,7 @@ async function handleMediaUpload(e: Event): Promise<void> {
 
   const { analyseMediaMetadata } = await import('./consciousness/MindPersistence');
 
-  for (const file of files.slice(0, 5)) {  // max 5 files at once
+  for (const file of files.slice(0, 5)) {
     const mediaRecord = analyseMediaMetadata(file);
 
     // Pass to IdentityFormationEngine via ConsciousnessEngine
@@ -1792,20 +1792,62 @@ async function handleMediaUpload(e: Event): Promise<void> {
       (mindSpeech as any).consciousness?.processMedia(mediaRecord);
     } catch (_) {}
 
-    // Show in chat as a user message
-    const typeLabel = file.type.startsWith('image/') ? '🖼 Image'
-      : file.type.startsWith('audio/')  ? '🎵 Audio'
-      : file.type.startsWith('video/')  ? '🎬 Video'
-      : '📄 File';
-    addUserMessage(`[${typeLabel}: ${file.name}]`);
+    const isPDF  = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isText = file.type.startsWith('text/') || /\.(txt|md|markdown|csv|json|js|ts|py|html|css|xml|yaml|yml)$/i.test(file.name);
 
-    // Show MIND acknowledgement
-    const traits = mediaRecord.extractedTraits.slice(0,2).join(', ');
-    const themes = mediaRecord.extractedThemes.slice(0,2).join(', ');
-    const ack = traits
-      ? `Noted — ${file.name}. ${traits ? 'That tracks with ' + traits + '.' : ''}`
-      : `Got it — ${file.name}. I'll keep that.`;
-    addMindMessage(ack);
+    if (isPDF) {
+      // ── PDF: extract text via pdf.js then send through MIND ──
+      addUserMessage(`[📄 Reading: ${file.name}]`);
+      const readingMsg = addMindMessage('Reading your document…', false);
+      try {
+        const text = await _extractPdfText(file);
+        if (text && text.trim().length > 20) {
+          readingMsg.querySelector('.msg-content')!.textContent = '';
+          // Store full text for session reference
+          _storeDocumentContext(file.name, text);
+          // Send through full MIND pipeline — truncate to ~6000 chars to stay within context
+          const excerpt = text.length > 6000 ? text.substring(0, 6000) + '\n\n[… document continues …]' : text;
+          const prompt = `[Document shared: "${file.name}"]\n\n${excerpt}\n\n[End of document. Please read the above and tell me what you think of it.]`;
+          await _sendDocumentToMIND(prompt, file.name, readingMsg);
+        } else {
+          readingMsg.querySelector('.msg-content')!.textContent = `I got "${file.name}" but couldn't extract readable text from it. Is it a scanned image PDF? Try sharing the text directly.`;
+        }
+      } catch (err) {
+        readingMsg.querySelector('.msg-content')!.textContent = `I tried to read "${file.name}" but hit an error. Try pasting the text directly.`;
+      }
+
+    } else if (isText) {
+      // ── Plain text / markdown: read directly ──
+      addUserMessage(`[📄 Reading: ${file.name}]`);
+      const readingMsg = addMindMessage('Reading…', false);
+      try {
+        const text = await _readFileAsText(file);
+        if (text && text.trim().length > 0) {
+          readingMsg.querySelector('.msg-content')!.textContent = '';
+          _storeDocumentContext(file.name, text);
+          const excerpt = text.length > 6000 ? text.substring(0, 6000) + '\n\n[… continues …]' : text;
+          const prompt = `[Document shared: "${file.name}"]\n\n${excerpt}\n\n[Please read the above and respond to it.]`;
+          await _sendDocumentToMIND(prompt, file.name, readingMsg);
+        } else {
+          readingMsg.querySelector('.msg-content')!.textContent = `"${file.name}" appears to be empty.`;
+        }
+      } catch {
+        readingMsg.querySelector('.msg-content')!.textContent = `Couldn't read "${file.name}".`;
+      }
+
+    } else {
+      // ── Image / audio / video / other: metadata + trait acknowledgement ──
+      const typeLabel = file.type.startsWith('image/') ? '🖼 Image'
+        : file.type.startsWith('audio/')  ? '🎵 Audio'
+        : file.type.startsWith('video/')  ? '🎬 Video'
+        : '📄 File';
+      addUserMessage(`[${typeLabel}: ${file.name}]`);
+      const traits = mediaRecord.extractedTraits.slice(0,2).join(', ');
+      const ack = traits
+        ? `Noted — ${file.name}. That tracks with ${traits}.`
+        : `Got it — ${file.name}. I'll keep that.`;
+      addMindMessage(ack);
+    }
 
     // Write growth snapshot so Growth Interface updates
     try {
@@ -1814,6 +1856,122 @@ async function handleMediaUpload(e: Event): Promise<void> {
       localStorage.setItem('mind_growth_snapshot', JSON.stringify(snap));
     } catch (_) {}
   }
+}
+
+// ── Extract text from PDF using pdf.js (loaded from CDN on demand) ──────────
+async function _extractPdfText(file: File): Promise<string> {
+  // Load pdf.js from CDN if not already loaded
+  const pdfjsLib = await _loadPdfJs();
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = '';
+  for (let i = 1; i <= Math.min(pdf.numPages, 80); i++) {  // cap at 80 pages
+    const page    = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      .map((item: any) => item.str)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (pageText) fullText += pageText + '\n';
+  }
+  return fullText.trim();
+}
+
+// ── Load pdf.js from CDN (cached on window) ─────────────────────────────────
+function _loadPdfJs(): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const w = window as any;
+    if (w.pdfjsLib) { resolve(w.pdfjsLib); return; }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.onload = () => {
+      w.pdfjsLib = w['pdfjs-dist/build/pdf'] ?? w.pdfjsLib;
+      if (!w.pdfjsLib) { reject(new Error('pdf.js not available')); return; }
+      w.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      resolve(w.pdfjsLib);
+    };
+    script.onerror = () => reject(new Error('Failed to load pdf.js'));
+    document.head.appendChild(script);
+  });
+}
+
+// ── Read plain text file ─────────────────────────────────────────────────────
+function _readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = (e) => resolve((e.target?.result as string) ?? '');
+    reader.onerror = () => reject(new Error('FileReader error'));
+    reader.readAsText(file, 'utf-8');
+  });
+}
+
+// ── Store document in sessionStorage for MIND to reference later ─────────────
+function _storeDocumentContext(name: string, text: string): void {
+  try {
+    const docs: Record<string, { text: string; ts: number }> =
+      JSON.parse(sessionStorage.getItem('mind_documents') || '{}');
+    docs[name] = { text: text.substring(0, 40000), ts: Date.now() }; // cap 40k chars
+    sessionStorage.setItem('mind_documents', JSON.stringify(docs));
+  } catch (_) {}
+}
+
+// ── Send document content through the full MIND speak() pipeline ─────────────
+async function _sendDocumentToMIND(
+  prompt: string,
+  fileName: string,
+  responseEl: HTMLElement
+): Promise<void> {
+  if (isProcessing) {
+    // Queue it: wait until current processing finishes
+    await new Promise<void>(res => {
+      const wait = setInterval(() => { if (!isProcessing) { clearInterval(wait); res(); } }, 200);
+    });
+  }
+  isProcessing = true;
+
+  const contentEl = responseEl.querySelector('.msg-content')!;
+  const cursor = create('span', 'typing-cursor');
+  contentEl.textContent = '';
+  contentEl.appendChild(cursor);
+
+  try {
+    mindSpeech.incrementInteraction();
+    const era     = getCurrentEra();
+    const mindCtx = getCurrentMINDContext(prompt);
+
+    const speakResult = await mindSpeech.speak({
+      userInput: prompt,
+      ctx:       mindCtx,
+      era:       era.era,
+      onChunk:   (chunk) => {
+        try {
+          cursor.remove();
+          contentEl.textContent += chunk;
+          contentEl.appendChild(cursor);
+          scrollChat();
+        } catch (_) {}
+      }
+    });
+    cursor.remove();
+
+    const finalText = speakResult.text;
+    if (!mindSpeech.hasAny() || speakResult.source === 'template') {
+      contentEl.textContent = finalText;
+    }
+
+    // Run MIND state machinery
+    await processInputExternalText(prompt, finalText);
+    updateStateDisplay();
+    updateStageIndicator();
+    updateEraDisplay();
+  } catch (err: any) {
+    cursor.remove();
+    contentEl.textContent = `I read "${fileName}" but something went wrong forming a response. Try asking me about it directly.`;
+    console.error('[MIND doc]', err);
+  }
+  isProcessing = false;
 }
 
 // ─── Voice Input ──────────────────────────────────

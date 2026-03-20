@@ -14,7 +14,7 @@ app.use('/api/*', cors())
 app.use('/static/*', serveStatic({ root: './' }))
 
 app.get('/api/health', (c) => {
-  return c.json({ status: 'alive', mind: 'active', version: '9.19' })
+  return c.json({ status: 'alive', mind: 'active', version: '9.20' })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
