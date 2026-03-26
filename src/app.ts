@@ -654,11 +654,27 @@ async function handleGateInit() {
       };
     } catch (_) {}
 
-    // ── MindSync: enable sync + inject sync code into top bar ─────────────────
+    // ── MindSync: enable sync + push heartbeat immediately so code is live ──────
     try {
-      const { getSyncCode, enableSync: doEnableSync, isSyncEnabled } = await import('./consciousness/MindPersistence');
-      doEnableSync(); // mark sync active — pushes start on next saveIdentitySnapshot
+      const mindPersist = await import('./consciousness/MindPersistence');
+      const { getSyncCode, enableSync: doEnableSync } = mindPersist;
+      // Also import pushStateNow directly from MindSync for the immediate heartbeat
+      const { pushStateNow } = await import('./consciousness/MindSync');
+
+      doEnableSync(); // mark sync active — sets _enabled=true in module singleton
       const code = getSyncCode();
+
+      // Push a heartbeat IMMEDIATELY (bypasses the 2s debounce) so the code
+      // exists in KV before the user navigates to /growth. Without this,
+      // /exists returns false until the first full exchange completes.
+      pushStateNow({
+        snapshot: {
+          heartbeat:    true,
+          sessionStart: Date.now(),
+          _syncAt:      Date.now(),
+        },
+      }).catch(() => {});
+
       // Inject sync-code badge into top-bar (after GROWTH button)
       const topControls = document.getElementById('top-controls');
       if (topControls && code && !document.getElementById('sync-code-badge')) {

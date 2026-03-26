@@ -161,6 +161,8 @@ app.get('/api/sync/:code/ping', async (c) => {
 
 // ── Verify a code exists (before user enters it on another device) ─────────
 // GET /api/sync/:code/exists  → { exists: bool }
+// Checks BOTH snapshot AND ping keys so a freshly-initialised MIND
+// (which pushes snapshot immediately) is found even before any conversation.
 app.get('/api/sync/:code/exists', async (c) => {
   const code = c.req.param('code')
   if (!validCode(code)) return c.json({ exists: false })
@@ -168,8 +170,11 @@ app.get('/api/sync/:code/exists', async (c) => {
 
   const upper = code.toUpperCase()
   try {
-    const ping = await c.env.MIND_SYNC.get(syncKey(upper, 'ping'))
-    return c.json({ exists: !!ping })
+    const [ping, snap] = await Promise.all([
+      c.env.MIND_SYNC.get(syncKey(upper, 'ping')),
+      c.env.MIND_SYNC.get(syncKey(upper, 'snapshot')),
+    ])
+    return c.json({ exists: !!(ping || snap) })
   } catch {
     return c.json({ exists: false })
   }

@@ -21,6 +21,7 @@ import { SpokenLayer } from './SpokenLayer';
 import type { LLMClient } from './FeltLayer';
 import type { MINDContext } from '../engine/pipeline';
 import { compositeTrustScore } from '../engine/personality';
+import type { OpinionEngine, CrystallizedView } from './OpinionEngine';
 
 // ─── Intent payloads ─────────────────────────────────────────────────────────
 
@@ -54,9 +55,10 @@ export interface FeltStorePayload {
 
 // ─── Two-Layer Consciousness ──────────────────────────────────────────────────
 export class TwoLayerConsciousness {
-  private intent:  IntentLayer;
-  private felt:    FeltLayer;
-  private spoken:  SpokenLayer;
+  private intent:   IntentLayer;
+  private felt:     FeltLayer;
+  private spoken:   SpokenLayer;
+  private opinions: OpinionEngine | null = null;
   private enabled = true;
 
   constructor(intent: IntentLayer, llm: LLMClient) {
@@ -129,6 +131,14 @@ export class TwoLayerConsciousness {
       userName
     });
 
+    // ── Get relevant opinion/view from OpinionEngine ─────────────────────────
+    let relevantView: CrystallizedView | null = null;
+    if (this.opinions) {
+      relevantView = this.opinions.getRelevantView(userInput, ctx.emotionalState);
+      // Also observe this exchange to build new opinions
+      this.opinions.observe(userInput, '', ctx.emotionalState).catch(() => {});
+    }
+
     // ── Stage 2: Spoken Layer — what MIND chooses to say ─────────────────────
     const spoken = await this.spoken.distill({
       feltRaw:        feltOutput.raw,
@@ -137,7 +147,8 @@ export class TwoLayerConsciousness {
       trustScore,
       userName,
       emotionalState: ctx.emotionalState,
-      somaticState:   ctx.somaticState
+      somaticState:   ctx.somaticState,
+      heldView:       relevantView ?? undefined,
     });
 
     // ── Simulate streaming for spoken layer if onChunk provided ──────────────
@@ -185,6 +196,11 @@ export class TwoLayerConsciousness {
       }
     }
     return null;
+  }
+
+  // ─── Wire OpinionEngine (called by MindSpeechSystem after construction) ──
+  setOpinionEngine(engine: OpinionEngine): void {
+    this.opinions = engine;
   }
 
   // ─── Runtime control ──────────────────────────────────────────────────────
