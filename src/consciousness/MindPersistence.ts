@@ -183,7 +183,28 @@ function _openDB(): Promise<void> {
       _db = (e.target as IDBOpenDBRequest).result;
       resolve();
     };
-    req.onerror = () => reject(req.error);
+
+    // ── Version conflict self-heal ─────────────────────────────────────────
+    req.onerror = (e) => {
+      const err = (e.target as IDBOpenDBRequest).error;
+      const isVersionConflict =
+        err?.name === 'VersionError' ||
+        (err?.message ?? '').toLowerCase().includes('less than the existing version');
+
+      if (isVersionConflict) {
+        console.warn('[MIND IDB] Version conflict in MindPersistence — clearing DB…');
+        _db = null;
+        const del = indexedDB.deleteDatabase(DB_NAME);
+        del.onsuccess = () => _openDB().then(resolve).catch(reject);
+        del.onerror   = () => reject(err);
+      } else {
+        reject(err);
+      }
+    };
+
+    req.onblocked = () => {
+      console.warn('[MIND IDB] DB upgrade blocked — another tab may be open.');
+    };
   });
 }
 

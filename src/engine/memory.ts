@@ -86,6 +86,7 @@ let db: IDBDatabase | null = null;
 export async function initDB(): Promise<void> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
+
     req.onupgradeneeded = (e) => {
       const d = (e.target as IDBOpenDBRequest).result;
       const oldVersion = e.oldVersion;
@@ -126,11 +127,39 @@ export async function initDB(): Promise<void> {
         s.createIndex('type', 'type');
       }
     };
+
     req.onsuccess = (e) => {
       db = (e.target as IDBOpenDBRequest).result;
       resolve();
     };
-    req.onerror = () => reject(req.error);
+
+    // ── Version conflict self-heal ─────────────────────────────────────────
+    // If the browser has MIND_DB at a HIGHER version than we're requesting
+    // (shouldn't happen after the v3→v4 fix, but guard against future regressions
+    // or browsers that ran a newer build then opened an older cached page),
+    // delete and recreate the DB so MIND can always start.
+    req.onerror = (e) => {
+      const err = (e.target as IDBOpenDBRequest).error;
+      const isVersionConflict =
+        err?.name === 'VersionError' ||
+        (err?.message ?? '').toLowerCase().includes('less than the existing version');
+
+      if (isVersionConflict) {
+        console.warn('[MIND IDB] Version conflict — clearing DB and retrying…');
+        db = null;
+        const del = indexedDB.deleteDatabase(DB_NAME);
+        del.onsuccess = () => initDB().then(resolve).catch(reject);
+        del.onerror   = () => reject(err);
+      } else {
+        reject(err);
+      }
+    };
+
+    // ── Blocked handler (another tab has DB open at old version) ─────────────
+    req.onblocked = () => {
+      console.warn('[MIND IDB] DB upgrade blocked — close other MIND tabs and refresh.');
+      // Don't reject immediately; let the user know via the error path if needed
+    };
   });
 }
 
