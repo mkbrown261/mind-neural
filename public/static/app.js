@@ -22609,7 +22609,7 @@ function hg() {
     return (s === "x" ? e : e & 3 | 8).toString(16);
   });
 }
-const ug = "MIND_DB", li = "memories", ki = "meta", dg = 3;
+const ug = "MIND_DB", li = "memories", ki = "meta", dg = 4;
 let Rn = null;
 async function ms() {
   return new Promise((s, e) => {
@@ -22625,7 +22625,14 @@ async function ms() {
         const a = i.createObjectStore(li, { keyPath: "id" });
         a.createIndex("timestamp", "timestamp"), a.createIndex("encodingStrength", "encodingStrength"), a.createIndex("type", "type");
       }
-      i.objectStoreNames.contains(ki) || i.createObjectStore(ki, { keyPath: "key" });
+      if (i.objectStoreNames.contains(ki) || i.createObjectStore(ki, { keyPath: "key" }), i.objectStoreNames.contains("identity") || i.createObjectStore("identity", { keyPath: "id" }), !i.objectStoreNames.contains("timeline")) {
+        const a = i.createObjectStore("timeline", { keyPath: "id" });
+        a.createIndex("ts", "ts"), a.createIndex("type", "type");
+      }
+      if (!i.objectStoreNames.contains("media")) {
+        const a = i.createObjectStore("media", { keyPath: "id" });
+        a.createIndex("ts", "ts"), a.createIndex("type", "type");
+      }
     }, t.onsuccess = (n) => {
       Rn = n.target.result, s();
     }, t.onerror = () => e(t.error);

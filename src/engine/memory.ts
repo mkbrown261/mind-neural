@@ -75,7 +75,11 @@ export function uuid(): string {
 const DB_NAME = 'MIND_DB';
 const STORE_NAME = 'memories';
 const META_STORE = 'meta';
-const DB_VERSION = 3;
+// ⚠ MUST stay in sync with MindPersistence.ts DB_VERSION.
+// Both files open the same 'MIND_DB' database — if their versions differ,
+// the browser throws: "The requested version (3) is less than the existing version (4)"
+// and MIND fails to initialize.
+const DB_VERSION = 4;
 
 let db: IDBDatabase | null = null;
 
@@ -86,7 +90,7 @@ export async function initDB(): Promise<void> {
       const d = (e.target as IDBOpenDBRequest).result;
       const oldVersion = e.oldVersion;
 
-      // Create stores fresh if needed
+      // ── v1–v3 stores (memories + meta) ─────────────────────────────────────
       if (!d.objectStoreNames.contains(STORE_NAME)) {
         const store = d.createObjectStore(STORE_NAME, { keyPath: 'id' });
         store.createIndex('timestamp', 'timestamp');
@@ -102,6 +106,24 @@ export async function initDB(): Promise<void> {
       }
       if (!d.objectStoreNames.contains(META_STORE)) {
         d.createObjectStore(META_STORE, { keyPath: 'key' });
+      }
+
+      // ── v4 stores (identity, timeline, media) ───────────────────────────────
+      // These are owned by MindPersistence.ts but must be declared here too
+      // because IndexedDB requires ALL stores for a given version to be created
+      // inside the SAME onupgradeneeded handler that bumps to that version.
+      if (!d.objectStoreNames.contains('identity')) {
+        d.createObjectStore('identity', { keyPath: 'id' });
+      }
+      if (!d.objectStoreNames.contains('timeline')) {
+        const s = d.createObjectStore('timeline', { keyPath: 'id' });
+        s.createIndex('ts',   'ts');
+        s.createIndex('type', 'type');
+      }
+      if (!d.objectStoreNames.contains('media')) {
+        const s = d.createObjectStore('media', { keyPath: 'id' });
+        s.createIndex('ts',   'ts');
+        s.createIndex('type', 'type');
       }
     };
     req.onsuccess = (e) => {
