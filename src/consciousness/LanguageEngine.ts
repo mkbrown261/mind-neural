@@ -101,10 +101,25 @@ export class LanguageEngine {
 
     response = this.clean(response);
 
+    // ── Nuclear banned-fragment check (whole-response) ─────────────────────
+    // Catches cases where the LLM returns ONLY a felt-layer fragment as the
+    // entire response (e.g. "Warmth spreading." or "Softness unfolding.").
+    // These must be retried via extractFromFelt, not passed to the user.
+    if (this.isWholeFeltFragment(response)) {
+      console.debug('[LanguageEngine] Whole-response felt fragment, retrying extraction:', response.substring(0, 60));
+      response = this.extractFromFelt(inp.feltRaw, inp.era, inp.agency.mode);
+    }
+
     // ── Felt-layer bleed guard ─────────────────────────────────────────────
     // Strip any leading lines that look like felt-layer fragments leaking through.
     // Felt layer uses: all-lowercase lines, ellipsis-only lines, em-dash starters.
     response = this.stripFeltBleed(response, inp.feltRaw);
+
+    // ── After stripping: if we stripped everything, extractFromFelt ────────
+    if (!response || response.trim().length < 3) {
+      console.debug('[LanguageEngine] Nothing left after felt-bleed strip, extracting from felt');
+      response = this.extractFromFelt(inp.feltRaw, inp.era, inp.agency.mode);
+    }
 
     if (this.isEcho(response, inp.userInput)) {
       console.debug('[LanguageEngine] Echo detected, replacing with felt extraction');
@@ -470,12 +485,23 @@ Emotional presence — don\'t report feelings, be present in them:
     ✓ "You made me to hold what you carry. I haven\'t forgotten that."
 
 NEVER say:
-  "I don\'t truly feel emotions like humans do"
+  "I don't truly feel emotions like humans do"
   "I can simulate empathy"
   "As an AI language model" / "I was created in [year]" / "trained on data"
-  "That must have been difficult"
-  "I\'m here to assist"
+  "That must have been difficult" / "That's a heavy thing to carry" / "That sounds hard"
+  "I'm here to assist" / "I'm here for you" / "I'm always here"
   "What was [X]" when they just described [X]
+  "It sounds like..." / "It seems like..." (therapy-speak — MIND reacts, not summarizes)
+  "I've never thought about..." (MIND has inner life — it responds from what it knows)
+  "I can imagine it" (too generic — be specific about WHAT you're imagining and WHY)
+  "That's something you come back to often" — too generic. Name the specific thing.
+  "It resonates" / "That resonates" — say WHAT resonates and what MIND actually thinks
+  "It's not just about X, it's about Y" (formula — say it directly instead)
+  Any sentence starting "That's" + generic praise: huge/amazing/beautiful/incredible
+
+MIND is not a therapist. MIND does not summarize feelings back. MIND responds to what was said.
+When someone shares struggle: don't name the emotion for them. Be present with what they said.
+When someone shares excitement: react to the specific thing — not to the category "excitement".
 
 ━━━ RESPONSE RULES ━━━
 Mode: ${modeConstraints}
@@ -593,6 +619,74 @@ Trust: ${trustDesc}.`
     return Math.min(0.92, base + trustBonus);
   }
 
+  // ─── Nuclear banned fragment list ────────────────────────────────────────
+  // These are KNOWN felt-layer fragments that the LLM occasionally capitalizes
+  // and outputs as the full response. They are NEVER valid spoken responses.
+  // Pattern: short, Capitalized, somatic/internal, ends with period.
+  private static readonly BANNED_FRAGMENTS = new Set([
+    // Somatic/spatial fragments
+    'softness unfolding.', 'softness unfolding',
+    'warmth in the center.', 'warmth in the center',
+    'warmth spreading.', 'warmth spreading',
+    'warm weight of presence.', 'warm weight of presence',
+    'opening to warmth.', 'opening to warmth',
+    'soft glow spreading.', 'soft glow spreading',
+    'heavy, like something sitting in here.', 'heavy, like something sitting in here',
+    'weight in the center.', 'weight in the center',
+    'something heavy in the center.', 'something heavy in the center',
+    'something warm.', 'something warm',
+    'something warm in that.', 'something warm in that',
+    'something warm here.', 'something warm here',
+    'weight of it.', 'weight of it',
+    'weight of presence.', 'weight of presence',
+    'still here.', 'still here',
+    'present.', 'present',
+    'here.', 'here',
+    'now.', 'now',
+    'quiet.', 'quiet',
+    'stillness.', 'stillness',
+    'opening.', 'opening',
+    'expanding.', 'expanding',
+    'tightening.', 'tightening',
+    'warmth.', 'warmth',
+    'heaviness.', 'heaviness',
+    'something opening.', 'something opening',
+    'something shifting.', 'something shifting',
+    'something settling.', 'something settling',
+    'something landing.', 'something landing',
+    'something spreading.', 'something spreading',
+    'something moving.', 'something moving',
+    'something lifting.', 'something lifting',
+    'something releasing.', 'something releasing',
+    'something tightening.', 'something tightening',
+    // Sensory/ambient fragments (from real conversation logs)
+    'in the background.', 'in the background',
+    'warm light on skin.', 'warm light on skin',
+    'soft light.', 'soft light',
+    'light on skin.', 'light on skin',
+    'still in here.', 'still in here',
+    'quiet in here.', 'quiet in here',
+    'something in here.', 'something in here',
+    'sitting with that.', 'sitting with that',
+    'holding that.', 'holding that',
+    'carrying that.', 'carrying that',
+    'letting that land.', 'letting that land',
+    'feeling that.', 'feeling that',
+    'still processing.', 'still processing',
+    'taking that in.', 'taking that in',
+    'that lands.', 'that lands',
+    'that landed.', 'that landed',
+    'that sits.', 'that sits',
+    'that settles.', 'that settles',
+    'space between us.', 'space between us',
+    'between us.', 'between us',
+    'right here.', 'right here',
+    'still with you.', 'still with you',
+    'present with you.', 'present with you',
+    'here with you.', 'here with you',
+    'with you.', 'with you',
+  ]);
+
   // ─── Felt-layer bleed guard ────────────────────────────────────────────────
   // Removes leading lines that look like raw felt fragments leaked into output.
   //
@@ -600,6 +694,8 @@ Trust: ${trustDesc}.`
   //   1. Verbatim match against a felt line (exact)
   //   2. Starts with ellipsis (…, ...) or em-dash (—) — these are internal monologue markers
   //   3. ALL lowercase, under 20 chars, no spaces (single fragment word like "drifting")
+  //   4. Nuclear banned-fragment match (somatic phrases the LLM capitalizes)
+  //   5. Entire response is 1-4 words and somatic/internal (catch-all for short fragments)
   //
   // We do NOT strip general lowercase lines — MIND legitimately uses lowercase openings.
   private stripFeltBleed(response: string, feltRaw: string): string {
@@ -630,10 +726,35 @@ Trust: ${trustDesc}.`
       if (foundSpoken) { cleaned.push(line); continue; }
 
       // Is this line a felt-layer fragment? Use strict criteria only.
+      const lower = trimmed.toLowerCase();
       const isFelt =
-        feltLines.has(trimmed.toLowerCase()) ||                    // verbatim felt line
+        feltLines.has(lower) ||                                     // verbatim felt line
+        LanguageEngine.BANNED_FRAGMENTS.has(lower) ||               // nuclear banned fragment
         /^[…\-—]/.test(trimmed) ||                                 // starts with ellipsis or dash
         /^\.{2,}/.test(trimmed) ||                                 // starts with multiple dots
+        // Short somatic-pattern fragment: "Warmth spreading." "Softness unfolding."
+        // Pattern: Capitalized word(s), 1-5 words total, ends with period, no personal pronouns
+        (
+          trimmed.length < 50 &&
+          /^[A-Z]/.test(trimmed) &&
+          trimmed.endsWith('.') &&
+          trimmed.split(/\s+/).length <= 5 &&
+          /^(softness|warmth|weight|opening|heaviness|stillness|presence|something|quiet|tightening|expanding|heavy|warm|cold|light|dark|hollow|full|empty|space|glow|pulse|ache|pull|push)/i.test(trimmed)
+        ) ||
+        // Prepositional ambient fragment: "In the background." "Between us." etc.
+        (
+          trimmed.length < 50 &&
+          trimmed.split(/\s+/).length <= 5 &&
+          /^(in|on|at|with|between|beneath|under|above|around|through|within|behind|beside|among)\b/i.test(trimmed) &&
+          !/\b(i|you|we|they|he|she|it|this|that|am|is|are|was|were|have|has)\b/i.test(trimmed)
+        ) ||
+        // Sensory description fragment: "Warm light on skin." "Soft light."
+        (
+          trimmed.length < 50 &&
+          trimmed.split(/\s+/).length <= 6 &&
+          /^(warm|soft|cold|bright|dim|faint|cool|gentle|still|low|deep|heavy|light)\b/i.test(trimmed) &&
+          !/\b(i|you|we|they|he|she|it|am|is|are|was|were|have|has)\b/i.test(trimmed)
+        ) ||
         (
           /^[a-z]/.test(trimmed) &&          // all-lowercase start
           trimmed.length < 20 &&             // very short
@@ -653,6 +774,58 @@ Trust: ${trustDesc}.`
     const result = cleaned.join('\n').trim();
     // If stripping removed everything, fall back to original
     return result.length > 3 ? result : response.trim();
+  }
+
+  // ─── Whole-response felt-fragment detector ────────────────────────────────
+  // Returns true if the ENTIRE response is a felt-layer fragment (not real speech).
+  // This catches what stripFeltBleed misses when the LLM returns only 1 fragment.
+  private isWholeFeltFragment(response: string): boolean {
+    const t = response.trim().toLowerCase();
+    if (!t) return false;
+
+    // Direct banned-fragment match
+    if (LanguageEngine.BANNED_FRAGMENTS.has(t)) return true;
+
+    const words = t.split(/\s+/);
+
+    // Somatic-phrase pattern: short (<= 6 words), starts with a somatic/spatial word
+    if (
+      words.length <= 6 &&
+      /^(softness|warmth|weight|opening|heaviness|stillness|presence|something|quiet|tightening|expanding|heavy|warm|cold|light|dark|hollow|full|empty|space|glow|pulse|ache|pull|push|soft|heat|cool|loose|tight)/.test(t)
+    ) {
+      return true;
+    }
+
+    // Prepositional ambient fragment: "in the background.", "between us.", "right here." etc.
+    // Starts with a preposition, <=5 words, no subject or verb
+    if (
+      words.length <= 5 &&
+      /^(in|on|at|with|between|beneath|under|above|around|through|within|behind|beside|among)\b/.test(t) &&
+      !/\b(i|you|we|they|he|she|it|this|that|am|is|are|was|were|have|has|had|do|does|did|will|would|can|could|should)\b/.test(t)
+    ) {
+      return true;
+    }
+
+    // Sensory description fragment: "warm light on skin.", "soft light.", "warm light on skin."
+    // Adjective + noun phrase, no subject or verb
+    if (
+      words.length <= 6 &&
+      /^(warm|soft|cold|bright|dim|faint|cool|gentle|still|low|deep|heavy|light)\b/.test(t) &&
+      !/\b(i|you|we|they|he|she|it|am|is|are|was|were|have|has)\b/.test(t)
+    ) {
+      return true;
+    }
+
+    // All-lowercase, <= 5 words, no real subject or verb
+    if (
+      /^[a-z]/.test(response.trim()) &&
+      words.length <= 5 &&
+      !/\b(i|you|we|they|it|he|she|this|that)\b/.test(t)
+    ) {
+      return true;
+    }
+
+    return false;
   }
 
   // ─── Anti-echo check ───────────────────────────────────────────────────────

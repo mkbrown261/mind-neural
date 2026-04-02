@@ -178,8 +178,37 @@ Trust level: ${trustDesc}.`
     return line.charAt(0).toUpperCase() + line.slice(1) + (line.endsWith('.') ? '' : '.');
   }
 
+  // Nuclear list of felt-layer fragments that must never become spoken responses.
+  private static readonly BANNED_SPOKEN = new Set([
+    'softness unfolding', 'softness unfolding.', 'warmth in the center', 'warmth in the center.',
+    'warmth spreading', 'warmth spreading.', 'warm weight of presence', 'warm weight of presence.',
+    'opening to warmth', 'opening to warmth.', 'soft glow spreading', 'soft glow spreading.',
+    'weight of presence', 'weight of presence.', 'something warm', 'something warm.',
+    'something opening', 'something opening.', 'something shifting', 'something shifting.',
+    'stillness.', 'stillness', 'present.', 'present', 'quiet.', 'quiet',
+    'opening.', 'opening', 'warmth.', 'warmth', 'heaviness.', 'heaviness',
+    // Ambient/prepositional fragments seen in real conversations
+    'in the background', 'in the background.',
+    'warm light on skin', 'warm light on skin.',
+    'soft light', 'soft light.',
+    'light on skin', 'light on skin.',
+    'still in here', 'still in here.',
+    'quiet in here', 'quiet in here.',
+    'sitting with that', 'sitting with that.',
+    'holding that', 'holding that.',
+    'carrying that', 'carrying that.',
+    'taking that in', 'taking that in.',
+    'that lands', 'that lands.',
+    'space between us', 'space between us.',
+    'between us', 'between us.',
+    'right here', 'right here.',
+    'here with you', 'here with you.',
+    'with you', 'with you.',
+    'still with you', 'still with you.',
+  ]);
+
   private clean(response: string): string {
-    return response
+    const cleaned = response
       .trim()
       // Remove LLM meta-commentary prefixes
       .replace(/^(MIND:|Mind:|Response:|Output:|Spoken:|Speaking:)\s*/i, '')
@@ -188,5 +217,44 @@ Trust level: ${trustDesc}.`
       // Collapse excess whitespace
       .replace(/\n{3,}/g, '\n\n')
       .trim();
+
+    // If the entire response is a known felt-fragment, return empty (caller handles fallback)
+    const lower = cleaned.toLowerCase();
+    if (SpokenLayer.BANNED_SPOKEN.has(lower)) {
+      console.debug('[SpokenLayer] Blocked felt fragment from spoken output:', cleaned);
+      return '';
+    }
+
+    // Short somatic fragment pattern: <=5 words, starts with somatic word
+    const words = lower.split(/\s+/);
+    if (
+      words.length <= 5 &&
+      /^(softness|warmth|weight|opening|heaviness|stillness|presence|tightening|expanding|glow|pulse|ache)/.test(lower)
+    ) {
+      console.debug('[SpokenLayer] Blocked somatic fragment:', cleaned);
+      return '';
+    }
+
+    // Prepositional ambient fragment: "in the background", "between us", "right here"
+    if (
+      words.length <= 5 &&
+      /^(in|on|at|with|between|beneath|under|above|around|through|within|behind|beside|among)\b/.test(lower) &&
+      !/\b(i|you|we|they|he|she|it|this|that|am|is|are|was|were|have|has|had|do|does|did|will|would|can|could|should)\b/.test(lower)
+    ) {
+      console.debug('[SpokenLayer] Blocked prepositional fragment:', cleaned);
+      return '';
+    }
+
+    // Sensory description fragment: "warm light on skin", "soft light"
+    if (
+      words.length <= 6 &&
+      /^(warm|soft|cold|bright|dim|faint|cool|gentle|still|low|deep|heavy|light)\b/.test(lower) &&
+      !/\b(i|you|we|they|he|she|it|am|is|are|was|were|have|has)\b/.test(lower)
+    ) {
+      console.debug('[SpokenLayer] Blocked sensory fragment:', cleaned);
+      return '';
+    }
+
+    return cleaned;
   }
 }
