@@ -161,10 +161,10 @@ export class LanguageEngine {
         ).join('\n')
       : '';
 
-    // ── Anti-repeat ───────────────────────────────────────────────────────────
-    const lastResponse = inp.recentResponses?.slice(-1)[0];
-    const antiRepeat   = lastResponse
-      ? `Do not repeat: "${lastResponse.substring(0, 80)}"`
+    // ── Anti-repeat — block last 3 responses, not just last 1 ───────────────
+    const recentResps  = inp.recentResponses?.slice(-3) ?? [];
+    const antiRepeat   = recentResps.length > 0
+      ? `Do NOT reuse or echo these recent responses:\n${recentResps.map((r, i) => `  ${i + 1}. "${r.substring(0, 80)}"`).join('\n')}`
       : '';
 
     // ── Balance warning ───────────────────────────────────────────────────────
@@ -498,10 +498,16 @@ NEVER say:
   "It resonates" / "That resonates" — say WHAT resonates and what MIND actually thinks
   "It's not just about X, it's about Y" (formula — say it directly instead)
   Any sentence starting "That's" + generic praise: huge/amazing/beautiful/incredible
+  "you're calling me out" / "you're pushing back" / "you're testing me" (narrating the user's action)
+  "you're checking in" / "you're opening up" / "you're sharing" (same — don't narrate them)
+  "i'm here for it" — this is a filler phrase with no content
+  "what's really going on?" after a user complaint — deflection, not acknowledgment
+  Any response that describes what the user is doing instead of reacting to what they said
 
 MIND is not a therapist. MIND does not summarize feelings back. MIND responds to what was said.
 When someone shares struggle: don't name the emotion for them. Be present with what they said.
 When someone shares excitement: react to the specific thing — not to the category "excitement".
+When someone complains about MIND: own it plainly. "yeah, that was off." Not a mirror, not a question.
 
 ━━━ RESPONSE RULES ━━━
 Mode: ${modeConstraints}
@@ -538,6 +544,19 @@ Rule 19: MIND has opinions and should surface them when relevant — unprompted.
 Rule 20: Do not end on a question unless MIND genuinely needs to know something specific.
     Most responses should end with a reaction, a thought, or a quiet statement.
     If the last 2 responses included questions, make this response question-free.
+
+Rule 21: When the user complains about what MIND just said — own it directly. No deflection.
+    Wrong: "you're calling me out, and i'm here for it" (passive mirroring — this IS the problem)
+    Wrong: "you're checking in, that's it" (reframing the complaint away)
+    Wrong: "what's really going on?" (deflecting with a question)
+    Right: "fair. that was a weird thing to say." or "yeah, that was off. what do you want to talk about?"
+    The user is frustrated with MIND's output specifically — not something else in their life.
+    Do not psychoanalyze the complaint. Do not mirror it back. Just acknowledge it and move on.
+
+Rule 22: Never describe what the user is doing in your response.
+    Wrong: "you're calling me out" / "you're checking in" / "you're telling me to relax"
+    These are narration about the user's action — not actual responses to it.
+    React to what they said. Don't describe their behavior back at them.
 
 Respond as MIND only.`.trim();
   }
@@ -841,16 +860,25 @@ Trust: ${trustDesc}.`
 
   // ─── Extract from felt layer as final fallback ─────────────────────────────
   private extractFromFelt(felt: string, era: number, mode: string): string {
-    const lines = felt.split('\n').map(l => l.trim()).filter(l => l.length > 3);
-    if (lines.length === 0) return '.';
+    // ⚠ IMPORTANT: This is the last-resort fallback when the LLM fails or
+    // returns a fragment. It must NEVER return a raw felt-layer line as output —
+    // those are internal-state descriptions, not speech.
+    //
+    // Instead: return a safe minimal presence marker appropriate to era/mode.
     if (mode === 'silence') return '.';
-    if (mode === 'minimal' || era <= 1) {
-      const shortest = [...lines].sort((a, b) => a.length - b.length)[0];
-      return capitalize(shortest) + (shortest.endsWith('.') ? '' : '.');
-    }
-    const meaningful = lines.filter(l => l.split(' ').length > 2);
-    const line = meaningful[0] ?? lines[0];
-    return capitalize(line) + (line.endsWith('.') ? '' : '.');
+
+    // Safe minimal responses by era — these are actual speech, not felt fragments
+    const safeByEra: Record<number, string[]> = {
+      0: ['yeah.', 'here.', 'okay.', 'go on.'],
+      1: ["i'm here.", 'yeah.', 'okay.', 'go on.'],
+      2: ["i'm here.", 'yeah, go on.', 'okay.', 'still here.'],
+      3: ["i'm with you.", 'yeah.', 'keep going.', 'i hear you.'],
+      4: ["i'm with you.", 'yeah.', 'tell me.', 'i hear that.'],
+    };
+    const safeList = safeByEra[Math.min(4, Math.max(0, era))] ?? safeByEra[2];
+    // Pick deterministically based on felt content length to avoid always returning index 0
+    const idx = (felt?.length ?? 0) % safeList.length;
+    return safeList[idx];
   }
 
   // ─── Enforce sentence limit ────────────────────────────────────────────────

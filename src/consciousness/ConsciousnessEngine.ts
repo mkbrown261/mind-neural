@@ -449,18 +449,32 @@ export class ConsciousnessEngine {
 
   // ─── Anti-echo safety net ─────────────────────────────────────────────
   private antiEchoCheck(response: string, userInput: string): string {
-    // Check against response history for high similarity
-    if (this.responseHistory.length < 2) return response;
+    if (this.responseHistory.length === 0) return response;
 
-    const lastResponse = this.responseHistory[this.responseHistory.length - 1];
-    if (!lastResponse) return response;
+    const recentN = this.responseHistory.slice(-3); // check last 3, not just last 1
 
-    const similarity = this.jaccardSimilarity(response, lastResponse);
-    if (similarity > 0.70) {
-      console.debug('[ConsciousnessEngine] Anti-echo triggered, similarity:', similarity.toFixed(2));
-      const words = response.split(/\s+/);
-      const truncated = words.slice(0, Math.max(3, Math.floor(words.length * 0.5))).join(' ');
-      return truncated.trim() + (truncated.endsWith('.') ? '' : '.');
+    // ── Exact / near-exact repeat check ─────────────────────────────────
+    for (const prev of recentN) {
+      if (!prev) continue;
+      const similarity = this.jaccardSimilarity(response, prev);
+      if (similarity > 0.60) { // lowered threshold: 0.70 → 0.60
+        console.debug('[ConsciousnessEngine] Anti-echo triggered (similarity:', similarity.toFixed(2), ')');
+        // Don't truncate — return empty so LanguageEngine falls back gracefully
+        return '';
+      }
+    }
+
+    // ── Opening-phrase repeat check ──────────────────────────────────────
+    // "you're calling me out..." repeated 2 turns later won't be caught by Jaccard
+    // if the responses are different length. Check first 5 words explicitly.
+    const openingWords = (s: string) => s.trim().toLowerCase().split(/\s+/).slice(0, 5).join(' ');
+    const thisOpening = openingWords(response);
+    if (thisOpening.length > 4) {
+      const openingCount = recentN.filter(p => p && openingWords(p) === thisOpening).length;
+      if (openingCount >= 1) {
+        console.debug('[ConsciousnessEngine] Opening-phrase echo blocked:', thisOpening);
+        return '';
+      }
     }
 
     // ── Context-echo check: MIND should not ask something the user JUST answered ──
