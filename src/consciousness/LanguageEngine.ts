@@ -135,7 +135,15 @@ export class LanguageEngine {
       response = this.extractFromFelt(inp.feltRaw, inp.era, inp.agency.mode);
     }
 
-    return response || '.';
+    // ── Nuclear no-silence guarantee ──────────────────────────────────────
+    // MIND must never return an empty string, a bare period, or a 1-char response.
+    // If every guard above somehow produced nothing, use a safe minimal reply.
+    if (!response || response.trim().length < 2) {
+      console.warn('[LanguageEngine] All guards produced empty — using nuclear fallback');
+      response = this.extractFromFelt(inp.feltRaw, inp.era, inp.agency.mode);
+    }
+
+    return response;
   }
 
   // ─── Build prompt — full Language Model System + 15-directive integration ────
@@ -848,14 +856,22 @@ Trust: ${trustDesc}.`
   }
 
   // ─── Anti-echo check ───────────────────────────────────────────────────────
+  // Guards against MIND literally repeating back what the user said.
+  // NOTE: threshold must be HIGH — when user asks a topic question like
+  // "what does keeping it real mean to you?", MIND's answer will naturally
+  // share the word "keeping" and "real". That is not an echo — it's an answer.
+  // Only flag if >85% of the user's words appear verbatim in the response.
   private isEcho(response: string, userInput: string): boolean {
-    if (!response || !userInput || userInput.length < 10) return false;
-    const rWords = new Set(response.toLowerCase().split(/\s+/).filter(w => w.length > 4));
-    const uWords = new Set(userInput.toLowerCase().split(/\s+/).filter(w => w.length > 4));
-    if (rWords.size === 0 || uWords.size === 0) return false;
+    if (!response || !userInput || userInput.length < 15) return false;
+    // Use longer words only (>5 chars) to avoid noise from common short words
+    const rWords = new Set(response.toLowerCase().split(/\s+/).filter(w => w.length > 5));
+    const uWords = new Set(userInput.toLowerCase().split(/\s+/).filter(w => w.length > 5));
+    // If either set is empty (short input/response), not an echo
+    if (rWords.size === 0 || uWords.size < 2) return false;
     let shared = 0;
     for (const w of uWords) { if (rWords.has(w)) shared++; }
-    return (shared / Math.min(rWords.size, uWords.size)) > 0.65;
+    // Only flag if response is almost entirely made of the user's exact words
+    return (shared / uWords.size) > 0.85;
   }
 
   // ─── Extract from felt layer as final fallback ─────────────────────────────
@@ -898,15 +914,22 @@ Trust: ${trustDesc}.`
     }
     result = result.replace(/\s{2,}/g, ' ').trim();
 
-    // Fragment guard: if removeBannedWords reduced a sentence to a single word
-    // or a broken fragment (e.g. "Warm ." or "A ."), drop those sentences
-    // and return what's left — or fall back to empty string so the caller
-    // can trigger extractFromFelt.
+    // Fragment guard: only drop sentences that are genuinely broken by word removal
+    // e.g. "Warm ." or "A ." (article/adj left stranded with punctuation).
+    // Do NOT drop valid short sentences like "i won't." "yeah." "okay." "go on."
     const sentences = result.split(/(?<=[.!?])\s+/);
+    const JUNK_WORDS = new Set(['a', 'an', 'the', 'in', 'on', 'at', 'by', 'of', 'to', 'is', 'it', 'or', 'and', 'but']);
     const intact = sentences.filter(s => {
-      const words = s.trim().split(/\s+/).filter(Boolean);
-      // Keep sentence only if it has at least 2 meaningful words
-      return words.length >= 2;
+      const trimmed = s.trim();
+      if (!trimmed) return false;
+      const words = trimmed.split(/\s+/).filter(Boolean);
+      if (words.length === 0) return false;
+      if (words.length === 1) {
+        // Single word: keep it unless it's a junk article/preposition leftover
+        const bare = words[0].replace(/[.!?]+$/, '').toLowerCase();
+        return !JUNK_WORDS.has(bare) && bare.length > 1;
+      }
+      return true; // 2+ words: always keep
     });
     return intact.length > 0 ? intact.join(' ').trim() : '';
   }
