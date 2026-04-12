@@ -68,6 +68,12 @@ export interface Memory {
   foundingMemory?: boolean;
   createdDuring?: 'onboarding' | 'normal';
   collection?: string;   // e.g. 'founding_memories'
+  // v2: emotional fingerprint at encoding time
+  emotionalFingerprint?: {
+    dominantEmotion:  string;
+    emotionVector:    Partial<Record<string, number>>;
+    bodyState:        string;
+  };
 }
 
 // ─── DB ───────────────────────────────────────────
