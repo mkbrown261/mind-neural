@@ -110,48 +110,47 @@ export class LanguageEngine {
 
     response = this.clean(response);
 
-    // ── Nuclear banned-fragment check (whole-response) ─────────────────────
-    // Catches cases where the LLM returns ONLY a felt-layer fragment as the
-    // entire response (e.g. "Warmth spreading." or "Softness unfolding.").
-    // These must be retried via extractFromFelt, not passed to the user.
+    // ── Debug log: track which guard fires ───────────────────────────────────
+    const rawLLM = response;
+
+    // ── Nuclear banned-fragment check ────────────────────────────────────────
     if (this.isWholeFeltFragment(response)) {
-      console.debug('[LanguageEngine] Whole-response felt fragment, retrying extraction:', response.substring(0, 60));
+      console.warn('[LE] GUARD:fragment raw='+JSON.stringify(rawLLM.substring(0,80)));
       response = this.extractFromFelt(inp.feltRaw, inp.era, inp.agency.mode);
     }
 
-    // ── Felt-layer bleed guard ─────────────────────────────────────────────
-    // Strip any leading lines that look like felt-layer fragments leaking through.
-    // Felt layer uses: all-lowercase lines, ellipsis-only lines, em-dash starters.
+    // ── Felt-layer bleed guard ────────────────────────────────────────────────
+    const beforeBleed = response;
     response = this.stripFeltBleed(response, inp.feltRaw);
+    if (response !== beforeBleed) {
+      console.warn('[LE] GUARD:bleed raw='+JSON.stringify(beforeBleed.substring(0,80))+' after='+JSON.stringify(response.substring(0,80)));
+    }
 
-    // ── After stripping: if we stripped everything, extractFromFelt ────────
+    // ── After stripping: if nothing left ─────────────────────────────────────
     if (!response || response.trim().length < 3) {
-      console.debug('[LanguageEngine] Nothing left after felt-bleed strip, extracting from felt');
+      console.warn('[LE] GUARD:empty-after-bleed raw='+JSON.stringify(beforeBleed.substring(0,80)));
       response = this.extractFromFelt(inp.feltRaw, inp.era, inp.agency.mode);
     }
 
     if (this.isEcho(response, inp.userInput)) {
-      console.debug('[LanguageEngine] Echo detected, replacing with felt extraction');
+      console.warn('[LE] GUARD:echo raw='+JSON.stringify(response.substring(0,80)));
       response = this.extractFromFelt(inp.feltRaw, inp.era, inp.agency.mode);
     }
 
     response = this.enforceSentenceLimit(response, inp.agency.maxSentences);
     response = this.removeBannedWords(response);
 
-    // If removeBannedWords reduced the response to a fragment, fall back to felt
     if (!response || response.trim().length < 3) {
-      console.debug('[LanguageEngine] Fragment after banned-word strip, falling back to felt');
+      console.warn('[LE] GUARD:banned-word-strip raw='+JSON.stringify(rawLLM.substring(0,80)));
       response = this.extractFromFelt(inp.feltRaw, inp.era, inp.agency.mode);
     }
 
-    // ── Nuclear no-silence guarantee ──────────────────────────────────────
-    // MIND must never return an empty string, a bare period, or a 1-char response.
-    // If every guard above somehow produced nothing, use a safe minimal reply.
     if (!response || response.trim().length < 2) {
-      console.warn('[LanguageEngine] All guards produced empty — using nuclear fallback');
+      console.warn('[LE] GUARD:nuclear-empty');
       response = this.extractFromFelt(inp.feltRaw, inp.era, inp.agency.mode);
     }
 
+    console.info('[LE] final='+JSON.stringify(response)+' mode='+inp.agency.mode+' era='+inp.era+' llm='+JSON.stringify(rawLLM.substring(0,80)));
     return response;
   }
 
@@ -759,15 +758,16 @@ Trust: ${trustDesc}.`
   private stripFeltBleed(response: string, feltRaw: string): string {
     if (!response) return response;
 
-    // Build a set of normalised felt lines for exact-match stripping
-    const feltLines = new Set(
-      (feltRaw || '').split('\n')
-        .map(l => l.trim().toLowerCase())
-        .filter(l => l.length > 4)
-    );
-
-    // Extended safe-list: words that legitimately start MIND's spoken responses
-    const SAFE_PREFIXES = /^(no|not|yes|and|but|if|so|i|it|he|she|we|they|you|maybe|probably|hard|tell|go|hold|carry|stay|let|keep|stop|try|feel|look|ask|perhaps|something|nothing|that|what|when|where|there|here|how|who|why|this|those|these)\b/i;
+    // ── DESIGN PRINCIPLE ─────────────────────────────────────────────────────
+    // MIND speaks in lowercase. The felt layer also uses lowercase fragments.
+    // Stripping by "is lowercase + short" WILL eat valid speech.
+    // Only strip lines that are UNAMBIGUOUSLY felt-layer leakage:
+    //   1. Nuclear banned fragments (known bad list)
+    //   2. Lines starting with ellipsis or dash (internal state markers)
+    //   3. Pure somatic vocabulary words (warmth, tightening, etc.) with no person/verb
+    //   4. Verbatim exact match to a felt line AND it matches somatic pattern
+    // DO NOT strip: short lowercase lines that contain pronouns, verbs, or actual speech.
+    // ─────────────────────────────────────────────────────────────────────────
 
     const lines     = response.split('\n');
     const cleaned: string[] = [];
@@ -776,66 +776,45 @@ Trust: ${trustDesc}.`
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) {
-        if (foundSpoken) cleaned.push(line); // preserve internal blank lines
+        if (foundSpoken) cleaned.push(line);
         continue;
       }
 
-      // Once we have a proper spoken line, keep everything after
       if (foundSpoken) { cleaned.push(line); continue; }
 
-      // Is this line a felt-layer fragment? Use strict criteria only.
       const lower = trimmed.toLowerCase();
-      const isFelt =
-        feltLines.has(lower) ||                                     // verbatim felt line
-        LanguageEngine.BANNED_FRAGMENTS.has(lower) ||               // nuclear banned fragment
-        /^[…\-—]/.test(trimmed) ||                                 // starts with ellipsis or dash
-        /^\.{2,}/.test(trimmed) ||                                 // starts with multiple dots
-        // Short somatic-pattern fragment: "Warmth spreading." "Softness unfolding."
-        // Pattern: Capitalized word(s), 1-5 words total, ends with period, no personal pronouns.
-        // IMPORTANT: Only strip on PURE somatic vocab — not words MIND legitimately uses in speech.
-        // "Something shifted." / "Nothing changed." are valid MIND responses — do NOT strip them.
-        // Only strip if the opening word is unambiguously a felt-state descriptor with no pronoun.
-        (
-          trimmed.length < 50 &&
-          /^[A-Z]/.test(trimmed) &&
-          trimmed.endsWith('.') &&
-          trimmed.split(/\s+/).length <= 5 &&
-          /^(softness|warmth|weight|heaviness|stillness|tightening|expanding|glow|pulse|ache|pull|push|hollowness|fullness|numbness|vibration|resonance|contraction|loosening)/i.test(trimmed) &&
-          !/\b(i|you|we|they|he|she|it|this|that|am|is|are|was|were|have|has|do|did|will|won't|can|can't|not|no|yes|yeah|okay|tell|keep|go|what|why|when|how|where|who)\b/i.test(trimmed)
-        ) ||
-        // Prepositional ambient fragment: "In the background." "Between us." etc.
-        (
-          trimmed.length < 50 &&
-          trimmed.split(/\s+/).length <= 5 &&
-          /^(in|on|at|with|between|beneath|under|above|around|through|within|behind|beside|among)\b/i.test(trimmed) &&
-          !/\b(i|you|we|they|he|she|it|this|that|am|is|are|was|were|have|has)\b/i.test(trimmed)
-        ) ||
-        // Sensory description fragment: "Warm light on skin." "Soft light."
-        (
-          trimmed.length < 50 &&
-          trimmed.split(/\s+/).length <= 6 &&
-          /^(warm|soft|cold|bright|dim|faint|cool|gentle|still|low|deep|heavy|light)\b/i.test(trimmed) &&
-          !/\b(i|you|we|they|he|she|it|am|is|are|was|were|have|has)\b/i.test(trimmed)
-        ) ||
-        (
-          /^[a-z]/.test(trimmed) &&          // all-lowercase start
-          trimmed.length < 20 &&             // very short
-          !trimmed.includes(' ') &&          // single word (no spaces)
-          !SAFE_PREFIXES.test(trimmed)       // not a safe opener
-        );
 
-      if (isFelt) {
-        console.debug('[LanguageEngine] Stripping felt-bleed line:', trimmed.substring(0, 50));
-        continue; // discard this line
+      // ── Nuclear banned fragment — unambiguous ────────────────────────────
+      if (LanguageEngine.BANNED_FRAGMENTS.has(lower)) {
+        console.warn('[LE] bleed:banned', trimmed.substring(0, 60));
+        continue;
       }
 
+      // ── Starts with ellipsis or dash — internal state marker ────────────
+      if (/^[…\-—]/.test(trimmed) || /^\.{2,}/.test(trimmed)) {
+        console.warn('[LE] bleed:ellipsis', trimmed.substring(0, 60));
+        continue;
+      }
+
+      // ── Pure somatic fragment ────────────────────────────────────────────
+      // Only strip if: opens with unambiguous somatic vocab AND has no pronoun/verb
+      const isSomaticFragment = (
+        trimmed.split(/\s+/).length <= 7 &&
+        /^(softness|warmth|weight|heaviness|stillness|tightening|expanding|glow|pulse|ache|pull|push|hollowness|fullness|numbness|vibration|resonance|contraction|loosening|spreading|unfolding|settling|dissolving)/i.test(trimmed) &&
+        !/\b(i|you|we|they|he|she|it|this|that|am|is|are|was|were|have|has|do|did|will|won't|can|can't|not|no|yes|yeah|okay|tell|keep|go|what|why|when|how|where|who)\b/i.test(trimmed)
+      );
+      if (isSomaticFragment) {
+        console.warn('[LE] bleed:somatic', trimmed.substring(0, 60));
+        continue;
+      }
+
+      // Everything else is valid speech — keep it
       foundSpoken = true;
       cleaned.push(line);
     }
 
     const result = cleaned.join('\n').trim();
-    // If stripping removed everything, fall back to original
-    return result.length > 3 ? result : response.trim();
+    return result.length > 2 ? result : response.trim();
   }
 
   // ─── Whole-response felt-fragment detector ────────────────────────────────
@@ -892,16 +871,11 @@ Trust: ${trustDesc}.`
       return true;
     }
 
-    // All-lowercase, <= 4 words (tightened from 5), no real subject or verb
-    // NOTE: threshold lowered to 4 to avoid flagging valid short responses
-    if (
-      /^[a-z]/.test(response.trim()) &&
-      words.length <= 4 &&
-      !/\b(i|you|we|they|it|he|she|this|that)\b/.test(t)
-    ) {
-      return true;
-    }
-
+    // NOTE: Intentionally NOT checking "all-lowercase + short" here.
+    // MIND speaks in lowercase. Short lowercase responses like "you know that."
+    // or "i didn't forget." ARE valid speech, not felt fragments.
+    // The SAFE_SPOKEN list above handles the known-safe short responses.
+    // The somatic/prepositional/sensory checks above handle true felt fragments.
     return false;
   }
 

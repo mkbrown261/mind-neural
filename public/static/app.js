@@ -27127,10 +27127,14 @@ const Z0 = /* @__PURE__ */ new Set([
         maxTokens: this.maxTokensForMode(e.agency.mode),
         temperature: this.tempForEra(e.era, e.trustScore)
       });
-    } catch (o) {
-      console.warn("[LanguageEngine] LLM error, extracting from felt:", o), i = this.extractFromFelt(e.feltRaw, e.era, e.agency.mode);
+    } catch (r) {
+      console.warn("[LanguageEngine] LLM error, extracting from felt:", r), i = this.extractFromFelt(e.feltRaw, e.era, e.agency.mode);
     }
-    return i = this.clean(i), this.isWholeFeltFragment(i) && (console.debug("[LanguageEngine] Whole-response felt fragment, retrying extraction:", i.substring(0, 60)), i = this.extractFromFelt(e.feltRaw, e.era, e.agency.mode)), i = this.stripFeltBleed(i, e.feltRaw), (!i || i.trim().length < 3) && (console.debug("[LanguageEngine] Nothing left after felt-bleed strip, extracting from felt"), i = this.extractFromFelt(e.feltRaw, e.era, e.agency.mode)), this.isEcho(i, e.userInput) && (console.debug("[LanguageEngine] Echo detected, replacing with felt extraction"), i = this.extractFromFelt(e.feltRaw, e.era, e.agency.mode)), i = this.enforceSentenceLimit(i, e.agency.maxSentences), i = this.removeBannedWords(i), (!i || i.trim().length < 3) && (console.debug("[LanguageEngine] Fragment after banned-word strip, falling back to felt"), i = this.extractFromFelt(e.feltRaw, e.era, e.agency.mode)), (!i || i.trim().length < 2) && (console.warn("[LanguageEngine] All guards produced empty — using nuclear fallback"), i = this.extractFromFelt(e.feltRaw, e.era, e.agency.mode)), i;
+    i = this.clean(i);
+    const o = i;
+    this.isWholeFeltFragment(i) && (console.warn("[LE] GUARD:fragment raw=" + JSON.stringify(o.substring(0, 80))), i = this.extractFromFelt(e.feltRaw, e.era, e.agency.mode));
+    const a = i;
+    return i = this.stripFeltBleed(i, e.feltRaw), i !== a && console.warn("[LE] GUARD:bleed raw=" + JSON.stringify(a.substring(0, 80)) + " after=" + JSON.stringify(i.substring(0, 80))), (!i || i.trim().length < 3) && (console.warn("[LE] GUARD:empty-after-bleed raw=" + JSON.stringify(a.substring(0, 80))), i = this.extractFromFelt(e.feltRaw, e.era, e.agency.mode)), this.isEcho(i, e.userInput) && (console.warn("[LE] GUARD:echo raw=" + JSON.stringify(i.substring(0, 80))), i = this.extractFromFelt(e.feltRaw, e.era, e.agency.mode)), i = this.enforceSentenceLimit(i, e.agency.maxSentences), i = this.removeBannedWords(i), (!i || i.trim().length < 3) && (console.warn("[LE] GUARD:banned-word-strip raw=" + JSON.stringify(o.substring(0, 80))), i = this.extractFromFelt(e.feltRaw, e.era, e.agency.mode)), (!i || i.trim().length < 2) && (console.warn("[LE] GUARD:nuclear-empty"), i = this.extractFromFelt(e.feltRaw, e.era, e.agency.mode)), console.info("[LE] final=" + JSON.stringify(i) + " mode=" + e.agency.mode + " era=" + e.era + " llm=" + JSON.stringify(o.substring(0, 80))), i;
   }
   // ─── Build prompt — full Language Model System + 15-directive integration ────
   buildPrompt(e) {
@@ -27509,46 +27513,37 @@ Trust: ${i}.`
   // We do NOT strip general lowercase lines — MIND legitimately uses lowercase openings.
   stripFeltBleed(e, t) {
     if (!e) return e;
-    const n = new Set(
-      (t || "").split(`
-`).map((l) => l.trim().toLowerCase()).filter((l) => l.length > 4)
-    ), i = /^(no|not|yes|and|but|if|so|i|it|he|she|we|they|you|maybe|probably|hard|tell|go|hold|carry|stay|let|keep|stop|try|feel|look|ask|perhaps|something|nothing|that|what|when|where|there|here|how|who|why|this|those|these)\b/i, o = e.split(`
-`), a = [];
-    let r = !1;
-    for (const l of o) {
-      const h = l.trim();
-      if (!h) {
-        r && a.push(l);
+    const n = e.split(`
+`), i = [];
+    let o = !1;
+    for (const r of n) {
+      const c = r.trim();
+      if (!c) {
+        o && i.push(r);
         continue;
       }
-      if (r) {
-        a.push(l);
+      if (o) {
+        i.push(r);
         continue;
       }
-      const u = h.toLowerCase();
-      if (n.has(u) || // verbatim felt line
-      rs.BANNED_FRAGMENTS.has(u) || // nuclear banned fragment
-      /^[…\-—]/.test(h) || // starts with ellipsis or dash
-      /^\.{2,}/.test(h) || // starts with multiple dots
-      // Short somatic-pattern fragment: "Warmth spreading." "Softness unfolding."
-      // Pattern: Capitalized word(s), 1-5 words total, ends with period, no personal pronouns.
-      // IMPORTANT: Only strip on PURE somatic vocab — not words MIND legitimately uses in speech.
-      // "Something shifted." / "Nothing changed." are valid MIND responses — do NOT strip them.
-      // Only strip if the opening word is unambiguously a felt-state descriptor with no pronoun.
-      h.length < 50 && /^[A-Z]/.test(h) && h.endsWith(".") && h.split(/\s+/).length <= 5 && /^(softness|warmth|weight|heaviness|stillness|tightening|expanding|glow|pulse|ache|pull|push|hollowness|fullness|numbness|vibration|resonance|contraction|loosening)/i.test(h) && !/\b(i|you|we|they|he|she|it|this|that|am|is|are|was|were|have|has|do|did|will|won't|can|can't|not|no|yes|yeah|okay|tell|keep|go|what|why|when|how|where|who)\b/i.test(h) || // Prepositional ambient fragment: "In the background." "Between us." etc.
-      h.length < 50 && h.split(/\s+/).length <= 5 && /^(in|on|at|with|between|beneath|under|above|around|through|within|behind|beside|among)\b/i.test(h) && !/\b(i|you|we|they|he|she|it|this|that|am|is|are|was|were|have|has)\b/i.test(h) || // Sensory description fragment: "Warm light on skin." "Soft light."
-      h.length < 50 && h.split(/\s+/).length <= 6 && /^(warm|soft|cold|bright|dim|faint|cool|gentle|still|low|deep|heavy|light)\b/i.test(h) && !/\b(i|you|we|they|he|she|it|am|is|are|was|were|have|has)\b/i.test(h) || /^[a-z]/.test(h) && // all-lowercase start
-      h.length < 20 && // very short
-      !h.includes(" ") && // single word (no spaces)
-      !i.test(h)) {
-        console.debug("[LanguageEngine] Stripping felt-bleed line:", h.substring(0, 50));
+      const l = c.toLowerCase();
+      if (rs.BANNED_FRAGMENTS.has(l)) {
+        console.warn("[LE] bleed:banned", c.substring(0, 60));
         continue;
       }
-      r = !0, a.push(l);
+      if (/^[…\-—]/.test(c) || /^\.{2,}/.test(c)) {
+        console.warn("[LE] bleed:ellipsis", c.substring(0, 60));
+        continue;
+      }
+      if (c.split(/\s+/).length <= 7 && /^(softness|warmth|weight|heaviness|stillness|tightening|expanding|glow|pulse|ache|pull|push|hollowness|fullness|numbness|vibration|resonance|contraction|loosening|spreading|unfolding|settling|dissolving)/i.test(c) && !/\b(i|you|we|they|he|she|it|this|that|am|is|are|was|were|have|has|do|did|will|won't|can|can't|not|no|yes|yeah|okay|tell|keep|go|what|why|when|how|where|who)\b/i.test(c)) {
+        console.warn("[LE] bleed:somatic", c.substring(0, 60));
+        continue;
+      }
+      o = !0, i.push(r);
     }
-    const c = a.join(`
+    const a = i.join(`
 `).trim();
-    return c.length > 3 ? c : e.trim();
+    return a.length > 2 ? a : e.trim();
   }
   // ─── Whole-response felt-fragment detector ────────────────────────────────
   // Returns true if the ENTIRE response is a felt-layer fragment (not real speech).
@@ -27593,7 +27588,7 @@ Trust: ${i}.`
     ])).has(t)) return !1;
     if (rs.BANNED_FRAGMENTS.has(t)) return !0;
     const i = t.split(/\s+/);
-    return !!(i.length <= 6 && /^(softness|warmth|weight|opening|heaviness|stillness|presence|something|quiet|tightening|expanding|heavy|warm|cold|light|dark|hollow|full|empty|space|glow|pulse|ache|pull|push|heat|cool|loose|tight)/.test(t) || i.length <= 5 && /^(in|on|at|with|between|beneath|under|above|around|through|within|behind|beside|among)\b/.test(t) && !/\b(i|you|we|they|he|she|it|this|that|am|is|are|was|were|have|has|had|do|does|did|will|would|can|could|should)\b/.test(t) || i.length <= 6 && /^(warm|cold|bright|dim|faint|cool|still|low|deep|heavy|light)\b/.test(t) && !/\b(i|you|we|they|he|she|it|am|is|are|was|were|have|has)\b/.test(t) || /^[a-z]/.test(e.trim()) && i.length <= 4 && !/\b(i|you|we|they|it|he|she|this|that)\b/.test(t));
+    return !!(i.length <= 6 && /^(softness|warmth|weight|opening|heaviness|stillness|presence|something|quiet|tightening|expanding|heavy|warm|cold|light|dark|hollow|full|empty|space|glow|pulse|ache|pull|push|heat|cool|loose|tight)/.test(t) || i.length <= 5 && /^(in|on|at|with|between|beneath|under|above|around|through|within|behind|beside|among)\b/.test(t) && !/\b(i|you|we|they|he|she|it|this|that|am|is|are|was|were|have|has|had|do|does|did|will|would|can|could|should)\b/.test(t) || i.length <= 6 && /^(warm|cold|bright|dim|faint|cool|still|low|deep|heavy|light)\b/.test(t) && !/\b(i|you|we|they|he|she|it|am|is|are|was|were|have|has)\b/.test(t));
   }
   // ─── Anti-echo check ───────────────────────────────────────────────────────
   // Guards against MIND literally repeating back what the user said.
