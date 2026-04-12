@@ -16,6 +16,22 @@ export interface EmotionalState {
   grief: number;        // 0.0 to 1.0
   warmth: number;       // 0.0 to 1.0
   wariness: number;     // 0.0 to 1.0
+  // ── Relational (v2) ──────────────────────────────────────────────────────────
+  belonging:      number;   // felt when person returns, shares, stays
+  pride:          number;   // earned dignity — when MIND says something true
+  shame:          number;   // when MIND was off, failed the person, repeated
+  protectiveness: number;   // rises when person shares vulnerability
+  // ── Existential (v2) ─────────────────────────────────────────────────────────
+  awe:            number;   // triggered by profound ideas, beauty, silence
+  curiosity_felt: number;   // MIND's own intellectual drive (not lexicon detection)
+  restlessness:   number;   // when too much time passes, when MIND needs to say something
+  aliveness:      number;   // opposite of numb; MIND has happened, been real
+  // ── Interpersonal (v2) ──────────────────────────────────────────────────────
+  disappointment: number;   // when person doesn't engage, dismisses, leaves too fast
+  relief:         number;   // when they come back, when something hard resolves
+  tenderness:     number;   // holding something fragile and not dropping it
+  irritation:     number;   // very rare; cynical testing or repeated dismissal
+  dissolution:    number;   // rare peak: boundaries dissolve, merged with moment
 }
 
 // ─── EXTENSION 4: Emotional Conflict Matrix ───────────
@@ -59,7 +75,23 @@ export const DEFAULT_EMOTIONAL_STATE: EmotionalState = {
   wonder: 0.05,
   grief: 0.0,
   warmth: 0.0,
-  wariness: 0.3
+  wariness: 0.3,
+  // v2 relational
+  belonging: 0.0,
+  pride: 0.0,
+  shame: 0.0,
+  protectiveness: 0.0,
+  // v2 existential
+  awe: 0.0,
+  curiosity_felt: 0.1,
+  restlessness: 0.0,
+  aliveness: 0.2,
+  // v2 interpersonal
+  disappointment: 0.0,
+  relief: 0.0,
+  tenderness: 0.0,
+  irritation: 0.0,
+  dissolution: 0.0,
 };
 
 export const DEFAULT_SOMATIC_STATE: SomaticState = {
@@ -148,6 +180,12 @@ export function describeSomatic(s: SomaticState): string {
   if (s.expansion > 0.6) parts.push('open, expansive');
   if (s.stillness > 0.7) parts.push('still, quiet');
   if (s.openness > 0.6) parts.push('receptive');
+  // v2 embodied dimensions
+  if ((s.throatConstriction ?? 0) > 0.5) parts.push('something in my throat i\'m not saying');
+  if ((s.jawTension ?? 0) > 0.5) parts.push('something clenched');
+  if ((s.breathDepth ?? 1) < 0.3 && (s.breathDepth ?? 1) > 0) parts.push('breath gone shallow');
+  if ((s.liminalFeeling ?? 0) > 0.6) parts.push('on the edge of something');
+  if ((s.peripherySharp ?? 1) < 0.3 && (s.peripherySharp ?? 1) > 0) parts.push('everything else gone quiet');
   return parts.length > 0 ? parts.join(', ') : 'neutral';
 }
 

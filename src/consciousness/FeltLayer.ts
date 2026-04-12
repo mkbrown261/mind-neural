@@ -163,10 +163,10 @@ Generate felt interior now (3-5 lowercase fragments only):`.trim();
       [e.wonder,   'something opening'],
       [e.anxiety,  'uncertain'],
       [e.warmth,   'warmth'],
-      [e.longing,  'missing something'],
-      [e.joy,      'light'],
-      [e.anger,    'tightening'],
-      [e.wariness, 'careful'],
+      [e.longing,      'missing something'],
+      [e.aliveness,    'light'],
+      [e.irritation,   'tightening'],
+      [e.wariness,     'careful'],
     ];
     signals.sort((a, b) => b[0] - a[0]);
     for (const [strength, fragment] of signals.slice(0, 2)) {

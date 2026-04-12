@@ -56,7 +56,23 @@ export const ONBOARDING_INITIAL_ESE: EmotionalState = {
   wonder:   0.1,
   grief:    0.0,
   warmth:   0.0,
-  wariness: 0.3
+  wariness: 0.3,
+  // v2 relational
+  belonging:      0.0,
+  pride:          0.0,
+  shame:          0.0,
+  protectiveness: 0.0,
+  // v2 existential
+  awe:            0.0,
+  curiosity_felt: 0.1,
+  restlessness:   0.0,
+  aliveness:      0.2,
+  // v2 interpersonal
+  disappointment: 0.0,
+  relief:         0.0,
+  tenderness:     0.0,
+  irritation:     0.0,
+  dissolution:    0.0,
 };
 
 export const ONBOARDING_INITIAL_SSM: SomaticState = {

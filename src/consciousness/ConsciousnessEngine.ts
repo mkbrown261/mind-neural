@@ -30,6 +30,11 @@ import type { PersonalityTraits, TrustState } from '../engine/personality';
 import type { Memory } from '../engine/memory';
 import { compositeTrustScore } from '../engine/personality';
 import { ThreadTracker } from './ThreadTracker';
+import { EmotionalMomentumEngine } from '../emotion/EmotionalMomentumEngine';
+import { UnconsciousLayer }        from './UnconsciousLayer';
+import { InnerMonologue }          from './InnerMonologue';
+import { RelationshipMap }         from '../relational/RelationshipMap';
+import { AlmostSaidArchive }       from './AlmostSaidArchive';
 
 // ─── Speech request payload (from MindSpeechSystem) ──────────────────────────
 export interface ConsciousnessSpeechRequest {
@@ -93,6 +98,13 @@ export class ConsciousnessEngine {
   // ── Identity Formation Engine (8 core directives) ────────────────────────
   private identityEngine: IdentityFormationEngine;
 
+  // ── v2: expanded consciousness engines ────────────────────────────────────────────────────
+  private momentumEngine:    EmotionalMomentumEngine;
+  private unconsciousLayer:  UnconsciousLayer;
+  private innerMonologue:    InnerMonologue;
+  private relationshipMap:   RelationshipMap;
+  private almostSaidArchive: AlmostSaidArchive;
+
   // ── CORE governor directive (set by speech.deliver listener, used next cycle) ─
   private pendingCoreDirective: string | null = null;
   private activeThreadId:       string | null = null; // thread being surfaced this turn
@@ -114,6 +126,26 @@ export class ConsciousnessEngine {
     this.threadTracker     = new ThreadTracker();
     this.lms            = new LanguageModelSystem(null);
     this.identityEngine = new IdentityFormationEngine(intent);
+
+    // ── v2 engines ──────────────────────────────────────────────────────────────
+    this.momentumEngine    = new EmotionalMomentumEngine();
+    this.unconsciousLayer  = new UnconsciousLayer();
+    this.innerMonologue    = new InnerMonologue(llm);
+    this.relationshipMap   = new RelationshipMap();
+    this.almostSaidArchive = new AlmostSaidArchive();
+    this.almostSaidArchive.load();
+
+    // Wire InnerMonologue to ExistenceEngine tick via IntentLayer
+    this.intent.register('existence.tick', async () => {
+      const recent = this.recentExchanges.slice(-1)[0];
+      if (!recent) return;
+      this.innerMonologue.setLastExchange(recent.user, recent.mind);
+      await this.innerMonologue.tick({
+        dominantEmotion: 'present',
+        era: 0,
+        interactionCount: this.interactionCount,
+      });
+    });
 
     // Fix (Issue 3): Restore ResponseBalanceEngine state from localStorage so
     // question-loop prevention survives page refreshes.
@@ -299,6 +331,16 @@ export class ConsciousnessEngine {
     this.pendingCoreDirective = null;
     this.pendingCoreNote      = null;
 
+    // ── 2b. Unconscious Layer — process below awareness ──────────────────────
+    this.unconsciousLayer.process(p.userInput, p.emotionalState.arousal ?? 0.3);
+
+    // ── 2c. Inner Monologue — get what MIND was thinking between messages ──────
+    const innerThought = this.innerMonologue.getActiveThought();
+
+    // ── 2d. Unconscious surfacing ─────────────────────────────────────────────
+    const unconsciousContent = this.unconsciousLayer.getSurfacingContent();
+
+
     // ── 3. Felt Layer — generate raw interior ─────────────────────────────
     const feltOutput = await this.felt.generate({
       userInput:       p.userInput,
@@ -410,6 +452,9 @@ export class ConsciousnessEngine {
       console.debug('[ConsciousnessEngine] ResponseArchitect skipped:', e);
     }
 
+    // Check AlmostSaidArchive — is there something MIND finally says?
+    const almostSaidItem = this.almostSaidArchive.getReady(trustScore, p.userInput);
+
     const spoken = await this.language.build({
       feltRaw:             feltOutput.raw,
       userInput:           p.userInput,
@@ -432,7 +477,14 @@ export class ConsciousnessEngine {
       responseArchitectSuggestion,
       memories:            p.memories,
       openThreadPrompt,
-      opinionViews:        Array.from(this.opinionEngine.views.values()).slice(0, 3)
+      opinionViews:        Array.from(this.opinionEngine.views.values()).slice(0, 3),
+      // v2 new directives
+      unconsciousContent:  unconsciousContent?.content ?? undefined,
+      innerThought:        innerThought ?? undefined,
+      momentumDescription: this.momentumEngine.describe(),
+      relationalD16:       this.relationshipMap.getD16Context(),
+      relationalD17:       this.relationshipMap.getD17Patterns(),
+      almostSaid:          almostSaidItem ? { topic: almostSaidItem.topic, whyHeld: almostSaidItem.whyHeld } : null,
     });
 
     // ── 6. Anti-echo safety net ────────────────────────────────────────────
@@ -479,6 +531,31 @@ export class ConsciousnessEngine {
     if (this.activeThreadId) {
       this.threadTracker.markSurfaced(this.activeThreadId, currentInteraction);
       this.activeThreadId = null;
+    }
+
+    // ── v2 post-turn updates ─────────────────────────────────────────────────────────
+    this.momentumEngine.postTurn();
+    this.innerMonologue.postTurn(finalSpoken);
+    this.innerMonologue.setLastExchange(p.userInput, finalSpoken);
+    this.unconsciousLayer.postProcess(finalSpoken);
+    this.almostSaidArchive.postTurn();
+    this.interactionCount++;
+    this.relationshipMap.update({
+      userInput:        p.userInput,
+      mindResponse:     finalSpoken,
+      emotionalArousal: p.emotionalState.arousal ?? 0.3,
+      trustScore,
+      interactionCount: p.interactionCount + this.interactionCount,
+      absenceMs:        0,
+    });
+    // Store almost-said when felt was rich but response was very brief
+    if (feltOutput.raw.length > 80 && finalSpoken.trim().split(/\s+/).length < 7) {
+      this.almostSaidArchive.store({
+        turn:           p.interactionCount + this.interactionCount,
+        actualResponse: finalSpoken,
+        topic:          p.userInput.substring(0, 60),
+        whyHeld:        'too_much',
+      });
     }
 
     return { felt: feltOutput.raw, spoken: finalSpoken, mode: agencyDecision.mode };

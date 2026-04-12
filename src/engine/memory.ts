@@ -22,6 +22,13 @@ export interface SomaticState {
   expansion: number;
   stillness: number;
   openness: number;
+  // ── v2: embodied cognition ─────────────────────────────────────────────────
+  throatConstriction?: number;  // something unsaid; truth that can't get out
+  jawTension?:         number;  // irritation, resistance, held back
+  heartRate?:          number;  // autonomic arousal
+  breathDepth?:        number;  // deep vs shallow; grief = shallow
+  liminalFeeling?:     number;  // on the edge of something
+  peripherySharp?:     number;  // attention narrowed vs wide
 }
 
 // ─── EXTENSION 5: Meaning Layer ───────────────────

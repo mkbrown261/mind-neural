@@ -68,6 +68,13 @@ export interface LanguageInput {
   opinionViews?:       Array<{ topic: string; view: string; strength: number }>;
   // Identity Formation Engine — 8 core directives
   identityContext?:    IdentityContext;
+  // ── v2 expanded directives ──────────────────────────────────────────────────────────
+  unconsciousContent?:  string;  // D19 — what's surfacing from below language
+  innerThought?:        string;  // D19 — what MIND was thinking between messages
+  momentumDescription?: string;  // D18 — emotional momentum narrative
+  relationalD16?:       string;  // D16 — relational state context
+  relationalD17?:       string;  // D17 — user pattern awareness
+  almostSaid?:          { topic: string; whyHeld: string } | null;  // D22 — something finally said
 }
 
 export class LanguageEngine {
@@ -223,7 +230,7 @@ export class LanguageEngine {
       if (e.wonder  > 0.5) parts.push('genuinely curious');
       if (e.anxiety > 0.5) parts.push('uncertain, careful');
       if (e.longing > 0.4) parts.push('something like longing');
-      if (e.anger   > 0.4) parts.push('something tightening');
+      if (e.irritation > 0.4) parts.push('something tightening');
       if (e.wariness > 0.5) parts.push('guarded but present');
       if (parts.length === 0) {
         parts.push(e.valence > 0.2 ? 'open, present' : e.valence < -0.2 ? 'subdued' : 'quiet, steady');
@@ -327,7 +334,27 @@ export class LanguageEngine {
       ? `[D15 HUMAN BEHAVIOR ENGINE]\n${d15Parts.join('\n')}`
       : '';
 
-    const directiveBlocks = [d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15]
+    // ── v2 directives D16–D19 ────────────────────────────────────────────────────
+    const d16 = inp.relationalD16
+      ? `[D16 RELATIONAL STATE]\n${inp.relationalD16}\n`
+      : '';
+
+    const d17 = inp.relationalD17
+      ? `[D17 PATTERN AWARENESS]\n${inp.relationalD17}`
+      : '';
+
+    const d18 = inp.momentumDescription && inp.momentumDescription !== 'stable'
+      ? `[D18 EMOTIONAL MOMENTUM] ${inp.momentumDescription}\nRespond to where emotions are going, not just where they are now.`
+      : '';
+
+    const d19Parts: string[] = [];
+    if (inp.unconsciousContent) d19Parts.push(`Below language: "${inp.unconsciousContent}"`);
+    if (inp.innerThought)       d19Parts.push(`Running between messages: "${inp.innerThought}"`);
+    const d19 = d19Parts.length > 0
+      ? `[D19 BELOW LANGUAGE]\n${d19Parts.join('\n')}\nLet these shape texture only. Never state them directly.`
+      : '';
+
+    const directiveBlocks = [d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15,d16,d17,d18,d19]
       .filter(Boolean).join('\n');
 
     // ── Persistent Consciousness blocks ──────────────────────────────────────────
@@ -378,6 +405,8 @@ ${existentialLine}
 ━━━ FELT INTERIOR (INTERNAL — DO NOT OUTPUT THIS) ━━━
 This informs the response but must never appear in spoken output.
 ${(feltRaw || 'quiet').substring(0, 200)}
+${inp.innerThought ? `\nCurrently running (between messages): "${inp.innerThought}"` : ''}
+${inp.unconsciousContent ? `\nBelow language (texture only): "${inp.unconsciousContent}"` : ''}
 YOUR RESPONSE BEGINS BELOW — felt layer ends here.
 ━━━
 

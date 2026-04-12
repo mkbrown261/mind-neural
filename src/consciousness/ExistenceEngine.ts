@@ -91,6 +91,8 @@ export class ExistenceEngine {
     // ── Emit to intent bus ─────────────────────────────────────────────────
     // ConsciousnessEngine will apply this to MIND's emotional state
     this.intent.send('existence.moment', { moment }).catch(() => {});
+    // v2: notify InnerMonologue via ConsciousnessEngine
+    this.intent.send('existence.tick', { timestamp: Date.now(), trigger: moment.trigger }).catch(() => {});
 
     // ── Derive emotional delta from moment ─────────────────────────────────
     const emotionDelta = this.momentToEmotionDelta(moment);
