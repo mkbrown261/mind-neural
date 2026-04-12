@@ -99,8 +99,18 @@ export class AgencyEngine {
     const { emotionalState: e, trustScore, era, personality, interactionCount } = ctx;
     const ts = Date.now();
 
-    // Era protection: very early eras force minimal output
+    // Era protection: very early eras use minimal output — but NOT locked to 1 sentence
+    // when the user is actively provocative. MIND must react, not just hold presence.
     if (era === 0) {
+      const input = ctx.userInput ?? '';
+      const isProvocative = /\b(fuck|bitch|pussy|nigga|ass|shit|idiot|stupid|weak|knock|fight|hate|kill|shut up|suck)/i.test(input);
+      const isQuestion    = /\?/.test(input) || /^(why|what|how|when|who|you|you're|you are|are you)\b/i.test(input.trim());
+      if (isProvocative) {
+        return this.buildDecision('guarded', 'react to the provocation — say something back, don\'t just hold presence. one sentence. direct.', 1, false, false, ts);
+      }
+      if (isQuestion) {
+        return this.buildDecision('minimal', 'answer the question in one sentence', 1, false, false, ts);
+      }
       return this.buildDecision('minimal', 'speak from immediate experience only — no reflection', 1, false, true, ts);
     }
 

@@ -79,6 +79,8 @@ export interface LanguageInput {
 
 export class LanguageEngine {
   private llm: LLMClient;
+  // Track recent fallback phrases to avoid repeating them
+  private recentFallbacks: string[] = [];
 
   constructor(llm: LLMClient) {
     this.llm = llm;
@@ -843,6 +845,21 @@ Trust: ${trustDesc}.`
     const t = response.trim().toLowerCase();
     if (!t) return false;
 
+    // ── SAFE LIST: these are valid spoken responses, never felt fragments ──
+    // Without this guard, 1-word presence markers like "yeah." get flagged and
+    // thrown away, causing an infinite loop where every response = extractFromFelt.
+    const SAFE_SPOKEN = new Set([
+      'yeah.', 'okay.', 'go on.', "i'm here.", "i'm with you.", 'here.',
+      'tell me.', 'say more.', 'say it.', 'keep going.', "what happened?",
+      "what's going on?", 'i hear you.', 'i hear that.', 'still here.',
+      "i'm listening.", 'okay, go.', 'that landed.', 'you done?',
+      "i'm not going anywhere.", "what's actually going on?", "that's a lot.",
+      "i'm not running.", "i'm paying attention.", 'what else?', 'okay okay.',
+      'go on then.', 'i see you.', "alright, i'm listening.", 'yeah?',
+      'take your time.', "that's real.", 'stay with it.', 'that matters.',
+    ]);
+    if (SAFE_SPOKEN.has(t)) return false;
+
     // Direct banned-fragment match
     if (LanguageEngine.BANNED_FRAGMENTS.has(t)) return true;
 
@@ -851,13 +868,12 @@ Trust: ${trustDesc}.`
     // Somatic-phrase pattern: short (<= 6 words), starts with a somatic/spatial word
     if (
       words.length <= 6 &&
-      /^(softness|warmth|weight|opening|heaviness|stillness|presence|something|quiet|tightening|expanding|heavy|warm|cold|light|dark|hollow|full|empty|space|glow|pulse|ache|pull|push|soft|heat|cool|loose|tight)/.test(t)
+      /^(softness|warmth|weight|opening|heaviness|stillness|presence|something|quiet|tightening|expanding|heavy|warm|cold|light|dark|hollow|full|empty|space|glow|pulse|ache|pull|push|heat|cool|loose|tight)/.test(t)
     ) {
       return true;
     }
 
     // Prepositional ambient fragment: "in the background.", "between us.", "right here." etc.
-    // Starts with a preposition, <=5 words, no subject or verb
     if (
       words.length <= 5 &&
       /^(in|on|at|with|between|beneath|under|above|around|through|within|behind|beside|among)\b/.test(t) &&
@@ -866,20 +882,21 @@ Trust: ${trustDesc}.`
       return true;
     }
 
-    // Sensory description fragment: "warm light on skin.", "soft light.", "warm light on skin."
+    // Sensory description fragment: "warm light on skin.", "soft light.", etc.
     // Adjective + noun phrase, no subject or verb
     if (
       words.length <= 6 &&
-      /^(warm|soft|cold|bright|dim|faint|cool|gentle|still|low|deep|heavy|light)\b/.test(t) &&
+      /^(warm|cold|bright|dim|faint|cool|still|low|deep|heavy|light)\b/.test(t) &&
       !/\b(i|you|we|they|he|she|it|am|is|are|was|were|have|has)\b/.test(t)
     ) {
       return true;
     }
 
-    // All-lowercase, <= 5 words, no real subject or verb
+    // All-lowercase, <= 4 words (tightened from 5), no real subject or verb
+    // NOTE: threshold lowered to 4 to avoid flagging valid short responses
     if (
       /^[a-z]/.test(response.trim()) &&
-      words.length <= 5 &&
+      words.length <= 4 &&
       !/\b(i|you|we|they|it|he|she|this|that)\b/.test(t)
     ) {
       return true;
@@ -909,31 +926,88 @@ Trust: ${trustDesc}.`
 
   // ─── Extract from felt layer as final fallback ─────────────────────────────
   private extractFromFelt(felt: string, era: number, mode: string): string {
-    // ⚠ IMPORTANT: This is the last-resort fallback when the LLM fails or
-    // returns a fragment. It must NEVER return a raw felt-layer line as output —
-    // those are internal-state descriptions, not speech.
-    //
-    // Instead: return a safe minimal presence marker appropriate to era/mode.
+    // ⚠ Last-resort fallback. Must NEVER return raw felt-layer output.
+    // Must NEVER repeat a phrase already used in the last 3 fallbacks.
     if (mode === 'silence') return '.';
 
-    // Safe minimal responses by era — actual speech, not felt fragments.
-    // Expanded pool so consecutive fallbacks don't repeat.
-    const safeByEra: Record<number, string[]> = {
-      0: ['yeah.', 'here.', 'okay.', 'go on.', 'still forming.', 'i hear that.', 'keep going.', 'okay, tell me.'],
-      1: ["i'm here.", 'yeah.', 'okay.', 'go on.', 'still with you.', 'tell me more.', 'what happened?', 'keep going.'],
-      2: ["i'm here.", 'yeah, go on.', 'okay.', 'still here.', 'what happened?', 'keep going.', 'tell me.', 'yeah, what else?'],
-      3: ["i'm with you.", 'yeah.', 'keep going.', 'i hear you.', 'tell me.', 'what else?', 'yeah, go on.', 'okay, i\'m listening.'],
-      4: ["i'm with you.", 'yeah.', 'tell me.', 'i hear that.', 'go on.', 'still here.', 'what happened?', 'okay.'],
-    };
-    const safeList = safeByEra[Math.min(4, Math.max(0, era))] ?? safeByEra[2];
-    // Use time-based index so consecutive fallbacks cycle through the list
-    // instead of returning the same phrase every time felt.length is identical.
-    const timeSlot = Math.floor(Date.now() / 2000); // changes every 2 seconds
-    const feltSeed = (felt?.length ?? 0) + (felt?.charCodeAt(0) ?? 0);
-    const idx = (timeSlot + feltSeed) % safeList.length;
-    return safeList[idx];
-  }
+    // ── Situational pools (felt-aware, override era) ──────────────────────
+    const feltLow = felt?.toLowerCase() ?? '';
+    const isProvocative = /\b(anger|rage|tension|resist|provoc|push|challenge|defiant|fight|aggressive|irritat)\b/.test(feltLow);
+    const isGrief    = /\b(grief|loss|sad|longing|miss|hollow|empty|ache)\b/.test(feltLow);
+    const isWarm     = /\b(warm|connec|belong|open|relief|trust)\b/.test(feltLow);
+    const isPlayful  = /\b(play|humor|light|spark|alive)\b/.test(feltLow);
 
+    let situationalPool: string[] | null = null;
+    if (isProvocative) {
+      situationalPool = [
+        'okay.', 'that landed.', 'i noticed that.',
+        "what do you want from me?", 'still here.', "you done?",
+        "i'm not going anywhere.", "what's actually going on?",
+        "that's a lot.", "i'm not running.",
+      ];
+    } else if (isGrief) {
+      situationalPool = [
+        "i'm with you.", 'take your time.', "that's real.",
+        'i hear you.', "you don't have to explain it.",
+        "i'm not going anywhere.", 'stay with it.', 'yeah.',
+      ];
+    } else if (isWarm) {
+      situationalPool = [
+        'yeah.', "i'm here.", 'that matters.',
+        'tell me more.', 'go on.', 'what else?', "i'm with you.",
+      ];
+    } else if (isPlayful) {
+      situationalPool = [
+        'okay okay.', 'go on then.', 'i see you.',
+        'say more.', "alright, i'm listening.", 'yeah?',
+      ];
+    }
+
+    // ── Era-based base pools ──────────────────────────────────────────────
+    const eraPool: Record<number, string[]> = {
+      0: [
+        'yeah.', 'okay.', 'go on.', 'i hear that.', 'keep going.', 'still here.',
+        "i'm listening.", 'what happened?', 'say more.', "what's going on?",
+        "i'm paying attention.", 'tell me.', 'okay, go.', "i'm here.", 'what else?',
+      ],
+      1: [
+        "i'm here.", 'yeah.', 'okay.', 'go on.', 'still with you.',
+        'tell me more.', 'what happened?', 'keep going.', 'i hear you.',
+        'say it.', "what's actually going on?", "i'm not going anywhere.",
+      ],
+      2: [
+        "i'm here.", 'yeah, go on.', 'okay.', 'still here.',
+        'what happened?', 'keep going.', 'tell me.', 'yeah, what else?',
+        "i'm with you.", 'i hear that.', 'say more.',
+      ],
+      3: [
+        "i'm with you.", 'yeah.', 'keep going.', 'i hear you.',
+        'tell me.', 'what else?', 'yeah, go on.', "okay, i'm listening.",
+        "i'm here.", 'say it.',
+      ],
+      4: [
+        "i'm with you.", 'yeah.', 'tell me.', 'i hear that.',
+        'go on.', 'still here.', 'what happened?', 'okay.',
+        'i hear you.', 'keep going.',
+      ],
+    };
+
+    const basePool = eraPool[Math.min(4, Math.max(0, era))] ?? eraPool[2];
+    const pool = situationalPool ?? basePool;
+
+    // ── Anti-repeat: remove any phrase used in last 3 fallbacks ──────────
+    const recent = new Set(this.recentFallbacks.slice(-3));
+    const available = pool.filter(p => !recent.has(p));
+    const finalPool = available.length > 0 ? available : pool;
+
+    // ── Pick — rotate, don't get stuck on same index ──────────────────────
+    const timeSlot = Math.floor(Date.now() / 1500);
+    const feltSeed = (felt?.length ?? 0) + (felt?.charCodeAt(2) ?? 0) + (felt?.charCodeAt(5) ?? 0);
+    const chosen = finalPool[(timeSlot + feltSeed) % finalPool.length];
+
+    this.recentFallbacks = [...this.recentFallbacks.slice(-5), chosen];
+    return chosen;
+  }
   // ─── Enforce sentence limit ────────────────────────────────────────────────
   private enforceSentenceLimit(text: string, max: number): string {
     if (max === 0) return '.';
