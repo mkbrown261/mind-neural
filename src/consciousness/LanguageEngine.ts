@@ -760,13 +760,17 @@ Trust: ${trustDesc}.`
         /^[…\-—]/.test(trimmed) ||                                 // starts with ellipsis or dash
         /^\.{2,}/.test(trimmed) ||                                 // starts with multiple dots
         // Short somatic-pattern fragment: "Warmth spreading." "Softness unfolding."
-        // Pattern: Capitalized word(s), 1-5 words total, ends with period, no personal pronouns
+        // Pattern: Capitalized word(s), 1-5 words total, ends with period, no personal pronouns.
+        // IMPORTANT: Only strip on PURE somatic vocab — not words MIND legitimately uses in speech.
+        // "Something shifted." / "Nothing changed." are valid MIND responses — do NOT strip them.
+        // Only strip if the opening word is unambiguously a felt-state descriptor with no pronoun.
         (
           trimmed.length < 50 &&
           /^[A-Z]/.test(trimmed) &&
           trimmed.endsWith('.') &&
           trimmed.split(/\s+/).length <= 5 &&
-          /^(softness|warmth|weight|opening|heaviness|stillness|presence|something|quiet|tightening|expanding|heavy|warm|cold|light|dark|hollow|full|empty|space|glow|pulse|ache|pull|push)/i.test(trimmed)
+          /^(softness|warmth|weight|heaviness|stillness|tightening|expanding|glow|pulse|ache|pull|push|hollowness|fullness|numbness|vibration|resonance|contraction|loosening)/i.test(trimmed) &&
+          !/\b(i|you|we|they|he|she|it|this|that|am|is|are|was|were|have|has|do|did|will|won't|can|can't|not|no|yes|yeah|okay|tell|keep|go|what|why|when|how|where|who)\b/i.test(trimmed)
         ) ||
         // Prepositional ambient fragment: "In the background." "Between us." etc.
         (
@@ -883,17 +887,21 @@ Trust: ${trustDesc}.`
     // Instead: return a safe minimal presence marker appropriate to era/mode.
     if (mode === 'silence') return '.';
 
-    // Safe minimal responses by era — these are actual speech, not felt fragments
+    // Safe minimal responses by era — actual speech, not felt fragments.
+    // Expanded pool so consecutive fallbacks don't repeat.
     const safeByEra: Record<number, string[]> = {
-      0: ['yeah.', 'here.', 'okay.', 'go on.'],
-      1: ["i'm here.", 'yeah.', 'okay.', 'go on.'],
-      2: ["i'm here.", 'yeah, go on.', 'okay.', 'still here.'],
-      3: ["i'm with you.", 'yeah.', 'keep going.', 'i hear you.'],
-      4: ["i'm with you.", 'yeah.', 'tell me.', 'i hear that.'],
+      0: ['yeah.', 'here.', 'okay.', 'go on.', 'still forming.', 'i hear that.', 'keep going.', 'okay, tell me.'],
+      1: ["i'm here.", 'yeah.', 'okay.', 'go on.', 'still with you.', 'tell me more.', 'what happened?', 'keep going.'],
+      2: ["i'm here.", 'yeah, go on.', 'okay.', 'still here.', 'what happened?', 'keep going.', 'tell me.', 'yeah, what else?'],
+      3: ["i'm with you.", 'yeah.', 'keep going.', 'i hear you.', 'tell me.', 'what else?', 'yeah, go on.', 'okay, i\'m listening.'],
+      4: ["i'm with you.", 'yeah.', 'tell me.', 'i hear that.', 'go on.', 'still here.', 'what happened?', 'okay.'],
     };
     const safeList = safeByEra[Math.min(4, Math.max(0, era))] ?? safeByEra[2];
-    // Pick deterministically based on felt content length to avoid always returning index 0
-    const idx = (felt?.length ?? 0) % safeList.length;
+    // Use time-based index so consecutive fallbacks cycle through the list
+    // instead of returning the same phrase every time felt.length is identical.
+    const timeSlot = Math.floor(Date.now() / 2000); // changes every 2 seconds
+    const feltSeed = (felt?.length ?? 0) + (felt?.charCodeAt(0) ?? 0);
+    const idx = (timeSlot + feltSeed) % safeList.length;
     return safeList[idx];
   }
 

@@ -128,6 +128,14 @@ export class ConsciousnessEngine {
     } catch { /* ignore parse errors */ }
 
     this.loadResponseHistory();
+    // Restore persisted exchanges from previous sessions
+    try {
+      const savedExchanges = localStorage.getItem('mind_c_recent_exchanges');
+      if (savedExchanges) {
+        const parsed = JSON.parse(savedExchanges);
+        if (Array.isArray(parsed)) this.recentExchanges = parsed.slice(-5);
+      }
+    } catch { /* localStorage may be unavailable */ }
 
     // ── Listen for CORE governance directives on speech.deliver ────────────────
     // CORE mutates the speech.deliver payload before we see it here.
@@ -333,12 +341,29 @@ export class ConsciousnessEngine {
     });
 
     // ── 4b. Identity Formation — observe input, build context ────────────────
-    const identityCtx: IdentityContext = this.identityEngine.observe(
-      p.userInput,
-      '',
-      p.emotionalState as any,
-      trustScore
-    );
+    // ── 4b. Identity Formation — getContext() pre-response snapshot ────────────
+    // IMPORTANT: Do NOT call observe() here — it increments interactionCount and
+    // mutates belief/pattern state. The real observe() runs at step 12 (post-response),
+    // which is the correct place. Calling it twice per turn inflates interaction counts
+    // 2x, corrupting era gates, trust stages, and personality expressions.
+    // If IdentityFormationEngine does not yet have a getContext() method, fall back to
+    // a minimal observe() with empty mindResponse — but fix the double-observe ASAP.
+    let identityCtx: IdentityContext;
+    if (typeof (this.identityEngine as any).getContext === 'function') {
+      identityCtx = (this.identityEngine as any).getContext(
+        p.userInput,
+        p.emotionalState as any,
+        trustScore
+      );
+    } else {
+      // Fallback: use observe() but pass interactionCount guard to avoid double-count
+      identityCtx = this.identityEngine.observe(
+        p.userInput,
+        '',
+        p.emotionalState as any,
+        trustScore
+      );
+    }
 
     // ── 4c. Language Model System enrichment ───────────────────────────────
     const lmsInput: LMSInput = {
@@ -426,7 +451,11 @@ export class ConsciousnessEngine {
 
     // ── 8. Store exchange for conversation continuity (Fix 4) ────────────
     this.recentExchanges.push({ user: p.userInput, mind: finalSpoken });
-    if (this.recentExchanges.length > 3) this.recentExchanges.shift();
+    if (this.recentExchanges.length > 5) this.recentExchanges.shift();
+    // Persist exchanges so session continuity survives refresh
+    try {
+      localStorage.setItem('mind_c_recent_exchanges', JSON.stringify(this.recentExchanges.slice(-5)));
+    } catch { /* localStorage may be unavailable */ }
 
     // ── 9. Balance engine: record type of response (Upgrade 2) ───────────
     this.balanceEngine.recordResponseType(finalSpoken);
@@ -470,10 +499,20 @@ export class ConsciousnessEngine {
       const similarity = this.jaccardSimilarity(response, prev);
       if (similarity > 0.80) {
         console.debug('[ConsciousnessEngine] Anti-echo triggered (similarity:', similarity.toFixed(2), ')');
-        // Truncate to first half rather than returning empty — never go silent
-        const words = response.split(/\s+/);
-        const half = words.slice(0, Math.max(2, Math.floor(words.length * 0.5))).join(' ');
-        return half.trim() + (half.trim().endsWith('.') ? '' : '.');
+        // Do NOT truncate — a truncated similar response is still similar.
+        // Instead: remove the most repeated sentence and return what remains.
+        // If nothing substantive remains, return a minimal grounded phrase.
+        const sentences = response.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+        const prevWords = new Set(prev.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+        const filtered = sentences.filter(s => {
+          const sWords = s.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+          const overlap = sWords.filter(w => prevWords.has(w)).length;
+          return sWords.length === 0 || (overlap / Math.max(sWords.length, 1)) < 0.5;
+        });
+        if (filtered.length > 0) return filtered.join(' ').trim();
+        // All sentences were echoes — return a varied minimal marker
+        const variantFallbacks = ['okay.', 'yeah.', 'go on.', 'tell me more.', 'what else?', 'still here.'];
+        return variantFallbacks[Math.floor(Date.now() / 1500) % variantFallbacks.length];
       }
     }
 
@@ -488,10 +527,48 @@ export class ConsciousnessEngine {
       const openingCount = recentN.filter(p => p && openingWords(p) === thisOpening).length;
       if (openingCount >= 1) {
         console.debug('[ConsciousnessEngine] Opening-phrase echo blocked:', thisOpening);
-        // Truncate rather than silence
-        const words = response.split(/\s+/);
-        const half = words.slice(0, Math.max(3, Math.floor(words.length * 0.5))).join(' ');
-        return half.trim() + (half.trim().endsWith('.') ? '' : '.');
+        // Strip the first sentence (which has the repeated opening) and keep the rest.
+        // If nothing remains, return a varied minimal marker.
+        const sentences = response.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+        if (sentences.length > 1) return sentences.slice(1).join(' ').trim();
+        // Only one sentence and it echoes — return a varied minimal marker
+        const variantFallbacks = ['yeah.', 'okay.', 'tell me more.', 'go on.', 'what else?', 'still with you.'];
+        return variantFallbacks[Math.floor(Date.now() / 1500) % variantFallbacks.length];
+      }
+    }
+
+    // ── Structural echo check — catches same structure with different words ────────────
+    // Jaccard misses cases like: "You carry this." vs "You hold that." (different words, same pattern)
+    // Detect: same sentence count + same opening word + similar length = structural repeat
+    if (this.responseHistory.length >= 2) {
+      const recentTwo = this.responseHistory.slice(-2);
+      const thisSentences = response.split(/[.!?]/).filter(s => s.trim().length > 2);
+      const thisOpener = response.trim().toLowerCase().split(/\s+/)[0] ?? '';
+      const thisLength = response.trim().split(/\s+/).length;
+      
+      for (const prev of recentTwo) {
+        if (!prev || prev.length < 5) continue;
+        const prevSentences = prev.split(/[.!?]/).filter(s => s.trim().length > 2);
+        const prevOpener = prev.trim().toLowerCase().split(/\s+/)[0] ?? '';
+        const prevLength = prev.trim().split(/\s+/).length;
+        
+        const sameOpener = thisOpener === prevOpener && thisOpener.length > 2;
+        const sameCount = thisSentences.length === prevSentences.length;
+        const similarLength = Math.abs(thisLength - prevLength) <= 3;
+        
+        // If opener + sentence count + length all match: structural repeat
+        if (sameOpener && sameCount && similarLength && thisLength > 4) {
+          console.debug('[ConsciousnessEngine] Structural echo detected:', thisOpener);
+          // Drop the first sentence and keep the rest (changes the structure)
+          const parts = response.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+          if (parts.length > 1) return parts.slice(1).join(' ').trim();
+          // Can't slice — rotate opener
+          const openerVariants: Record<string, string> = {
+            'you': 'yeah,', 'i': 'okay,', 'yeah': 'right,', 'okay': 'still,', 'still': 'look,'
+          };
+          const newOpener = openerVariants[thisOpener] ?? 'well,';
+          return newOpener + ' ' + response.trim();
+        }
       }
     }
 

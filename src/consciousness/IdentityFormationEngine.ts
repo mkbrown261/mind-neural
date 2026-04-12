@@ -300,7 +300,20 @@ export class IdentityFormationEngine {
     return ctx;
   }
 
-  // ─── Build the context object injected into LanguageEngine.buildPrompt() ──
+  // ─── Read-only context snapshot — does NOT mutate state ──────────────────
+  // Use this for the pre-response identity context pass in ConsciousnessEngine.
+  // The full observe() call (which increments interactionCount and updates beliefs)
+  // should only happen once per turn, AFTER the response is built.
+  getContext(
+    userInput:   string,
+    emotionalTone?: { warmth?: number; grief?: number; wonder?: number; anxiety?: number },
+    trustScore?: number
+  ): IdentityContext {
+    // buildContext is a pure reader — safe to call without mutating interactionCount
+    return this.buildContext(userInput, trustScore ?? 0.3);
+  }
+
+    // ─── Build the context object injected into LanguageEngine.buildPrompt() ──
   private buildContext(userInput: string, trustScore: number): IdentityContext {
     const n = this.identity.interactionCount;
 
